@@ -881,12 +881,12 @@ body::before {
 }
 
 .game-detail-modal {
-  width: 100vw; height: 100vh;
-  max-width: 100vw; max-height: 100vh;
-  border-radius: 0; padding: 0;
+  width: 92vw; height: 88vh;
+  max-width: 960px; max-height: 680px;
+  border-radius: 16px; padding: 0;
   background: var(--bg);
-  border: none; box-shadow: none;
-  transform: none !important;
+  border: 1px solid var(--border2);
+  box-shadow: 0 32px 80px rgba(0,0,0,0.65), 0 4px 20px rgba(0,0,0,0.4);
   display: flex; overflow: hidden;
   position: relative;
 }
@@ -916,11 +916,11 @@ body::before {
 
 /* LEFT PANEL */
 .game-detail-cover-col {
-  width: 290px; flex-shrink: 0;
+  width: 220px; flex-shrink: 0;
   display: flex; flex-direction: column;
   align-items: center;
-  padding: 28px 22px 24px;
-  gap: 12px;
+  padding: 20px 16px 16px;
+  gap: 10px;
   border-right: 1px solid var(--border);
   background: rgba(8,8,16,0.35);
   overflow-y: auto;
@@ -928,10 +928,10 @@ body::before {
 .game-detail-cover-col::-webkit-scrollbar { width: 0; }
 
 .game-detail-cover {
-  width: 190px; height: 253px;
-  border-radius: 12px; overflow: hidden;
+  width: 150px; height: 200px;
+  border-radius: 10px; overflow: hidden;
   background: var(--surface2);
-  box-shadow: 0 32px 64px rgba(0,0,0,0.8), 0 6px 20px rgba(0,0,0,0.5);
+  box-shadow: 0 20px 48px rgba(0,0,0,0.7), 0 4px 12px rgba(0,0,0,0.4);
   flex-shrink: 0;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
@@ -1022,13 +1022,13 @@ body::before {
 .detail-header-strip {
   display: flex; align-items: flex-start;
   justify-content: space-between; gap: 16px;
-  padding: 32px 72px 20px 36px; /* 72px right gives room for the fixed close btn */
+  padding: 20px 52px 14px 24px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
 .game-detail-title {
   font-family: 'Syne', sans-serif;
-  font-size: 28px; font-weight: 900;
+  font-size: 22px; font-weight: 900;
   color: var(--text); line-height: 1.1;
   letter-spacing: -0.5px;
 }
@@ -1036,7 +1036,7 @@ body::before {
 /* Scrollable body */
 .detail-scroll {
   flex: 1; overflow-y: auto;
-  padding: 22px 36px 16px;
+  padding: 14px 24px 12px;
 }
 .detail-scroll::-webkit-scrollbar { width: 3px; }
 .detail-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -1046,7 +1046,7 @@ body::before {
 .game-detail-section-label {
   font-size: 9px; text-transform: uppercase;
   letter-spacing: 1.8px; color: var(--text3);
-  margin-bottom: 8px; margin-top: 18px; font-weight: 700;
+  margin-bottom: 6px; margin-top: 12px; font-weight: 700;
 }
 .game-detail-section-label:first-child { margin-top: 0; }
 
@@ -1091,7 +1091,7 @@ body::before {
 /* Actions bar pinned to bottom */
 .detail-actions-row {
   display: flex; gap: 7px; flex-wrap: wrap;
-  padding: 14px 36px;
+  padding: 10px 24px;
   border-top: 1px solid var(--border);
   flex-shrink: 0;
   background: rgba(8,8,16,0.6);
@@ -1120,8 +1120,21 @@ body::before {
 .find-art-btn { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.75); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,0.15); color:white; font-size:10px; font-weight:600; padding:4px 10px; border-radius:20px; cursor:pointer; z-index:3; white-space:nowrap; opacity:0; transition:opacity 0.15s; font-family:'Syne',sans-serif; }
 
 /* ── STATUS BAR ── */
-#statusBar { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(60px); background:var(--surface3); border:1px solid var(--border2); border-radius:24px; padding:9px 20px; font-size:12px; font-weight:600; color:var(--text); box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:9999; transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s; opacity:0; white-space:nowrap; }
-#statusBar.visible { transform:translateX(-50%) translateY(0); opacity:1; }
+#statusBar { position:fixed; bottom:20px; left:50%; transform:translateX(-50%) translateY(60px); background:var(--surface3); border:1px solid var(--border2); border-radius:24px; padding:9px 16px; font-size:12px; font-weight:600; color:var(--text); box-shadow:0 8px 32px rgba(0,0,0,0.5); z-index:9999; transition:transform 0.25s cubic-bezier(0.34,1.56,0.64,1), opacity 0.2s; opacity:0; white-space:nowrap; pointer-events:none; }
+#statusBar.visible { transform:translateX(-50%) translateY(0); opacity:1; pointer-events:auto; }
+#statusBar.status-success { border-color:rgba(74,222,128,0.35); background:rgba(74,222,128,0.08); }
+#statusBar.status-error   { border-color:rgba(239,83,83,0.35);  background:rgba(239,83,83,0.08); }
+.status-bar-inner { display:flex; align-items:center; gap:10px; }
+.status-bar-track { width:120px; height:3px; background:var(--surface2); border-radius:2px; overflow:hidden; flex-shrink:0; }
+.status-bar-fill  { height:100%; background:var(--steam); border-radius:2px; transition:width 0.3s; }
+.status-bar-fill.indeterminate { width:40% !important; animation:indeterminate 1.4s ease-in-out infinite; }
+.status-bar-spinner { width:13px; height:13px; border:2px solid var(--border2); border-top-color:var(--steam); border-radius:50%; animation:spin 0.7s linear infinite; flex-shrink:0; }
+.status-bar-spinner.hidden { display:none; }
+.status-bar-text { flex:1; min-width:0; }
+.status-bar-dismiss { background:none; border:none; color:var(--text3); cursor:pointer; font-size:14px; line-height:1; padding:0 0 0 4px; flex-shrink:0; }
+.status-bar-dismiss:hover { color:var(--text); }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes indeterminate { 0%{transform:translateX(-100%)} 100%{transform:translateX(400%)} }
 
 /* ── WISHLIST ── */
 .wishlist-grid { display:flex; flex-direction:column; gap:6px; }
@@ -1223,7 +1236,6 @@ body::before {
 #similarGamesOverlay { z-index:800; }
 #mergeOverlay        { z-index:900; }
 #nexusContextMenu    { z-index:9000; }
-#statusBar           { z-index:9999; }
 
 /* ── CONTEXT MENU ── */
 #nexusContextMenu { position:fixed; z-index:9000; background:var(--surface2); border:1px solid var(--border2); border-radius:11px; padding:5px; min-width:210px; box-shadow:0 12px 40px rgba(0,0,0,0.65),0 2px 8px rgba(0,0,0,0.4); opacity:0; transform:scale(0.95); transform-origin:top left; transition:opacity 0.1s ease,transform 0.1s ease; pointer-events:none; }
@@ -1324,3 +1336,21 @@ body::before {
 .discovery-card:hover { border-color:var(--border2); transform:translateY(-2px); }
 .discovery-cover { width:100%; height:80px; overflow:hidden; position:relative; background:var(--surface2); flex-shrink:0; }
 .discovery-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(140px,1fr)); gap:10px; }
+
+/* ── ONBOARDING WIZARD ── */
+.onboard-step-dot { width:8px; height:8px; border-radius:50%; background:var(--border2); transition:all 0.2s; cursor:pointer; }
+.onboard-step-dot.active { background:var(--steam); width:20px; border-radius:4px; }
+.onboard-step-dot.done   { background:rgba(74,222,128,0.6); }
+.onboard-field-group { margin-bottom:18px; }
+.onboard-field-label { font-size:11px; font-weight:700; color:var(--text3); letter-spacing:1px; text-transform:uppercase; margin-bottom:6px; }
+.onboard-field-desc { font-size:12px; color:var(--text3); margin-bottom:10px; line-height:1.6; }
+.onboard-field-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.onboard-field-row .settings-input { flex:1; min-width:0; }
+.onboard-status { font-size:11px; margin-top:8px; padding:6px 10px; border-radius:6px; }
+.onboard-status.ok  { color:#4ade80; background:rgba(74,222,128,0.08); border:1px solid rgba(74,222,128,0.2); }
+.onboard-status.err { color:#f87171; background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.2); }
+.onboard-status.info { color:var(--text2); background:var(--surface2); border:1px solid var(--border); }
+.onboard-skip-link { font-size:11px; color:var(--text3); cursor:pointer; text-decoration:underline; margin-top:8px; display:inline-block; }
+.onboard-skip-link:hover { color:var(--text2); }
+.onboard-platform-card { border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px; background:var(--surface); }
+.onboard-platform-card h3 { font-size:13px; font-weight:700; color:var(--text); margin-bottom:6px; }

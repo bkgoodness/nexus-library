@@ -79,8 +79,8 @@ async function init() {
   }).catch(function(){});
   // Start Steam auto-tracking if previously enabled (after a short delay)
   setTimeout(initSteamAutoTracking, 5000);
-  // Check Epic free games badge
-  setTimeout(checkFreeGamesBadge, 8000);
+  // Check for first-launch onboarding (delay slightly so app renders first)
+  setTimeout(function() { openOnboarding(true); }, 1000);
 }
 
 // ── EVENT LISTENERS ──
@@ -262,7 +262,13 @@ function setupEventListeners() {
   }
   wire('rawgSaveBtn',    'click', saveRawgKey);
   wire('igdbSaveBtn',    'click', saveIGDBAndFetch);
-  wire('igdbRefreshBtn', 'click', function() { bulkFetchMissingArt(); });
+  wire('igdbRefreshBtn', 'click', function() { bulkFetchMissingArt(false); });
+  wire('igdbRefetchAllBtn', 'click', function() { bulkFetchMissingArt(true); });
+  wire('fullResetBtn',   'click', openFullResetDialog);
+  wire('openOnboardingBtn', 'click', function() { openOnboarding(false); });
+  wire('resetConfirmInput', 'input', function() {
+    document.getElementById('resetConfirmBtn').disabled = this.value !== 'RESET';
+  });
   wire('refreshSteamCacheBtn', 'click', refreshSteamCache);
   // Show cache status when settings page opens
   document.querySelectorAll('.nav-item').forEach(function(icon) {
@@ -1389,25 +1395,57 @@ function setText(id, val) {
 }
 
 // ── STATUS BAR ──
-function showStatus(text, pct) {
-  var bar   = document.getElementById('statusBar');
-  var fill  = document.getElementById('statusBarFill');
-  var label = document.getElementById('statusBarText');
+var _statusHideTimer = null;
+
+function showStatus(text, pct, opts) {
+  // opts: { type: 'success'|'error'|'info', autohide: ms }
+  opts = opts || {};
+  var bar     = document.getElementById('statusBar');
+  var fill    = document.getElementById('statusBarFill');
+  var track   = document.getElementById('statusBarTrack');
+  var label   = document.getElementById('statusBarText');
+  var spinner = document.getElementById('statusBarSpinner');
   if (!bar) return;
-  bar.style.display = 'block';
+
+  // Clear any pending auto-hide
+  if (_statusHideTimer) { clearTimeout(_statusHideTimer); _statusHideTimer = null; }
+
+  bar.classList.remove('status-success', 'status-error', 'visible');
+  if (opts.type === 'success') bar.classList.add('status-success');
+  if (opts.type === 'error')   bar.classList.add('status-error');
+
   label.textContent = text;
-  if (pct === undefined || pct < 0) {
-    fill.classList.add('indeterminate');
-    fill.style.width = '';
-  } else {
-    fill.classList.remove('indeterminate');
-    fill.style.width = pct + '%';
+
+  var isIdle = (pct === 100 || opts.type === 'success' || opts.type === 'error');
+
+  // Spinner: show while actively working, hide when done
+  if (spinner) spinner.className = 'status-bar-spinner' + (isIdle ? ' hidden' : '');
+
+  // Progress track
+  if (track) track.style.display = (pct === undefined || pct < 0 || isIdle) ? 'none' : 'block';
+  if (fill) {
+    if (pct === undefined || pct < 0) {
+      fill.classList.add('indeterminate');
+      fill.style.width = '';
+    } else {
+      fill.classList.remove('indeterminate');
+      fill.style.width = pct + '%';
+    }
+  }
+
+  void bar.offsetWidth; // force reflow before adding visible
+  bar.classList.add('visible');
+
+  // Auto-hide completed/error states after a delay
+  if (isIdle || opts.autohide) {
+    _statusHideTimer = setTimeout(hideStatus, opts.autohide || 3000);
   }
 }
 
 function hideStatus() {
   var bar = document.getElementById('statusBar');
-  if (bar) bar.style.display = 'none';
+  if (bar) bar.classList.remove('visible');
+  if (_statusHideTimer) { clearTimeout(_statusHideTimer); _statusHideTimer = null; }
 }
 
 function updateCounts() {
@@ -2207,6 +2245,7 @@ async function importGOG() {
   btn.textContent = 'Importing…';
   feedback.textContent = 'Reading GOG Galaxy database…';
   feedback.className = 'settings-feedback';
+  showStatus('Importing GOG library…', -1);
   try {
     var result = await window.nexus.gog.importFromDB();
     games = await window.nexus.games.getAll();
@@ -2214,6 +2253,7 @@ async function importGOG() {
     var syncTime = new Date(result.lastSync).toLocaleTimeString();
     feedback.textContent = 'Imported ' + result.total + ' GOG games (' + result.added + ' new, ' + result.merged + ' merged). Synced at ' + syncTime + '.';
     feedback.className = 'settings-feedback ok';
+    showStatus('✓ GOG import complete — ' + result.added + ' added', 100, {type:'success'});
     document.getElementById('gogLastSyncLabel').textContent = 'Last synced: ' + syncTime;
     // update sidebar
     var gogStatus = document.querySelector('.sidebar-row[data-filter="gog"] .sidebar-row-sub');
@@ -2221,6 +2261,7 @@ async function importGOG() {
   } catch (err) {
     feedback.textContent = 'Error: ' + err.message;
     feedback.className = 'settings-feedback err';
+    showStatus('✗ GOG import failed: ' + err.message, 100, {type:'error'});
   } finally {
     btn.disabled = false;
     btn.textContent = 'Import GOG Library';
@@ -2299,6 +2340,7 @@ async function importEpicHeroic() {
   btn.textContent = 'Importing…';
   feedback.textContent = 'Reading Heroic Games Launcher library…';
   feedback.className = 'settings-feedback';
+  showStatus('Importing Epic & Amazon via Heroic…', -1);
   try {
     var result = await window.nexus.epic.importFromHeroic();
     games = await window.nexus.games.getAll();
@@ -2313,6 +2355,7 @@ async function importEpicHeroic() {
     }
     feedback.textContent = msg + 'Synced at ' + syncTime + '.';
     feedback.className = 'settings-feedback ok';
+    showStatus('✓ Heroic import complete', 100, {type:'success'});
     setText('epicLastSyncLabel', 'Last synced: ' + syncTime);
     var epicStatus = document.getElementById('epic-status');
     if (epicStatus) epicStatus.textContent = 'Synced ✓';
@@ -2321,6 +2364,7 @@ async function importEpicHeroic() {
   } catch (err) {
     feedback.textContent = 'Error: ' + err.message;
     feedback.className = 'settings-feedback err';
+    showStatus('✗ Heroic import failed: ' + err.message, 100, {type:'error'});
   } finally {
     btn.disabled = false;
     btn.textContent = 'Import via Heroic';
@@ -2935,12 +2979,37 @@ var coverSearchFromDetail = false;
 
 function cleanTitleForSearch(title) {
   if (!title) return title;
-  // Strip known platform/service suffixes added by Amazon Gaming imports
   return title
-    .replace(/\s*[-–]\s*Amazon\s*(Prime|Luna|Gaming)?\s*$/i, '')
-    .replace(/\s*\(Amazon\s*(Prime|Luna|Gaming)?\)\s*$/i, '')
+    // Strip trademark/copyright symbols, replacing with a space to avoid joining words
+    .replace(/\s*[\u2122\u00ae\u00a9]\s*/g, ' ')
+    // Strip Amazon/Epic/GOG/Prime service suffixes
+    .replace(/\s*[-–]\s*Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\s*$/i, '')
+    .replace(/\s*\(Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\)\s*$/i, '')
+    .replace(/\s*[-–]\s*Prime\s*(Gaming|Giveaway)?\s*$/i, '')
+    .replace(/\s*\(Prime\s*(Gaming|Giveaway)?\)\s*$/i, '')
     .replace(/\s*[-–]\s*Epic\s*Games?\s*$/i, '')
-    .replace(/\s*[-–]\s*GOG\.?COM?\s*$/i, '')
+    .replace(/\s*[-–]\s*GOG\.?CO?M?\s*$/i, '')
+    // Strip Xbox platform suffixes — covers dash, space, or "for" variants,
+    // and mangled separators: X|S, X/S, XIS, "X S"
+    .replace(/\s+for\s+Xbox\b.*$/i, '')
+    .replace(/\s*[-–]\s*Xbox\b.*$/i, '')
+    .replace(/\s+Xbox\s+Series\s+X[\|\/\s]?I?S?\s*$/i, '')
+    .replace(/\s+Xbox\s+(One|360|Series\s*X?\s*S?)?\s*$/i, '')
+    // Strip platform/OS suffixes
+    .replace(/\s*[-–]\s*Windows\s*(Edition|Version|10|11)?\s*$/i, '')
+    .replace(/\s*\((WIN|Windows|PC)\)\s*$/i, '')
+    .replace(/\s*\[(WIN|Windows|PC)\]\s*$/i, '')
+    // Strip collector's/special edition shorthands
+    .replace(/\s*[-–]\s*(CE|SE|GE|VE)\s*$/i, '')
+    // Strip edition/version noise
+    .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s+(Edition|Version|Cut)?\s*$/i, '')
+    .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s*$/i, '')
+    .replace(/\s*\(GOTY\)\s*$/i, '')
+    .replace(/\s+(Edition|Version)\s*$/i, '')
+    .replace(/^ARCADE GAME SERIES:\s*/i, '')
+    .replace(/\s*\((PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
+    .replace(/\s*\[(PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
@@ -3610,6 +3679,7 @@ async function importXboxLibrary() {
   btn.textContent = 'Importing…';
   feedback.textContent = 'Fetching your Xbox achievement history…';
   feedback.className = 'settings-feedback';
+  showStatus('Importing Xbox library…', -1);
   try {
     var result = await window.nexus.xbox.request('/api/v2/achievements', openxblApiKey);
     if (result.error) throw new Error('OpenXBL request failed (HTTP ' + result.status + ')');
@@ -3682,6 +3752,7 @@ async function importXboxLibrary() {
     await window.nexus.store.set('xboxLastSync', Date.now());
     feedback.textContent = '\u2713 Xbox library imported! ' + added + ' new games added, ' + updated + ' updated, ' + skipped + ' skipped.';
     feedback.className = 'settings-feedback ok';
+    showStatus('✓ Xbox import complete — ' + added + ' added, ' + updated + ' updated', 100, {type:'success'});
     // Update sidebar sync status
     var xboxSyncSt = document.getElementById('xbox-sync-status');
     if (xboxSyncSt) { xboxSyncSt.textContent = 'Synced · ' + added + ' games'; xboxSyncSt.className = 'account-status status-ok'; }
@@ -3690,6 +3761,7 @@ async function importXboxLibrary() {
   } catch(e) {
     feedback.textContent = '\u2717 Import failed: ' + e.message;
     feedback.className = 'settings-feedback err';
+    showStatus('✗ Xbox import failed: ' + e.message, 100, {type:'error'});
   } finally {
     btn.disabled = false;
     btn.textContent = 'Import Xbox Library';
@@ -3705,6 +3777,7 @@ async function importGamePassCatalog() {
   feedback.textContent = 'Fetching PC Game Pass catalog…';
   feedback.className = 'settings-feedback';
   feedback.textContent = 'Fetching PC Game Pass catalog from Microsoft… this may take 30–60 seconds.';
+  showStatus('Syncing Game Pass catalog…', -1);
   try {
     var list = await window.nexus.xbox.gamepassCatalog();
     if (!Array.isArray(list) || !list.length) throw new Error('No titles returned from Game Pass catalog API');
@@ -3771,9 +3844,11 @@ async function importGamePassCatalog() {
     feedback.textContent = '\u2713 Game Pass catalog synced! ' + added + ' titles added to the catalog. ' +
       'They appear only when filtering by "Game Pass" in the sidebar — never mixed with your owned games.';
     feedback.className = 'settings-feedback ok';
+    showStatus('✓ Game Pass synced — ' + added + ' titles', 100, {type:'success'});
   } catch(e) {
     feedback.textContent = '\u2717 Catalog sync failed: ' + e.message;
     feedback.className = 'settings-feedback err';
+    showStatus('✗ Game Pass sync failed: ' + e.message, 100, {type:'error'});
   } finally {
     btn.disabled = false;
     btn.textContent = 'Sync Game Pass Catalog';
@@ -6521,3 +6596,374 @@ window.spinRandomGame = function() {
       '</div>' +
     '</div>';
 };
+
+// ── BULK COVER ART FETCH ──
+
+async function bulkFetchMissingArt(forceAll) {
+  if (!igdbClientId || !igdbClientSecret) {
+    showStatus('⚠ Add IGDB credentials in Settings first', 100, {type:'error'});
+    return;
+  }
+  if (forceAll) {
+    // Clear cover cache so everything gets re-fetched
+    coverCache = {};
+    await window.nexus.covers.saveCache({});
+    showStatus('Re-fetching all cover art from scratch…', 0);
+  } else {
+    showStatus('Fetching missing cover art…', 0);
+  }
+  await fetchCoversInBackground();
+}
+
+// ── FULL RESET ──
+
+function openFullResetDialog() {
+  document.getElementById('resetConfirmInput').value = '';
+  document.getElementById('resetConfirmBtn').disabled = true;
+  document.getElementById('fullResetOverlay').classList.add('open');
+}
+
+function closeFullResetDialog() {
+  document.getElementById('fullResetOverlay').classList.remove('open');
+}
+
+async function executeFullReset() {
+  try {
+    showStatus('Wiping all data…', -1);
+    await window.nexus.app.fullReset();
+    // Wipe cover cache file too
+    await window.nexus.covers.saveCache({});
+
+    // Reset ALL in-memory state
+    games = [];
+    coverCache = {};
+    igdbClientId = '';
+    igdbClientSecret = '';
+    rawgApiKey = '';
+    ggdealsApiKey = '';
+    openxblApiKey = '';
+
+    // Clear all Settings input fields and placeholders so nothing lingers
+    var fieldsToClear = [
+      'steamId', 'steamKey',
+      'igdbClientId', 'igdbClientSecret',
+      'rawgApiKey', 'ggdealsApiKey', 'openxblApiKey'
+    ];
+    fieldsToClear.forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) { el.value = ''; el.placeholder = ''; }
+    });
+
+    // Stop any running Steam auto-tracker
+    if (typeof stopSteamAutoTracking === 'function') stopSteamAutoTracking();
+
+    closeFullResetDialog();
+    renderAll();
+    showStatus('✓ Reset complete — all data and credentials wiped', 100, {type:'success'});
+    // Launch onboarding after short delay
+    setTimeout(function() { openOnboarding(true); }, 1500);
+  } catch(e) {
+    showStatus('✗ Reset failed: ' + e.message, 100, {type:'error'});
+  }
+}
+
+// ── ONBOARDING WIZARD ──
+
+var onboardStep = 0;
+var onboardSteps = [
+  {
+    title: 'Welcome to Nexus Library',
+    subtitle: 'Your unified game library across all platforms',
+    render: function() {
+      return '<div style="text-align:center;padding:10px 0 20px">' +
+        '<div style="font-size:48px;margin-bottom:16px">🎮</div>' +
+        '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Let\'s get you set up</div>' +
+        '<div style="font-size:13px;color:var(--text3);line-height:1.7;max-width:400px;margin:0 auto">' +
+          'Nexus pulls your games from Steam, GOG, Epic, Xbox, and more into one place. ' +
+          'We\'ll walk through connecting each account. You can skip any step and do it later in Settings.' +
+        '</div>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'Steam Integration',
+    subtitle: 'Import your Steam library automatically',
+    render: function() {
+      return '<div class="onboard-platform-card">' +
+        '<h3>🔵 Steam</h3>' +
+        '<div class="onboard-field-desc">Steam has a public API. You\'ll need your Steam ID (a 17-digit number) and a free API key.</div>' +
+        '<div class="onboard-field-group">' +
+          '<div class="onboard-field-label">Steam ID</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-steamId" placeholder="76561198000000000" style="flex:1">' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text3);margin-top:5px">Find it at <a href="https://store.steampowered.com/account/" class="settings-link">store.steampowered.com/account</a></div>' +
+        '</div>' +
+        '<div class="onboard-field-group">' +
+          '<div class="onboard-field-label">Steam API Key</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-steamKey" placeholder="Your Steam API key" style="flex:1">' +
+            '<button class="settings-btn" onclick="obConnectSteam()">Connect</button>' +
+          '</div>' +
+          '<div style="font-size:11px;color:var(--text3);margin-top:5px">Get a free key at <a href="https://steamcommunity.com/dev/apikey" class="settings-link">steamcommunity.com/dev/apikey</a></div>' +
+        '</div>' +
+        '<div id="ob-steamStatus"></div>' +
+        '<span class="onboard-skip-link" onclick="obNext()">Skip Steam for now →</span>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'Cover Art — IGDB',
+    subtitle: 'Get beautiful cover art for all your games',
+    render: function() {
+      return '<div class="onboard-platform-card">' +
+        '<h3>🎨 IGDB (Internet Game Database)</h3>' +
+        '<div class="onboard-field-desc">Steam games get cover art automatically. For GOG, Epic, and other games, Nexus uses IGDB — free with a Twitch developer account.</div>' +
+        '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.7">' +
+          '<strong style="color:var(--text)">Quick setup:</strong><br>' +
+          '1. Go to <a href="https://dev.twitch.tv/console" class="settings-link">dev.twitch.tv/console</a><br>' +
+          '2. Register an application (any name, any URL)<br>' +
+          '3. Copy your Client ID and generate a Client Secret' +
+        '</div>' +
+        '<div class="onboard-field-group">' +
+          '<div class="onboard-field-label">IGDB Client ID</div>' +
+          '<input class="settings-input" id="ob-igdbId" placeholder="IGDB Client ID" style="width:100%">' +
+        '</div>' +
+        '<div class="onboard-field-group">' +
+          '<div class="onboard-field-label">IGDB Client Secret</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-igdbSecret" placeholder="IGDB Client Secret" style="flex:1">' +
+            '<button class="settings-btn" onclick="obSaveIGDB()">Save</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="ob-igdbStatus"></div>' +
+        '<span class="onboard-skip-link" onclick="obNext()">Skip for now →</span>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'Epic & Amazon Games',
+    subtitle: 'Import via Heroic Games Launcher',
+    render: function() {
+      return '<div class=\"onboard-platform-card\">' +
+        '<h3>🟡 Epic &nbsp;&amp;&nbsp; 🟠 Amazon Games</h3>' +
+        '<div class=\"onboard-field-desc\">Nexus imports your Epic and Amazon libraries through <strong style=\"color:var(--text)\">Heroic Games Launcher</strong> — a free, open-source app that manages both platforms on Mac, Windows, and Linux.</div>' +
+        '<div style=\"background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.8\">' +
+          '<strong style=\"color:var(--text)\">To enable Epic &amp; Amazon import:</strong><br>' +
+          '1. Download &amp; install <a href=\"https://heroicgameslauncher.com\" class=\"settings-link\" target=\"_blank\">Heroic Games Launcher</a><br>' +
+          '2. Log into your Epic Games account in Heroic<br>' +
+          '3. Log into your Amazon Games account in Heroic<br>' +
+          '4. Let both libraries sync at least once<br>' +
+          '5. Then use <strong style=\"color:var(--text)\">Settings → Import Epic via Heroic</strong>' +
+        '</div>' +
+        '<div style=\"background:rgba(99,179,237,0.07);border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.7\">' +
+          '💡 No API keys needed — Nexus reads Heroic\'s local library files directly.<br>' +
+          'GOG is also supported the same way via Heroic, or directly from the GOG Galaxy database.' +
+        '</div>' +
+        '<span class=\"onboard-skip-link\" onclick=\"obNext()\">Skip — I\'ll set this up later in Settings →</span>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'Xbox & Game Pass',
+    subtitle: 'Connect your Xbox account via OpenXBL',
+    render: function() {
+      return '<div class="onboard-platform-card">' +
+        '<h3>🟩 Xbox / PC Game Pass</h3>' +
+        '<div class="onboard-field-desc">Connect via <strong>OpenXBL</strong> — a free community Xbox API. This imports your personal Xbox library and lets you browse the Game Pass catalog.</div>' +
+        '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;margin-bottom:14px;font-size:11px;color:var(--text2);line-height:1.7">' +
+          '<strong style="color:var(--text)">Setup:</strong><br>' +
+          '1. Go to <a href="https://xbl.io" class="settings-link">xbl.io</a> and create a free account<br>' +
+          '2. Sign in with your Xbox account<br>' +
+          '3. Copy your API key from your profile page' +
+        '</div>' +
+        '<div class="onboard-field-group">' +
+          '<div class="onboard-field-label">OpenXBL API Key</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-xblKey" placeholder="OpenXBL API Key" style="flex:1">' +
+            '<button class="settings-btn" onclick="obSaveXBL()">Connect</button>' +
+          '</div>' +
+        '</div>' +
+        '<div id="ob-xblStatus"></div>' +
+        '<span class="onboard-skip-link" onclick="obNext()">Skip Xbox for now →</span>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'Optional: More Integrations',
+    subtitle: 'These are all free and optional',
+    render: function() {
+      return '<div style="display:flex;flex-direction:column;gap:12px">' +
+        '<div class="onboard-platform-card" style="border-color:rgba(91,163,245,0.15)">' +
+          '<h3 style="margin-bottom:4px">💰 Price Tracking — gg.deals</h3>' +
+          '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Track game prices across 40+ stores. Free API key at <a href="https://gg.deals/api/" class="settings-link">gg.deals/api</a>.</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-ggKey" placeholder="gg.deals API Key (optional)" style="flex:1">' +
+            '<button class="settings-btn" onclick="obSaveGGDeals()">Save</button>' +
+          '</div>' +
+          '<div id="ob-ggStatus"></div>' +
+        '</div>' +
+        '<div class="onboard-platform-card" style="border-color:rgba(91,163,245,0.15)">' +
+          '<h3 style="margin-bottom:4px">🎮 Game Database — RAWG</h3>' +
+          '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Enriches non-Steam games with descriptions & Metacritic scores. Free key at <a href="https://rawg.io/apiv2" class="settings-link">rawg.io/apiv2</a>.</div>' +
+          '<div class="onboard-field-row">' +
+            '<input class="settings-input" id="ob-rawgKey" placeholder="RAWG API Key (optional)" style="flex:1">' +
+            '<button class="settings-btn" onclick="obSaveRawg()">Save</button>' +
+          '</div>' +
+          '<div id="ob-rawgStatus"></div>' +
+        '</div>' +
+      '</div>';
+    }
+  },
+  {
+    title: 'You\'re all set!',
+    subtitle: 'Start exploring your library',
+    render: function() {
+      return '<div style="text-align:center;padding:10px 0 20px">' +
+        '<div style="font-size:48px;margin-bottom:16px">✅</div>' +
+        '<div style="font-size:15px;font-weight:700;color:var(--text);margin-bottom:10px">Setup complete!</div>' +
+        '<div style="font-size:13px;color:var(--text3);line-height:1.7;max-width:400px;margin:0 auto">' +
+          'You can always add or change your API keys in <strong style="color:var(--text)">Settings</strong>. ' +
+          'Epic and Amazon Games require <strong style="color:var(--text)">Heroic Games Launcher</strong> to be installed and synced first — then import them from Settings.<br><br>' +
+          'Enjoy your library!' +
+        '</div>' +
+      '</div>';
+    }
+  }
+];
+
+async function openOnboarding(isFirstLaunch) {
+  // Check if already completed (unless forced)
+  if (!isFirstLaunch) {
+    document.getElementById('onboardingOverlay').classList.add('open');
+    onboardStep = 0;
+    renderOnboardStep();
+    return;
+  }
+  var done = await window.nexus.store.get('onboardingComplete');
+  if (done) return;
+  document.getElementById('onboardingOverlay').classList.add('open');
+  onboardStep = 0;
+  renderOnboardStep();
+}
+
+function closeOnboarding() {
+  document.getElementById('onboardingOverlay').classList.remove('open');
+  window.nexus.store.set('onboardingComplete', true);
+}
+
+function renderOnboardStep() {
+  var step = onboardSteps[onboardStep];
+  document.getElementById('onboardTitle').textContent = step.title;
+  document.getElementById('onboardSubtitle').textContent = step.subtitle;
+  document.getElementById('onboardBody').innerHTML = step.render();
+  document.getElementById('onboardStepLabel').textContent = (onboardStep + 1) + ' of ' + onboardSteps.length;
+
+  // Dots
+  var dotsEl = document.getElementById('onboardDots');
+  dotsEl.innerHTML = '';
+  onboardSteps.forEach(function(_, i) {
+    var d = document.createElement('div');
+    d.className = 'onboard-step-dot' + (i === onboardStep ? ' active' : i < onboardStep ? ' done' : '');
+    d.onclick = function() { onboardStep = i; renderOnboardStep(); };
+    dotsEl.appendChild(d);
+  });
+
+  // Buttons
+  var prevBtn = document.getElementById('onboardPrevBtn');
+  var nextBtn = document.getElementById('onboardNextBtn');
+  prevBtn.style.opacity = onboardStep === 0 ? '0.3' : '1';
+  prevBtn.disabled = onboardStep === 0;
+  var isLast = onboardStep === onboardSteps.length - 1;
+  nextBtn.textContent = isLast ? '✓ Done' : 'Next →';
+  nextBtn.onclick = isLast ? closeOnboarding : obNext;
+  prevBtn.onclick = function() { if (onboardStep > 0) { onboardStep--; renderOnboardStep(); } };
+
+  document.getElementById('onboardCloseBtn').onclick = closeOnboarding;
+}
+
+function obNext() {
+  if (onboardStep < onboardSteps.length - 1) {
+    onboardStep++;
+    renderOnboardStep();
+  } else {
+    closeOnboarding();
+  }
+}
+
+async function obConnectSteam() {
+  var id  = (document.getElementById('ob-steamId')  || {}).value || '';
+  var key = (document.getElementById('ob-steamKey') || {}).value || '';
+  var st  = document.getElementById('ob-steamStatus');
+  if (!id || !key) { st.innerHTML = '<div class="onboard-status err">Please enter both your Steam ID and API key.</div>'; return; }
+  st.innerHTML = '<div class="onboard-status info">Connecting to Steam…</div>';
+  showStatus('Importing Steam library…', -1);
+  try {
+    var result = await window.nexus.steam.importLibrary(id.trim(), key.trim());
+    games = await window.nexus.games.getAll();
+    renderAll();
+    hideStatus();
+    st.innerHTML = '<div class="onboard-status ok">✓ Connected! Imported ' + result.total + ' games.</div>';
+    setTimeout(obNext, 1500);
+  } catch(e) {
+    hideStatus();
+    st.innerHTML = '<div class="onboard-status err">✗ ' + e.message + '</div>';
+  }
+}
+
+async function obSaveIGDB() {
+  var id     = (document.getElementById('ob-igdbId')     || {}).value || '';
+  var secret = (document.getElementById('ob-igdbSecret') || {}).value || '';
+  var st     = document.getElementById('ob-igdbStatus');
+  if (!id || !secret) { st.innerHTML = '<div class="onboard-status err">Enter both Client ID and Secret.</div>'; return; }
+  st.innerHTML = '<div class="onboard-status info">Saving…</div>';
+  try {
+    await window.nexus.covers.saveIGDBCredentials(id.trim(), secret.trim());
+    igdbClientId = id.trim();
+    igdbClientSecret = secret.trim();
+    st.innerHTML = '<div class="onboard-status ok">✓ IGDB credentials saved! Cover art will load automatically.</div>';
+    setTimeout(obNext, 1500);
+  } catch(e) {
+    st.innerHTML = '<div class="onboard-status err">✗ ' + e.message + '</div>';
+  }
+}
+
+async function obSaveXBL() {
+  var key = (document.getElementById('ob-xblKey') || {}).value || '';
+  var st  = document.getElementById('ob-xblStatus');
+  if (!key) { st.innerHTML = '<div class="onboard-status err">Enter your OpenXBL API key.</div>'; return; }
+  st.innerHTML = '<div class="onboard-status info">Testing key…</div>';
+  try {
+    var result = await window.nexus.xbox.request('/api/v2/account', key.trim());
+    if (result.error) throw new Error('Invalid key (HTTP ' + result.status + ')');
+    await window.nexus.store.set('openxblApiKey', key.trim());
+    openxblApiKey = key.trim();
+    var gamertag = '';
+    try {
+      var gt = result.data.profileUsers[0].settings.find(function(s){ return s.id === 'Gamertag'; });
+      if (gt) gamertag = gt.value;
+    } catch(e) {}
+    st.innerHTML = '<div class="onboard-status ok">✓ Connected' + (gamertag ? ' as ' + gamertag : '') + '!</div>';
+    setTimeout(obNext, 1500);
+  } catch(e) {
+    st.innerHTML = '<div class="onboard-status err">✗ ' + e.message + '</div>';
+  }
+}
+
+async function obSaveGGDeals() {
+  var key = (document.getElementById('ob-ggKey') || {}).value || '';
+  var st  = document.getElementById('ob-ggStatus');
+  if (!key) return;
+  await window.nexus.prices.saveKey(key.trim());
+  ggdealsApiKey = key.trim();
+  st.innerHTML = '<div class="onboard-status ok">✓ gg.deals key saved!</div>';
+}
+
+async function obSaveRawg() {
+  var key = (document.getElementById('ob-rawgKey') || {}).value || '';
+  var st  = document.getElementById('ob-rawgStatus');
+  if (!key) return;
+  await window.nexus.store.set('rawgApiKey', key.trim());
+  rawgApiKey = key.trim();
+  st.innerHTML = '<div class="onboard-status ok">✓ RAWG key saved!</div>';
+}

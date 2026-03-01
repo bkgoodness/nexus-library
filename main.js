@@ -831,6 +831,41 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
     results[g.id] = 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + g.steamAppId + '/library_600x900.jpg';
   }
 
+  // Helper: clean a title for IGDB search (strips platform/edition noise)
+  const cleanTitleForSearch = (title) => title
+    // Strip trademark/copyright symbols, replacing with a space to avoid joining words
+    .replace(/\s*[\u2122\u00ae\u00a9]\s*/g, ' ')
+    // Strip Amazon/Epic/GOG/Prime service suffixes
+    .replace(/\s*[-–]\s*Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\s*$/i, '')
+    .replace(/\s*\(Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\)\s*$/i, '')
+    .replace(/\s*[-–]\s*Prime\s*(Gaming|Giveaway)?\s*$/i, '')
+    .replace(/\s*\(Prime\s*(Gaming|Giveaway)?\)\s*$/i, '')
+    .replace(/\s*[-–]\s*Epic\s*Games?\s*$/i, '')
+    .replace(/\s*[-–]\s*GOG\.?CO?M?\s*$/i, '')
+    // Strip Xbox platform suffixes — covers dash, space, or "for" variants,
+    // and mangled separators: X|S, X/S, XIS, "X S"
+    .replace(/\s+for\s+Xbox\b.*$/i, '')
+    .replace(/\s*[-–]\s*Xbox\b.*$/i, '')
+    .replace(/\s+Xbox\s+Series\s+X[\|\/\s]?I?S?\s*$/i, '')
+    .replace(/\s+Xbox\s+(One|360|Series\s*X?\s*S?)?\s*$/i, '')
+    // Strip platform/OS suffixes
+    .replace(/\s*[-–]\s*Windows\s*(Edition|Version|10|11)?\s*$/i, '')
+    .replace(/\s*\((WIN|Windows|PC)\)\s*$/i, '')
+    .replace(/\s*\[(WIN|Windows|PC)\]\s*$/i, '')
+    // Strip collector's/special edition shorthands: - CE, - SE, etc.
+    .replace(/\s*[-–]\s*(CE|SE|GE|VE)\s*$/i, '')
+    // Strip edition/version noise
+    .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s+(Edition|Version|Cut)?\s*$/i, '')
+    .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s*$/i, '')
+    .replace(/\s*\(GOTY\)\s*$/i, '')
+    .replace(/\s+(Edition|Version)\s*$/i, '')
+    .replace(/^ARCADE GAME SERIES:\s*/i, '')
+    .replace(/\s*\((PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
+    .replace(/\s*\[(PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
+    // Collapse any double spaces left behind, then trim
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+
   // IGDB covers - needs credentials
   if (igdbGames.length > 0 && igdbClientId && igdbClientSecret) {
     try {
@@ -871,23 +906,41 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
         }
       };
 
-      // Pass 1: Exact batch name match (IGDB supports up to 500 per request)
+      // Pass 1: Exact batch name match — use cleaned titles, match against both
+      // original and cleaned versions
       const unmatched = [];
       const CHUNK = 500;
       for (let i = 0; i < igdbGames.length; i += CHUNK) {
         const chunk = igdbGames.slice(i, i + CHUNK);
-        const titles = chunk.map(g => '"' + g.title.replace(/"/g, '') + '"').join(',');
-        const query = 'fields name,cover.image_id,genres.name; where name = (' + titles + '); limit ' + CHUNK + ';';
+
+        // Build a map of cleaned title -> original game for matching
+        const cleanedMap = new Map(); // cleanedTitle.lower -> game
+        const originalMap = new Map(); // originalTitle.lower -> game
+        for (const g of chunk) {
+          originalMap.set(g.title.toLowerCase(), g);
+          const cleaned = cleanTitleForSearch(g.title);
+          if (cleaned !== g.title) cleanedMap.set(cleaned.toLowerCase(), g);
+        }
+
+        // Build query using both original and cleaned titles (deduped)
+        const allTitles = new Set([...chunk.map(g => g.title), ...chunk.map(g => cleanTitleForSearch(g.title))]);
+        const titles = [...allTitles].map(t => '"' + t.replace(/"/g, '') + '"').join(',');
+        const query = 'fields name,cover.image_id,genres.name; where name = (' + titles + '); limit ' + Math.min(allTitles.size, CHUNK) + ';';
         const igdbResults = await httpsPost('https://api.igdb.com/v4/games', query, IGDB_HEADERS);
 
         if (Array.isArray(igdbResults)) {
-          const matchedIds = new Set();
+          const matchedGameIds = new Set();
           for (const result of igdbResults) {
-            const match = chunk.find(g => g.title.toLowerCase() === result.name.toLowerCase());
-            if (match) { applyResult(result, match); matchedIds.add(match.id); }
+            const rName = result.name.toLowerCase();
+            // Try original title first, then cleaned
+            const match = originalMap.get(rName) || cleanedMap.get(rName);
+            if (match && !matchedGameIds.has(match.id)) {
+              applyResult(result, match);
+              matchedGameIds.add(match.id);
+            }
           }
           for (const g of chunk) {
-            if (!matchedIds.has(g.id) && !results[g.id]) unmatched.push(g);
+            if (!matchedGameIds.has(g.id) && !results[g.id]) unmatched.push(g);
           }
         }
       }
@@ -902,11 +955,7 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
           try { win.webContents.send('covers:fuzzyProgress', { done: ui, total: unmatched.length, title: g.title }); } catch(e) {}
         }
         try {
-          const searchTitle = g.title
-            .replace(/^ARCADE GAME SERIES:\s*/i, '')
-            .replace(/\s*[-]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remastered?|Edition)\s*$/i, '')
-            .replace(/[\u2122\u00ae\u00a9]/g, '')
-            .trim();
+          const searchTitle = cleanTitleForSearch(g.title);
           const searchQuery = 'search "' + searchTitle.replace(/"/g, '') + '"; fields name,cover.image_id,genres.name; limit 5;';
           const searchResults = await httpsPost('https://api.igdb.com/v4/games', searchQuery, IGDB_HEADERS);
           if (Array.isArray(searchResults) && searchResults.length) {
@@ -1393,6 +1442,52 @@ ipcMain.handle('oc:game', async (_event, id) => {
 // ── NOTIFICATION HISTORY ──
 ipcMain.handle('notif:getHistory', () => store.get('notifHistory', []));
 ipcMain.handle('notif:clearHistory', () => { store.set('notifHistory', []); return true; });
+
+// ── STORE DELETE ──
+ipcMain.handle('store:delete', (_event, key) => { store.delete(key); return true; });
+
+// ── FULL RESET ──
+ipcMain.handle('app:fullReset', () => {
+  // Wipe all game library data
+  store.set('games', []);
+  store.set('nextId', 1);
+  store.set('wishlist', []);
+  store.set('notifHistory', []);
+
+  // Wipe all API credentials
+  store.delete('steamId');
+  store.delete('steamApiKey');
+  store.delete('steamLastSync');
+  store.delete('gogLastSync');
+  store.delete('epicLastSync');
+  store.delete('amazonLastSync');
+  store.delete('xboxLastSync');
+  store.delete('gamepassLastSync');
+  store.delete('igdbClientId');
+  store.delete('igdbClientSecret');
+  store.delete('rawgApiKey');
+  store.delete('openxblApiKey');
+  store.delete('ggdealsApiKey');
+  store.delete('coverOverrides');
+  store.delete('playtimeGoals');
+  store.delete('steamAutoTrack');
+  store.delete('autoSessionTracking');
+  store.delete('steamPlaytimeSnapshot');
+  store.delete('claimedFreeGames');
+  store.delete('onboardingComplete');
+
+  // Wipe all session data
+  const allKeys = Object.keys(store.store);
+  allKeys.filter(k => k.startsWith('sessions:')).forEach(k => store.delete(k));
+
+  // Wipe cover cache (separate store file)
+  coverStore.set('cache', {});
+
+  // Clear cached IGDB token so it doesn't linger
+  igdbTokenCache = null;
+
+  return true;
+});
 
 // ── EXPORT / BACKUP ──
 ipcMain.handle('library:exportJSON', async () => {

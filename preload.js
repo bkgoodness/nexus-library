@@ -65,7 +65,11 @@ contextBridge.exposeInMainWorld('nexus', {
   store: {
     get: (key)           => ipcRenderer.invoke('store:get', key),
     set: (key, value)    => ipcRenderer.invoke('store:set', key, value),
+    delete: (key)        => ipcRenderer.invoke('store:delete', key),
     getByPrefix: (prefix) => ipcRenderer.invoke('store:getByPrefix', prefix),
+  },
+  app: {
+    fullReset: () => ipcRenderer.invoke('app:fullReset'),
   },
   library: {
     exportJSON: () => ipcRenderer.invoke('library:exportJSON'),

@@ -362,9 +362,10 @@
     </div>
 
     <!-- Status bar: shows background operation progress -->
-    <div id="statusBar" class="status-bar" style="display:none">
+    <div id="statusBar" class="status-bar">
       <div class="status-bar-inner">
-        <div class="status-bar-track"><div class="status-bar-fill" id="statusBarFill"></div></div>
+        <div class="status-bar-spinner" id="statusBarSpinner"></div>
+        <div class="status-bar-track" id="statusBarTrack"><div class="status-bar-fill" id="statusBarFill"></div></div>
         <div class="status-bar-text" id="statusBarText"></div>
         <button class="status-bar-dismiss" id="statusBarDismiss" title="Dismiss">×</button>
       </div>
@@ -698,7 +699,8 @@
           <input type="text" class="settings-input" id="igdbClientSecret" placeholder="IGDB Client Secret">
           <div style="display:flex;gap:8px;flex-wrap:wrap">
             <button class="settings-btn" id="igdbSaveBtn">Save &amp; Fetch Art</button>
-            <button class="settings-btn" id="igdbRefreshBtn" title="Re-run art search for all games still missing covers">🔄 Refresh Missing Art</button>
+            <button class="settings-btn" id="igdbRefreshBtn" title="Re-run art search for all games still missing covers">🔄 Fetch Missing Art</button>
+            <button class="settings-btn" id="igdbRefetchAllBtn" title="Re-fetch cover art for every game from scratch" style="border-color:rgba(251,146,60,0.4);color:#fb923c">🔃 Re-fetch All Art</button>
           </div>
         </div>
         <div class="steam-dl-progress" id="igdbFuzzyProgress" style="display:none">
@@ -781,7 +783,15 @@
       <div class="settings-section settings-danger">
         <div class="settings-section-title">⚠ Danger Zone</div>
         <div class="settings-section-desc">Permanently delete all games from your library. This cannot be undone.</div>
-        <button class="settings-btn settings-btn-danger" id="clearLibraryBtn">Clear Entire Library</button>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="settings-btn settings-btn-danger" id="clearLibraryBtn">Clear Library</button>
+          <button class="settings-btn settings-btn-danger" id="fullResetBtn" style="background:rgba(239,83,83,0.15)">☢ Full Reset — Wipe Everything</button>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Setup</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Re-run the first-launch setup wizard to re-enter your API keys.</div>
+          <button class="settings-btn" id="openOnboardingBtn">⚙ Open Setup Wizard</button>
+        </div>
       </div>
     </div>
   </div>
@@ -1107,6 +1117,68 @@
         <button class="settings-btn" onclick="window.spinRandomGame()" style="font-size:11px;padding:5px 12px;margin-left:4px">🎲 Pick</button>
       </div>
       <div id="randomPickerCard"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     ONBOARDING WIZARD
+     ══════════════════════════════════════════════════ -->
+<div class="overlay" id="onboardingOverlay">
+  <div class="modal" style="max-width:600px;width:92vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
+    <div class="modal-header" style="flex-shrink:0">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:22px">🎮</div>
+        <div>
+          <div class="modal-title" id="onboardTitle">Welcome to Nexus Library</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px" id="onboardSubtitle">Let's get your accounts connected</div>
+        </div>
+      </div>
+      <button class="modal-close" id="onboardCloseBtn" title="Skip setup">✕</button>
+    </div>
+
+    <!-- Step dots -->
+    <div style="display:flex;justify-content:center;gap:8px;padding:12px 0 4px;flex-shrink:0" id="onboardDots"></div>
+
+    <!-- Step content -->
+    <div style="flex:1;overflow-y:auto;padding:20px 24px" id="onboardBody"></div>
+
+    <!-- Footer -->
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0">
+      <button class="settings-btn" id="onboardPrevBtn" style="opacity:0.5">← Back</button>
+      <div style="font-size:11px;color:var(--text3)" id="onboardStepLabel"></div>
+      <button class="settings-btn" id="onboardNextBtn" style="background:var(--steam-bg);border-color:var(--steam);color:var(--steam)">Next →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════
+     FULL RESET CONFIRMATION
+     ══════════════════════════════════════════════════ -->
+<div class="overlay" id="fullResetOverlay" onclick="if(event.target===this)closeFullResetDialog()">
+  <div class="modal" style="max-width:440px;width:92vw">
+    <div class="modal-header">
+      <div class="modal-title">☢ Full Reset</div>
+      <button class="modal-close" onclick="closeFullResetDialog()">✕</button>
+    </div>
+    <div style="padding:20px 24px">
+      <div style="background:rgba(239,83,83,0.12);border:2px solid rgba(239,83,83,0.4);border-radius:10px;padding:14px 16px;margin-bottom:16px">
+        <div style="font-size:13px;font-weight:800;color:#f87171;margin-bottom:4px;letter-spacing:0.02em">⚠ THIS CANNOT BE UNDONE</div>
+        <div style="font-size:12px;color:#f87171;margin-bottom:10px;opacity:0.85">There is no way to recover your data after this action.</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.9">
+          ✕ Your entire game library &amp; wishlist<br>
+          ✕ All API keys &amp; credentials<br>
+          ✕ All cover art cache<br>
+          ✕ All play sessions &amp; timers<br>
+          ✕ Goals, tags, ratings &amp; notes
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Type <strong style="color:var(--text)">RESET</strong> to confirm. The app will restart the setup wizard.</div>
+      <input type="text" id="resetConfirmInput" class="settings-input" placeholder="Type RESET here…" style="margin-bottom:16px;width:100%">
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="settings-btn" onclick="closeFullResetDialog()">Cancel</button>
+        <button class="settings-btn settings-btn-danger" id="resetConfirmBtn" disabled onclick="executeFullReset()">☢ Wipe Everything</button>
+      </div>
     </div>
   </div>
 </div>
