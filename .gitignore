@@ -1,0 +1,18 @@
+# Dependency directories
+node_modules/
+
+# OS metadata
+.DS_Store
+Thumbs.db
+
+# Electron build/distribution output
+dist/
+out/
+release/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables (API keys, etc.)
+.env

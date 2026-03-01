@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; script-src 'self' 'unsafe-inline'; img-src 'self' data: https: blob:; connect-src 'self' https://api.gg.deals https://store.steampowered.com https://api.steampowered.com https://api.rawg.io https://rawg.io https://xbl.io https://www.gamerpower.com https://store-site-backend-static.ak.epicgames.com;">
+<title>Nexus Library</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ICON NAV -->
+<nav class="icon-nav">
+  <div class="nav-logo">NX<span>.</span></div>
+
+  <div class="nav-item active" title="Library" data-page="library">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+    </div>
+    <div class="nav-label">Library</div>
+  </div>
+
+  <div class="nav-item" title="Statistics" data-page="stats">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+    </div>
+    <div class="nav-label">Stats</div>
+  </div>
+
+  <div class="nav-item" title="Gaming Habits" data-page="habits">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    </div>
+    <div class="nav-label">Habits</div>
+  </div>
+
+  <div class="nav-item" title="Goals" data-page="goals">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
+    </div>
+    <div class="nav-label">Goals</div>
+  </div>
+
+  <div class="nav-item" title="Friends" data-page="friends">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+    </div>
+    <div class="nav-label">Friends</div>
+  </div>
+
+  <div class="nav-divider"></div>
+
+  <div class="nav-item" title="Wishlist" data-page="wishlist" style="position:relative">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      <div id="navWishPip" class="nav-badge" style="display:none"></div>
+    </div>
+    <div class="nav-label">Wishlist</div>
+  </div>
+
+  <div class="nav-item" title="Free Games" data-page="freegames">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M20 12V22H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>
+      <div id="navFreeGamesPip" class="nav-badge nav-badge-green" style="display:none"></div>
+    </div>
+    <div class="nav-label">Free</div>
+  </div>
+
+  <div class="nav-item" title="Year in Review" data-page="wrapped">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 9l6 6M15 9l-6 6"/></svg>
+    </div>
+    <div class="nav-label">Wrapped</div>
+  </div>
+
+  <div class="nav-spacer"></div>
+
+  <div class="nav-item nav-theme-toggle" id="themeToggleBtn" title="Toggle light/dark mode">
+    <div class="nav-icon-wrap">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+    </div>
+    <div class="nav-label">Theme</div>
+  </div>
+
+  <div class="nav-item" title="Settings" data-page="settings">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    </div>
+    <div class="nav-label">Settings</div>
+  </div>
+</nav>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="sidebar-head">
+    <h2>My Library</h2>
+    <div class="game-count" id="sbTotalCount">0 <span>games</span></div>
+  </div>
+
+  <div class="sidebar-scroll">
+    <div class="sidebar-section-label">Platforms</div>
+    <div class="sidebar-row active" data-filter="all">
+      <div class="sidebar-platform-icon" style="background:rgba(255,255,255,0.05)">🎮</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">All Games</div>
+        <div class="sidebar-row-sub">Every platform</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-all">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="steam">
+      <div class="sidebar-platform-icon" style="background:var(--steam-bg)">🔵</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Steam</div>
+        <div class="sidebar-row-sub" id="steam-status">Not connected</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-steam">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="gog">
+      <div class="sidebar-platform-icon" style="background:var(--gog-bg)">🔴</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">GOG Galaxy</div>
+        <div class="sidebar-row-sub">Import via CSV</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-gog">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="epic">
+      <div class="sidebar-platform-icon" style="background:var(--epic-bg)">🟡</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Epic Games</div>
+        <div class="sidebar-row-sub" id="epic-status">Import via Heroic</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-epic">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="amazon">
+      <div class="sidebar-platform-icon" style="background:var(--amazon-bg)">🟠</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Amazon Games</div>
+        <div class="sidebar-row-sub" id="amazon-status">Import via Heroic</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-amazon">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="xbox">
+      <div class="sidebar-platform-icon" style="background:rgba(16,124,16,0.12)">🟩</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Xbox</div>
+        <div class="sidebar-row-sub" id="xbox-status">Import via OpenXBL</div>
+      </div>
+      <button class="sb-sync-btn" id="sb-xbox-sync-btn" title="Re-import Xbox library">↻</button>
+      <div class="sidebar-row-count" id="sb-count-xbox">0</div>
+    </div>
+
+    <div class="sidebar-section-label" style="margin-top:8px;display:flex;align-items:center;gap:6px">
+      Game Pass
+      <span style="font-size:9px;font-weight:700;background:rgba(82,176,67,0.15);color:#52b043;padding:1px 5px;border-radius:4px;letter-spacing:0.5px">CATALOG</span>
+    </div>
+    <div class="sidebar-row" data-filter="gamepass">
+      <div class="sidebar-platform-icon" style="background:rgba(82,176,67,0.12)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="#52b043" stroke-width="2"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 4a2 2 0 1 1-2 2 2 2 0 0 1 2-2zm5 11H7v-1a5 5 0 0 1 10 0z"/></svg>
+      </div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name" style="color:var(--text2)">PC Game Pass</div>
+        <div class="sidebar-row-sub">Not owned — catalog only</div>
+      </div>
+      <button class="sb-sync-btn" id="sb-gp-sync-btn" title="Sync Game Pass catalog" style="color:#52b043;border-color:rgba(82,176,67,0.3)">↻</button>
+      <div class="sidebar-row-count" id="sb-count-gamepass" style="color:#52b043">0</div>
+    </div>
+
+    <div class="sidebar-section-label" style="margin-top:8px">Filters</div>
+    <div class="sidebar-row dupe-row" data-filter="dupes">
+      <div class="sidebar-platform-icon" style="background:var(--dupe-bg)">⚠️</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Duplicates</div>
+        <div class="sidebar-row-sub">Owned on 2+ platforms</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-dupes" style="color:var(--dupe)">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="noart">
+      <div class="sidebar-platform-icon" style="background:rgba(136,136,136,0.1)">🖼</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">No Art</div>
+        <div class="sidebar-row-sub">Missing cover image</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-noart">0</div>
+    </div>
+    <div class="sidebar-row" id="sidebarHiddenRow" data-filter="hidden">
+      <div class="sidebar-platform-icon" style="background:rgba(251,146,60,0.1)">👁</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Hidden</div>
+        <div class="sidebar-row-sub">Games hidden from view</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-hidden">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="status:playing">
+      <div class="sidebar-platform-icon" style="background:rgba(96,165,250,0.1)">▶</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Playing</div>
+        <div class="sidebar-row-sub">Currently active</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-playing">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="status:backlog">
+      <div class="sidebar-platform-icon" style="background:rgba(251,146,60,0.1)">⏸</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Backlog</div>
+        <div class="sidebar-row-sub">Queued to play</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-backlog">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="status:completed">
+      <div class="sidebar-platform-icon" style="background:rgba(74,222,128,0.1)">✓</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Completed</div>
+        <div class="sidebar-row-sub">Finished games</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-completed">0</div>
+    </div>
+
+  </div>
+
+  <div class="accounts-panel">
+    <div class="accounts-label" style="display:flex;align-items:center;justify-content:space-between">Sync Status
+      <div id="sessionTrackerIndicator" style="display:none;align-items:center;gap:5px">
+        <span id="sessionTrackerDot" style="width:7px;height:7px;border-radius:50%;background:var(--border2);flex-shrink:0"></span>
+        <span id="sessionTrackerLabel" style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:0.5px">AUTO OFF</span>
+      </div>
+    </div>
+    <div class="account-row">
+      <div class="account-icon" style="background:var(--steam-bg)">🔵</div>
+      <div class="account-info">
+        <div class="account-name">Steam</div>
+        <div class="account-status" id="steam-sync-status">Not configured</div>
+      </div>
+      <div class="account-sync" id="steam-sync-btn" title="Go to Settings">⚙</div>
+    </div>
+    <div class="account-row">
+      <div class="account-icon" style="background:var(--gog-bg)">🔴</div>
+      <div class="account-info">
+        <div class="account-name">GOG</div>
+        <div class="account-status">Import CSV in Settings</div>
+      </div>
+    </div>
+    <div class="account-row">
+      <div class="account-icon" style="background:var(--epic-bg)">🟡</div>
+      <div class="account-info">
+        <div class="account-name">Epic Games</div>
+        <div class="account-status">Import CSV in Settings</div>
+      </div>
+    </div>
+    <div class="account-row">
+      <div class="account-icon" style="background:rgba(16,124,16,0.15)">🟩</div>
+      <div class="account-info">
+        <div class="account-name">Xbox</div>
+        <div class="account-status" id="xbox-sync-status">Not configured</div>
+      </div>
+      <div class="account-sync" id="sb-xbox-settings-btn" title="Go to Settings" onclick="showPage('settings')" style="cursor:pointer">⚙</div>
+    </div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<div class="main">
+
+
+  <!-- LIBRARY HEALTH PAGE -->
+  <!-- LIBRARY PAGE -->
+  <div id="page-library" class="page active">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" id="topTitle">All Games</div>
+        <div class="topbar-subtitle" id="topSub">Your complete unified library</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="search-bar" style="position:relative">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="searchInput" placeholder="Search… try genre:rpg tag:indie dev:valve">
+        <button class="search-clear" id="searchClear" style="display:none" title="Clear search">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+        <button id="searchHintBtn" title="Search syntax help" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:12px;font-weight:700;line-height:1">?</button>
+        <!-- Search hint tooltip -->
+        <div id="searchHintBox" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;width:320px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,0.4);font-size:11px;line-height:1.8">
+          <div style="font-weight:800;color:var(--text);margin-bottom:8px">Search Syntax</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">adventure indie</span> — must match BOTH words</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rpg | strategy</span> — match either genre</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">genre:rpg</span> — genre field only</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">tag:indie</span> — tag field only</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">dev:valve</span> — developer</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">status:backlog</span> — filter by status</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">mc:80</span> — Metacritic ≥ 80</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rating:8</span> — your rating ≥ 8</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">plat:steam</span> — platform</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">-horror</span> — exclude word</div>
+          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">"dark souls"</span> — exact phrase</div>
+          <div style="color:var(--text3);margin-top:8px;font-size:10px">Combine freely: <span style="color:var(--steam);font-family:monospace">genre:rpg tag:indie mc:75 -horror</span></div>
+        </div>
+      </div>
+      <select class="sort-select" id="sortSelect">
+        <option value="alpha">A → Z</option>
+        <option value="alpha-desc">Z → A</option>
+        <option value="metacritic-desc">Metacritic ↑ High to Low</option>
+        <option value="metacritic-asc">Metacritic ↓ Low to High</option>
+        <option value="playtime-desc">Playtime ↑ High to Low</option>
+        <option value="playtime-asc">Playtime ↓ Low to High</option>
+        <option value="recent">Recently Added</option>
+        <option value="platform">Platform</option>
+        <option value="genre">Genre</option>
+        <option value="dupes">Dupes First</option>
+      </select>
+      <div class="view-toggle">
+        <button class="view-btn active" id="gridBtn" data-view="grid">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+        </button>
+        <button class="view-btn" id="listBtn" data-view="list">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+        </button>
+      </div>
+      <button class="add-btn" id="openAddModal">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add Game
+      </button>
+      <button class="settings-btn" onclick="openRandomPicker()" title="What should I play?" style="padding:7px 12px;font-size:12px;height:32px" id="randomPickerBtn">🎲</button>
+    </div>
+
+    <div class="filter-strip filter-strip-top">
+      <button class="filter-chip active" id="chipAll" data-p="all"><span class="filter-count" id="chip-all">0</span> All</button>
+      <div class="filter-divider"></div>
+      <button class="filter-chip platform-chip" data-p="steam"><span class="filter-dot" style="background:var(--steam)"></span>Steam <span class="filter-count" id="chip-steam">0</span></button>
+      <button class="filter-chip platform-chip" data-p="gog"><span class="filter-dot" style="background:var(--gog)"></span>GOG <span class="filter-count" id="chip-gog">0</span></button>
+      <button class="filter-chip platform-chip" data-p="epic"><span class="filter-dot" style="background:var(--epic)"></span>Epic <span class="filter-count" id="chip-epic">0</span></button>
+      <button class="filter-chip platform-chip" data-p="amazon"><span class="filter-dot" style="background:var(--amazon)"></span>Amazon <span class="filter-count" id="chip-amazon">0</span></button>
+      <button class="filter-chip platform-chip" data-p="xbox"><span class="filter-dot" style="background:#107c10"></span>Xbox <span class="filter-count" id="chip-xbox">0</span></button>
+      <div class="filter-divider"></div>
+      <button class="filter-chip" data-p="recent"><span class="filter-dot" style="background:#4ade80"></span>New <span class="filter-count" id="chip-recent">0</span></button>
+      <div style="margin-left:auto"></div>
+      <select class="sort-select filter-genre-select" id="genreFilter">
+        <option value="all">All Genres</option>
+        <option value="Action">Action</option>
+        <option value="Adventure">Adventure</option>
+        <option value="Casual">Casual</option>
+        <option value="Free to Play">Free to Play</option>
+        <option value="Indie">Indie</option>
+        <option value="Massively Multiplayer">Massively Multiplayer</option>
+        <option value="Racing">Racing</option>
+        <option value="RPG">RPG</option>
+        <option value="Simulation">Simulation</option>
+        <option value="Sports">Sports</option>
+        <option value="Strategy">Strategy</option>
+      </select>
+      <select class="sort-select filter-genre-select" id="tagFilter" style="min-width:110px">
+        <option value="all">All Tags</option>
+      </select>
+    </div>
+    <div class="filter-strip filter-strip-bottom">
+      <span class="filter-strip-label">Status</span>
+      <button class="filter-chip" data-p="status:playing"><span class="filter-dot" style="background:#60a5fa"></span>Playing <span class="filter-count" id="chip-playing">0</span></button>
+      <button class="filter-chip" data-p="status:completed"><span class="filter-dot" style="background:#4ade80"></span>Completed <span class="filter-count" id="chip-completed">0</span></button>
+      <button class="filter-chip" data-p="status:backlog"><span class="filter-dot" style="background:#fb923c"></span>Backlog <span class="filter-count" id="chip-backlog">0</span></button>
+      <button class="filter-chip" data-p="status:abandoned"><span class="filter-dot" style="background:#f87171"></span>Abandoned <span class="filter-count" id="chip-abandoned">0</span></button>
+    </div>
+
+    <!-- Status bar: shows background operation progress -->
+    <div id="statusBar" class="status-bar" style="display:none">
+      <div class="status-bar-inner">
+        <div class="status-bar-track"><div class="status-bar-fill" id="statusBarFill"></div></div>
+        <div class="status-bar-text" id="statusBarText"></div>
+        <button class="status-bar-dismiss" id="statusBarDismiss" title="Dismiss">×</button>
+      </div>
+    </div>
+
+    <!-- Steam Presence Indicator (bottom-left pip) -->
+    <div id="steamPresencePip" style="display:none;position:sticky;top:0;z-index:100;background:rgba(17,25,37,0.95);border-bottom:1px solid rgba(74,158,237,0.35);backdrop-filter:blur(8px);padding:6px 20px;cursor:pointer" onclick="var g=games.find(function(gm){return String(gm.steamAppId)===String(presenceGameId)});if(g)openGameDetail(g)" title="Click to open game detail">
+      <div style="display:flex;align-items:center;gap:10px;max-width:900px">
+        <div style="width:7px;height:7px;border-radius:50%;background:#4ade80;box-shadow:0 0 6px #4ade80;flex-shrink:0;animation:pulse 2s infinite"></div>
+        <div style="font-size:9px;font-weight:700;color:var(--steam);text-transform:uppercase;letter-spacing:1.5px;flex-shrink:0">Now Playing</div>
+        <div id="steamPresenceName" style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1"></div>
+        <div id="steamPresenceTimer" style="font-size:11px;color:#4ade80;font-variant-numeric:tabular-nums;flex-shrink:0;font-weight:700"></div>
+        <button id="steamPresenceIgnore" style="background:none;border:1px solid var(--border);border-radius:5px;color:var(--text3);font-size:10px;padding:2px 7px;cursor:pointer;flex-shrink:0" title="Ignore this session">Ignore</button>
+      </div>
+    </div>
+
+    <!-- Enrichment background progress indicator -->
+    <div id="enrichPip" style="display:none;position:fixed;bottom:16px;right:16px;z-index:200;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px 14px;min-width:220px;box-shadow:0 4px 20px rgba(0,0,0,0.4)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:7px">
+        <div style="width:8px;height:8px;border-radius:50%;background:#4a9eed;animation:spin 1.2s linear infinite;border:2px solid rgba(74,158,237,0.3);border-top-color:#4a9eed"></div>
+        <div class="enrich-label" style="font-size:11px;font-weight:600;color:var(--text2)">Enriching...</div>
+      </div>
+      <div style="height:3px;background:var(--border);border-radius:2px;overflow:hidden">
+        <div class="enrich-bar-fill" style="height:100%;background:linear-gradient(90deg,#4a9eed,#7fc8f8);border-radius:2px;width:0%;transition:width 0.5s ease"></div>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:5px">Fetching metadata in background</div>
+    </div>
+
+    <div id="bulkToolbar" style="display:none;position:sticky;top:0;z-index:50;background:var(--surface2);border-bottom:1px solid var(--border);padding:8px 16px;gap:10px;align-items:center">
+      <span id="bulkCount" style="font-size:12px;font-weight:700;color:var(--text)">0 selected</span>
+      <span style="font-size:11px;color:var(--text3)">(Shift+click to select)</span>
+      <div style="flex:1"></div>
+      <select id="bulkStatusSelect" class="sort-select" style="font-size:11px">
+        <option value="">Set status…</option>
+        <option value="playing">▶ Playing</option>
+        <option value="completed">✓ Completed</option>
+        <option value="backlog">⏸ Backlog</option>
+        <option value="abandoned">✕ Abandoned</option>
+      </select>
+      <select id="bulkGenreSelect" class="sort-select" style="font-size:11px">
+        <option value="">Set genre…</option>
+        <option value="Action">Action</option>
+        <option value="Adventure">Adventure</option>
+        <option value="Casual">Casual</option>
+        <option value="Free to Play">Free to Play</option>
+        <option value="Indie">Indie</option>
+        <option value="Massively Multiplayer">Massively Multiplayer</option>
+        <option value="Racing">Racing</option>
+        <option value="RPG">RPG</option>
+        <option value="Simulation">Simulation</option>
+        <option value="Sports">Sports</option>
+        <option value="Strategy">Strategy</option>
+      </select>
+      <input type="text" id="bulkTagInput" class="settings-input" placeholder="Add tag to all…" style="font-size:11px;width:130px;padding:4px 8px">
+      <button class="modal-btn modal-btn-add" id="bulkTagBtn" style="font-size:11px;padding:5px 10px">+ Tag</button>
+      <input type="text" id="bulkTagRemoveInput" class="settings-input" placeholder="Remove tag from all…" style="font-size:11px;width:150px;padding:4px 8px">
+      <button class="modal-btn" id="bulkTagRemoveBtn" style="font-size:11px;padding:5px 10px;color:#f87171;border-color:rgba(248,113,113,0.35)">− Tag</button>
+      <button class="list-action-btn" id="bulkDeleteBtn" style="color:#f87171;border-color:#f87171" title="Delete selected">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+      </button>
+      <button class="filter-chip active" onclick="clearBulkSelection()" style="font-size:11px">✕ Cancel</button>
+    </div>
+
+    <!-- Now Playing Banner (shown when Steam auto-tracking detects an active game) -->
+    <div id="nowPlayingBanner" style="display:none;margin:0 16px 12px;background:linear-gradient(135deg,rgba(74,158,237,0.12),rgba(74,222,128,0.08));border:1px solid rgba(74,158,237,0.3);border-radius:12px;padding:12px 16px;cursor:pointer" title="Click to open game detail">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="position:relative;flex-shrink:0">
+          <div id="nowPlayingCover" style="width:44px;height:44px;border-radius:8px;background:var(--border);overflow:hidden"></div>
+          <div style="position:absolute;bottom:-3px;right:-3px;width:12px;height:12px;border-radius:50%;background:#4ade80;box-shadow:0 0 8px #4ade80;border:2px solid var(--bg);animation:pulse 2s infinite"></div>
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:10px;font-weight:700;color:var(--steam);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:2px">🎮 Now Playing via Steam</div>
+          <div id="nowPlayingTitle" style="font-size:15px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+        </div>
+        <div style="text-align:right;flex-shrink:0">
+          <div style="font-size:10px;color:var(--text3);margin-bottom:2px">Session</div>
+          <div id="nowPlayingTimer" style="font-size:18px;font-weight:900;color:#4ade80;font-variant-numeric:tabular-nums">0:00:00</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="game-area" id="gameArea"></div>
+  </div>
+
+  <!-- STATS PAGE -->
+  <div id="page-stats" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Statistics</div>
+        <div class="topbar-subtitle">A breakdown of your collection</div>
+      </div>
+    </div>
+    <div class="page-scroll" id="statsArea"></div>
+  </div>
+
+  <!-- DUPES PAGE -->
+  <div id="page-dupes" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" style="color:var(--dupe)">Duplicate Games</div>
+        <div class="topbar-subtitle">Games you own on more than one platform — check before buying!</div>
+      </div>
+    </div>
+    <div class="game-area" id="dupesArea"></div>
+  </div>
+
+  <!-- WISHLIST PAGE -->
+  <div id="page-wishlist" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" style="color:var(--epic)">Wishlist</div>
+        <div class="topbar-subtitle">Track games and get notified when prices drop</div>
+      </div>
+      <div style="flex:1"></div>
+      <div class="search-bar">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="wishSearchInput" placeholder="Search wishlist…">
+        <button class="search-clear" id="wishSearchClear" style="display:none" title="Clear search">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <button class="add-btn" id="openWishModal" style="background:var(--epic);color:var(--bg)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Add to Wishlist
+      </button>
+      <button class="add-btn" id="checkAllPricesBtn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        Check Prices
+      </button>
+      <button class="add-btn" id="removeOwnedWishBtn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)" title="Remove all wishlisted games you now own">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        Remove Owned
+      </button>
+    </div>
+    <div class="filter-row" style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+      <select id="wishSortSelect" class="sort-select" style="font-size:11px">
+        <option value="alpha">A → Z</option>
+        <option value="price">Lowest Price</option>
+        <option value="savings">Best Savings</option>
+        <option value="owned">Owned First</option>
+      </select>
+      <button class="filter-chip" id="wishFilterAll" data-wf="all">All</button>
+      <button class="filter-chip" id="wishFilterUnowned" data-wf="unowned">Not Owned</button>
+      <button class="filter-chip" id="wishFilterOwned" data-wf="owned">Already Owned</button>
+    </div>
+    <div id="notifHistoryArea" style="padding:0 20px 0;max-width:480px"></div>
+    <div class="page-scroll" id="wishlistArea"></div>
+  </div>
+
+  <!-- FRIENDS PAGE -->
+  <div id="page-friends" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" style="color:var(--steam)">Friend Comparison</div>
+        <div class="topbar-subtitle">Compare your library with a Steam friend</div>
+      </div>
+    </div>
+    <div class="page-scroll">
+      <div class="settings-section" style="max-width:900px;margin:0 auto 20px">
+        <div class="settings-section-title">🔍 Look Up a Friend</div>
+        <div class="settings-row" style="gap:8px">
+          <input type="text" id="friendSteamId" class="settings-input" placeholder="Friend's 17-digit Steam ID…" style="flex:1">
+          <button class="modal-btn modal-btn-add" id="friendLoadBtn" onclick="loadFriendLibrary()">Compare</button>
+        </div>
+        <div class="settings-hint">Their library must be set to Public in Steam privacy settings.</div>
+        <div id="friendError" style="color:#f87171;font-size:12px;margin-top:6px"></div>
+      </div>
+      <div id="friendResults" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- GOALS PAGE -->
+  <div id="page-goals" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title" style="color:#fb923c">Playtime Goals</div>
+        <div class="topbar-subtitle">Set milestones and track your progress</div>
+      </div>
+    </div>
+    <div class="page-scroll" style="max-width:700px">
+      <div class="settings-section" style="margin-bottom:20px">
+        <div class="settings-section-title">➕ Add Goal</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+          <div style="flex:2;min-width:180px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Game</div>
+            <select id="goalGameSelect" class="sort-select" style="width:100%;font-size:12px">
+              <option value="">Select a game…</option>
+            </select>
+          </div>
+          <div style="flex:1;min-width:80px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Target hours</div>
+            <input type="number" id="goalTargetHours" class="settings-input" placeholder="100" min="1" style="width:100%">
+          </div>
+          <div style="flex:2;min-width:160px">
+            <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Label (optional)</div>
+            <input type="text" id="goalLabel" class="settings-input" placeholder="e.g. Finish the main story">
+          </div>
+          <button class="modal-btn modal-btn-add" onclick="addGoal()" style="align-self:flex-end">Add Goal</button>
+        </div>
+      </div>
+      <div id="goalsArea"></div>
+    </div>
+  </div>
+
+  <!-- SETTINGS PAGE -->
+  <div id="page-settings" class="page">
+    <div class="topbar">
+      <div>
+        <div class="topbar-title">Settings</div>
+        <div class="topbar-subtitle">Connect accounts and manage your library</div>
+      </div>
+    </div>
+    <div class="game-area">
+      <div class="settings-section">
+        <div class="settings-section-title">🔵 Steam Integration</div>
+        <div class="settings-section-desc">
+          Steam has a public API. Enter your Steam ID and a free API key to automatically import your entire Steam library.
+          <a href="https://store.steampowered.com/account/" class="settings-link">Find your Steam ID</a> ·
+          <a href="https://steamcommunity.com/dev/apikey" class="settings-link">Get a free API key</a>
+        </div>
+        <div class="settings-row">
+          <input type="text" class="settings-input" id="steamId" placeholder="Your Steam ID (e.g. 76561198000000000)">
+          <input type="text" class="settings-input" id="steamKey" placeholder="Steam API Key">
+          <button class="settings-btn" id="steamConnectBtn">Connect Steam</button>
+        </div>
+        <div class="settings-feedback" id="steamFeedback"></div>
+        <div style="margin-top:12px">
+          <button class="settings-btn" id="steamResyncBtn" style="opacity:0.6" disabled>↻ Re-sync Steam Library</button>
+          <span style="font-size:11px;color:var(--text3);margin-left:10px" id="steamLastSyncLabel"></span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
+          <div style="flex:1">
+            <div style="font-size:12px;font-weight:600;color:var(--text)">Auto Session Tracking</div>
+            <div style="font-size:11px;color:var(--text3);margin-top:2px">Detect when you launch a Steam game and automatically log play sessions. Requires public Game Details on your Steam profile.</div>
+          </div>
+          <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
+            <input type="checkbox" id="autoSessionToggle" style="opacity:0;width:0;height:0">
+            <span id="autoSessionSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:20px;transition:0.2s">
+              <span style="position:absolute;content:'';height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;display:block" id="autoSessionThumb"></span>
+            </span>
+          </label>
+          <div id="steamPresenceStatus" style="font-size:10px;color:var(--text3);min-width:60px;text-align:right">Off</div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🔴 GOG Galaxy — Auto Import</div>
+        <div class="settings-section-desc">
+          Nexus reads your GOG Galaxy database directly — no export needed.
+          Just make sure GOG Galaxy is installed and you've logged in at least once so your library has synced locally.
+          <br><br>
+          <strong style="color:var(--text2)">First time:</strong> you'll need to install one extra package. Run this once in your terminal from the nexus-library folder:
+          <br><code style="display:inline-block;margin-top:6px;background:var(--bg);padding:4px 10px;border-radius:6px;font-size:12px;color:var(--epic)">npm install better-sqlite3</code>
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" id="gogImportBtn">Import GOG Library</button>
+          <span style="font-size:11px;color:var(--text3);margin-left:10px" id="gogLastSyncLabel"></span>
+        </div>
+        <div class="settings-feedback" id="gogFeedback"></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🟡 Epic &amp; 🟠 Amazon — Auto Import via Heroic</div>
+        <div class="settings-section-desc">
+          Since you have Heroic Games Launcher installed, Nexus reads both your Epic and Amazon Games libraries in one click.
+          Make sure you're logged into both accounts in Heroic and your libraries have synced.
+        </div>
+        <div class="settings-row">
+          <button class="settings-btn" id="epicHeroicBtn">Import Epic via Heroic</button>
+          <span style="font-size:11px;color:var(--text3);margin-left:10px" id="epicLastSyncLabel"></span>
+        </div>
+        <div class="settings-feedback" id="epicFeedback"></div>
+        <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Fallback — Manual CSV Import</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:10px">If Heroic import fails, you can manually create a CSV instead.</div>
+          <div class="settings-row">
+            <button class="settings-btn" id="epicTemplateBtn">⬇ Download CSV Template</button>
+            <input type="file" id="epicCsvInput" accept=".csv" class="settings-file-input">
+            <label for="epicCsvInput" class="settings-btn">Choose CSV File…</label>
+            <button class="settings-btn" id="epicImportBtn" disabled>Import CSV</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🟩 Xbox Personal Library &amp; PC Game Pass</div>
+        <div class="settings-section-desc">
+          Connect your Xbox account via <strong>OpenXBL</strong> — a free, community-built Xbox Live API — to import your personal Xbox game library and browse the full PC Game Pass catalog.
+          <br><br>
+          <strong style="color:var(--text2)">Step 1:</strong> Create a free account at
+          <a href="https://xbl.io" class="settings-link">xbl.io</a>, sign in with your Xbox account, and copy your personal API key from your profile page.
+          <br><br>
+          <span style="display:inline-block;margin-top:4px;background:rgba(82,176,67,0.08);border:1px solid rgba(82,176,67,0.2);border-radius:6px;padding:8px 12px;font-size:11px;color:var(--text2);line-height:1.6">
+            <strong style="color:#52b043">⚡ Two separate imports:</strong><br>
+            <strong>Xbox Library</strong> — your personally played games, from achievement history. Goes into your main library as owned Xbox titles.<br>
+            <strong>Game Pass Catalog</strong> — the full list of games currently on PC Game Pass. These are <em>not owned</em> — they're only visible when you filter by "Game Pass" in the sidebar, and never counted in your library totals.
+          </span>
+        </div>
+        <div class="settings-row">
+          <input type="text" class="settings-input" id="openxblApiKey" placeholder="OpenXBL API Key (from xbl.io)">
+          <button class="settings-btn" id="openxblSaveBtn">Connect Xbox</button>
+        </div>
+        <div class="settings-feedback" id="xboxFeedback"></div>
+        <div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:6px;letter-spacing:0.5px">PERSONAL LIBRARY</div>
+            <button class="settings-btn" id="xboxImportBtn" disabled style="width:100%">Import Xbox Library</button>
+            <span style="font-size:10px;color:var(--text3);display:block;margin-top:4px" id="xboxLastSyncLabel"></span>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Games you've played — added to your library as owned Xbox titles</div>
+          </div>
+          <div style="flex:1;min-width:200px">
+            <div style="font-size:11px;font-weight:700;color:#52b043;margin-bottom:6px;letter-spacing:0.5px">GAME PASS CATALOG <span style="font-weight:400;color:var(--text3)">(not owned)</span></div>
+            <button class="settings-btn" id="gamepassImportBtn" disabled style="width:100%;border-color:rgba(82,176,67,0.4);color:#52b043">Sync Game Pass Catalog</button>
+            <span style="font-size:10px;color:var(--text3);display:block;margin-top:4px" id="gamepassLastSyncLabel"></span>
+            <div style="font-size:10px;color:var(--text3);margin-top:4px">Catalog of available GP titles — isolated from your owned games</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">🎨 Cover Art — IGDB</div>
+        <div class="settings-section-desc">
+          Steam games automatically get cover art from Steam's CDN with no setup needed.
+          For GOG, Epic, and manually added games, Nexus uses IGDB (Internet Game Database).
+          <br><br>
+          Get your free credentials at <a href="https://dev.twitch.tv/console" class="settings-link">dev.twitch.tv/console</a>
+          → Register Your Application → Manage → copy your Client ID and generate a Client Secret.
+        </div>
+        <div class="settings-row">
+          <input type="text" class="settings-input" id="igdbClientId" placeholder="IGDB Client ID">
+          <input type="text" class="settings-input" id="igdbClientSecret" placeholder="IGDB Client Secret">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="settings-btn" id="igdbSaveBtn">Save &amp; Fetch Art</button>
+            <button class="settings-btn" id="igdbRefreshBtn" title="Re-run art search for all games still missing covers">🔄 Refresh Missing Art</button>
+          </div>
+        </div>
+        <div class="steam-dl-progress" id="igdbFuzzyProgress" style="display:none">
+          <div class="steam-dl-bar-track"><div class="steam-dl-bar-fill" id="igdbFuzzyBarFill"></div></div>
+          <div class="steam-dl-label" id="igdbFuzzyLabel">Looking up missing covers...</div>
+        </div>
+        <div class="settings-feedback" id="igdbFeedback"></div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title" style="margin-top:0">🔄 Platform Sync Health</div>
+        <div id="platformSyncHealth" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px"></div>
+        <div style="height:1px;background:var(--border);margin-bottom:20px"></div>
+        <div class="settings-section-title">💰 Price Tracking — gg.deals</div>
+        <div class="settings-section-desc">
+          gg.deals tracks prices across 40+ stores including Steam, GOG, Epic, Humble, Fanatical, Green Man Gaming, and key resellers like Kinguin and G2A.
+          Get your free API key at <a href="https://gg.deals/api/" class="settings-link">gg.deals/api</a> — log in, go to your profile settings, and generate a key.
+          <br><br>
+          Nexus downloads the full Steam game catalogue so you can search by name and resolve App IDs for any game, even ones not in your library. Uses your Steam API key from the import settings above.
+        </div>
+        <div class="settings-row">
+          <input type="text" class="settings-input" id="ggdealsApiKey" placeholder="gg.deals API Key">
+          <button class="settings-btn" id="ggdealsSaveBtn">Save Key</button>
+        </div>
+        <div class="settings-feedback" id="ggdealsFeedback"></div>
+
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+          <div class="settings-section-title">🎮 Game Database — RAWG</div>
+          <div class="settings-section-desc">
+            RAWG has 500,000+ games across all platforms — perfect for enriching GOG, Epic, and Amazon titles with descriptions, genres, screenshots, and Metacritic scores.
+            Get your free API key at <a href="https://rawg.io/apiv2" class="settings-link">rawg.io/apiv2</a> — sign up and your key appears instantly on the page.
+          </div>
+          <div class="settings-row">
+            <input type="text" class="settings-input" id="rawgApiKey" placeholder="RAWG API Key">
+            <button class="settings-btn" id="rawgSaveBtn">Save Key</button>
+          </div>
+          <div class="settings-feedback" id="rawgFeedback"></div>
+        </div>
+
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Steam App Database</div>
+          <div style="font-size:12px;color:var(--text3);margin-bottom:10px" id="steamCacheStatus">Checking cache status...</div>
+          <div class="steam-dl-progress" id="steamDlProgress" style="display:none">
+            <div class="steam-dl-bar-track">
+              <div class="steam-dl-bar-fill" id="steamDlBarFill"></div>
+            </div>
+            <div class="steam-dl-label" id="steamDlLabel">Starting...</div>
+          </div>
+          <button class="settings-btn" id="refreshSteamCacheBtn">Refresh Database</button>
+          <div class="settings-feedback" id="steamCacheFeedback"></div>
+        </div>
+
+        <!-- Auto Session Tracking -->
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Auto Session Tracking</div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+            <div>
+              <div style="font-size:13px;font-weight:600;color:var(--text)">Detect games via Steam presence</div>
+              <div style="font-size:11px;color:var(--text3);margin-top:2px">Polls Steam every 60s to auto-start/stop session timers. Requires public Game Details on your Steam profile.</div>
+            </div>
+            <label style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;margin-left:16px">
+              <input type="checkbox" id="steamAutoTrackToggle" style="opacity:0;width:0;height:0">
+              <span id="steamAutoTrackSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:22px;transition:0.3s"></span>
+            </label>
+          </div>
+          <div id="steamAutoTrackStatus" style="font-size:11px;color:var(--text3)">Not polling</div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-section-title">💾 Export &amp; Backup</div>
+        <div class="settings-section-desc">Save your library data locally. JSON includes all fields; CSV is compatible with spreadsheets.</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="settings-btn" id="exportJsonBtn">Export JSON Backup</button>
+          <button class="settings-btn" id="exportCsvBtn">Export CSV</button>
+        </div>
+        <div class="settings-feedback" id="exportFeedback"></div>
+      </div>
+
+      <div class="settings-section settings-danger">
+        <div class="settings-section-title">⚠ Danger Zone</div>
+        <div class="settings-section-desc">Permanently delete all games from your library. This cannot be undone.</div>
+        <button class="settings-btn settings-btn-danger" id="clearLibraryBtn">Clear Entire Library</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- HABITS PAGE -->
+  <div id="page-habits" class="page">
+    <div class="stats-header" style="margin-bottom:20px">
+      <div class="stats-title">Gaming Habits</div>
+      <div class="stats-subtitle" id="habitsSubtitle">Your session history and play patterns</div>
+    </div>
+    <div class="page-scroll" id="habitsContent"></div>
+  </div>
+
+  <!-- WRAPPED PAGE -->
+  <div id="page-wrapped" class="page">
+    <div class="stats-header" style="margin-bottom:20px">
+      <div class="stats-title">Year in Review</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+        <select id="wrappedYear" class="sort-select" style="font-size:11px"></select>
+        <button id="exportLibraryCard" class="settings-btn" style="font-size:11px;padding:6px 14px">📸 Save Library Card</button>
+      </div>
+    </div>
+    <div id="wrappedContent" style="padding:0 24px 32px"></div>
+  </div>
+
+  <!-- FREE GAMES PAGE -->
+  <div id="page-freegames" class="page">
+    <div class="stats-header" style="margin-bottom:20px">
+      <div class="stats-title">Free Games</div>
+      <div class="stats-subtitle">Epic Games Store — current and upcoming free games</div>
+    </div>
+    <div class="page-scroll" id="freeGamesContent">
+      <div style="text-align:center;padding:40px;color:var(--text3)">Loading free games…</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ADD GAME MODAL -->
+<div class="overlay" id="addOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Add Game</div>
+        <div class="modal-sub">Manually add a game to your library</div>
+      </div>
+      <button class="modal-close" id="closeAddModal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-dupe-alert" id="modalDupeAlert">
+      <div class="modal-dupe-icon">⚠</div>
+      <div class="modal-dupe-text" id="modalDupeText"></div>
+    </div>
+    <div class="field">
+      <label>Game Title</label>
+      <input type="text" id="newTitle" placeholder="e.g. The Witcher 3">
+    </div>
+    <div class="field">
+      <label>Genre</label>
+      <select id="newGenre">
+        <option value="Action">Action</option>
+        <option value="Adventure">Adventure</option>
+        <option value="Casual">Casual</option>
+        <option value="Free to Play">Free to Play</option>
+        <option value="Indie">Indie</option>
+        <option value="Massively Multiplayer">Massively Multiplayer</option>
+        <option value="Racing">Racing</option>
+        <option value="RPG">RPG</option>
+        <option value="Simulation">Simulation</option>
+        <option value="Sports">Sports</option>
+        <option value="Strategy">Strategy</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>Platforms Owned</label>
+      <div class="plat-grid">
+        <label class="plat-tile" data-p="steam"><input type="checkbox" value="steam"><div class="plat-tile-icon">🔵</div><div class="plat-tile-name">Steam</div></label>
+        <label class="plat-tile" data-p="gog"><input type="checkbox" value="gog"><div class="plat-tile-icon">🔴</div><div class="plat-tile-name">GOG</div></label>
+        <label class="plat-tile" data-p="epic"><input type="checkbox" value="epic"><div class="plat-tile-icon">🟡</div><div class="plat-tile-name">Epic</div></label>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="cancelAddModal">Cancel</button>
+      <button class="modal-btn modal-btn-add" id="confirmAddGame">Add to Library</button>
+    </div>
+  </div>
+</div>
+
+<!-- ADD TO WISHLIST MODAL -->
+<div class="overlay" id="wishOverlay">
+  <div class="modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Add to Wishlist</div>
+        <div class="modal-sub">Search for a game, set a target price, get sale alerts</div>
+      </div>
+      <button class="modal-close" id="closeWishModal">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="field">
+      <label>Game Title</label>
+      <div style="position:relative">
+        <input type="text" id="wishGameTitle" placeholder="Start typing a game title…" autocomplete="off">
+        <div id="wishDropdown" class="wish-search-dropdown"></div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px" id="wishSearchHint">Searches across all Steam titles to find the App ID for gg.deals pricing</div>
+    </div>
+    <div class="wish-selected-card" id="wishSelectedCard" style="display:none;margin-bottom:4px"></div>
+    <div class="modal-dupe-alert show" id="wishOwnedAlert" style="display:none;background:var(--steam-bg);border-color:rgba(74,158,237,0.25)">
+      <div class="modal-dupe-icon" style="color:var(--steam)">ℹ</div>
+      <div class="modal-dupe-text" id="wishOwnedText"></div>
+    </div>
+    <div class="field">
+      <label>Target Price (USD) — optional</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span style="color:var(--text3);font-size:16px">$</span>
+        <input type="number" id="wishPrice" placeholder="e.g. 19.99" min="0" step="0.01" style="flex:1">
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Leave blank to track prices without an alert</div>
+    </div>
+    <div class="field">
+      <label>Deal Alert — % Off (optional)</label>
+      <div style="display:flex;align-items:center;gap:8px">
+        <input type="number" id="wishDiscount" placeholder="e.g. 50" min="1" max="99" step="1" style="flex:1">
+        <span style="color:var(--text3);font-size:16px">% off</span>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:6px">Alert when discounted by at least this much, regardless of price</div>
+    </div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="cancelWishModal">Cancel</button>
+      <button class="modal-btn modal-btn-add" id="confirmWishGame" style="background:var(--epic)">Add to Wishlist</button>
+    </div>
+  </div>
+</div>
+
+<!-- COVER ART SEARCH MODAL -->
+<div class="overlay" id="coverSearchOverlay">
+  <div class="modal" style="width:560px;max-width:95vw">
+    <div class="modal-header">
+      <div class="modal-title">Find Cover Art</div>
+      <button class="modal-close" id="coverSearchClose">&times;</button>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <div style="font-size:12px;color:var(--text3);margin-bottom:8px" id="coverSearchGameLabel"></div>
+      <div style="display:flex;gap:8px">
+        <input type="text" id="coverSearchInput" placeholder="Search IGDB by title…" style="flex:1">
+        <button class="modal-btn modal-btn-add" id="coverSearchBtn" style="min-width:80px">Search</button>
+      </div>
+    </div>
+    <div id="coverSearchResults" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;min-height:120px;max-height:380px;overflow-y:auto;padding:4px 2px"></div>
+    <div id="coverSearchStatus" style="font-size:12px;color:var(--text3);text-align:center;padding:8px 0"></div>
+    <div class="modal-footer">
+      <button class="modal-btn modal-btn-cancel" id="coverSearchCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- GAME DETAIL MODAL -->
+<div class="overlay" id="gameDetailOverlay">
+  <div class="modal game-detail-modal">
+
+    <!-- Blurred cover art backdrop -->
+    <div id="gameDetailBackdrop"></div>
+
+    <div class="game-detail-layout">
+
+      <!-- LEFT: Cover + Steam-style info panel -->
+      <div class="game-detail-cover-col">
+        <div class="game-detail-cover" id="gameDetailCover"></div>
+        <div class="game-detail-platforms" id="gameDetailPlatforms"></div>
+        <div class="game-detail-playtime" id="gameDetailPlaytime"></div>
+
+        <!-- Steam-style info panel — populated by renderLeftPanel() -->
+        <div id="gameDetailLeftPanel" style="width:100%;margin-top:4px"></div>
+      </div>
+
+      <!-- RIGHT: All controls -->
+      <div class="game-detail-info-col">
+
+        <!-- CLOSE BUTTON — fixed top-right of modal, always accessible -->
+        <button class="modal-close game-detail-close-fixed" id="gameDetailClose" title="Close (Esc)">&times;</button>
+
+        <!-- Title strip -->
+        <div class="detail-header-strip">
+          <div class="game-detail-title" id="gameDetailTitle"></div>
+        </div>
+
+        <!-- Scrollable content -->
+        <div class="detail-scroll">
+
+          <!-- Status -->
+          <div class="game-detail-section-label" style="margin-top:0">Status</div>
+          <div class="game-detail-status-row" id="gameDetailStatusRow">
+            <button class="status-btn" data-status="playing">▶ Playing</button>
+            <button class="status-btn" data-status="completed">✓ Completed</button>
+            <button class="status-btn" data-status="backlog">⏸ Backlog</button>
+            <button class="status-btn" data-status="abandoned">✕ Abandoned</button>
+          </div>
+
+          <!-- Rating -->
+          <div class="game-detail-section-label">Your Rating</div>
+          <div id="gameDetailRating" style="display:flex;align-items:center;gap:4px;margin-bottom:4px">
+            <div id="starRating" style="display:flex;gap:3px">
+              <span class="star-btn" data-value="1" title="1 — Terrible">★</span>
+              <span class="star-btn" data-value="2" title="2 — Bad">★</span>
+              <span class="star-btn" data-value="3" title="3 — Below Average">★</span>
+              <span class="star-btn" data-value="4" title="4 — Average">★</span>
+              <span class="star-btn" data-value="5" title="5 — Decent">★</span>
+              <span class="star-btn" data-value="6" title="6 — Good">★</span>
+              <span class="star-btn" data-value="7" title="7 — Great">★</span>
+              <span class="star-btn" data-value="8" title="8 — Excellent">★</span>
+              <span class="star-btn" data-value="9" title="9 — Outstanding">★</span>
+              <span class="star-btn" data-value="10" title="10 — Perfect">★</span>
+            </div>
+            <span id="ratingLabel" style="font-size:11px;color:var(--text3);margin-left:6px"></span>
+            <button id="clearRatingBtn" style="display:none;margin-left:auto;font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 6px">clear</button>
+          </div>
+
+          <!-- Steam / enriched data (shown when available) -->
+          <div id="gameDetailEnriched" style="display:none"></div>
+          <div id="steamStoreResult" style="display:none"></div>
+
+          <!-- Genre -->
+          <div class="game-detail-section-label">Genre</div>
+          <div class="game-detail-genre-row">
+            <select class="game-detail-genre-select" id="gameDetailGenre">
+              <option value="Action">Action</option>
+              <option value="Adventure">Adventure</option>
+              <option value="Casual">Casual</option>
+              <option value="Free to Play">Free to Play</option>
+              <option value="Indie">Indie</option>
+              <option value="Massively Multiplayer">Massively Multiplayer</option>
+              <option value="Racing">Racing</option>
+              <option value="RPG">RPG</option>
+              <option value="Simulation">Simulation</option>
+              <option value="Sports">Sports</option>
+              <option value="Strategy">Strategy</option>
+            </select>
+            <button class="game-detail-genre-save" id="gameDetailGenreSave">Set Primary</button>
+            <button class="game-detail-genre-save" id="gameDetailGenreAdd" title="Add as additional genre">+ Add</button>
+          </div>
+          <div class="game-detail-tags" id="gameDetailGenreList" style="margin-top:8px;margin-bottom:4px"></div>
+
+          <!-- Tags -->
+          <div class="game-detail-section-label">Tags</div>
+          <div class="game-detail-tags" id="gameDetailTags"></div>
+          <div class="game-detail-tag-input-row">
+            <input type="text" id="gameDetailTagInput" placeholder="Add a tag…" maxlength="24">
+            <button class="game-detail-tag-add" id="gameDetailTagAdd">+</button>
+          </div>
+
+          <!-- Date Acquired -->
+          <div class="game-detail-section-label">Date Acquired</div>
+          <input type="date" id="gameDetailAcquired" class="settings-input" style="font-size:12px;padding:6px 10px;margin-bottom:4px">
+
+          <!-- Session Timer -->
+          <div class="game-detail-section-label">Session</div>
+          <div id="sessionTimerBar" class="session-timer-bar" style="margin-bottom:4px">
+            <div>
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Current</div>
+              <div class="session-timer-display" id="sessionTimerDisplay">0:00:00</div>
+            </div>
+            <button class="session-btn start" id="sessionStartBtn">▶ Start</button>
+            <div id="sessionLastPlayed" style="margin-left:auto;text-align:right">
+              <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:2px">Last Played</div>
+              <div id="sessionLastPlayedDate" style="font-size:11px;color:var(--text2)">—</div>
+            </div>
+          </div>
+
+          <!-- Notes -->
+          <div class="game-detail-section-label">Notes</div>
+          <textarea id="gameDetailNotes" class="game-detail-notes" placeholder="Your thoughts, tips, progress notes…" rows="4"></textarea>
+          <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
+            <button class="modal-btn modal-btn-add" id="gameDetailSaveNotes" style="min-width:100px;font-size:12px;padding:8px 16px">Save Notes</button>
+            <span class="game-detail-saved-label" id="gameDetailSavedLabel"></span>
+          </div>
+
+        </div><!-- end detail-scroll -->
+
+        <!-- Actions bar pinned to bottom -->
+        <div class="detail-actions-row">
+          <button class="detail-action-btn primary" id="gameDetailOpenStore">🏪 Open in Store</button>
+          <button class="detail-action-btn" id="gameDetailSteamStore">📋 Fetch Game Info</button>
+          <button class="detail-action-btn" id="gameDetailFindArt">🔍 Cover Art</button>
+          <button class="detail-action-btn danger" id="gameDetailClearArt" title="Remove cover art">✕ Clear Art</button>
+          <button class="detail-action-btn" id="gameDetailWishlistBtn" style="display:none">♥ Wishlisted</button>
+          <button class="detail-action-btn muted" id="gameDetailHideBtn" title="Hide from library view">👁 Hide</button>
+          <div style="margin-left:auto;display:flex;gap:6px">
+            <button class="detail-action-btn" id="gameDetailPrevBtn" title="Previous game">← Prev</button>
+            <button class="detail-action-btn" id="gameDetailNextBtn" title="Next game">Next →</button>
+          </div>
+        </div>
+
+      </div><!-- end info-col -->
+    </div><!-- end layout -->
+  </div><!-- end modal -->
+</div>
+
+<script src="app.js"></script>
+<!-- Random Game Picker -->
+<!-- CONTEXT MENU -->
+<div id="nexusContextMenu"></div>
+
+<div class="overlay" id="randomPickerOverlay" onclick="if(event.target===this)closeRandomPicker()">
+  <div class="modal" style="max-width:520px;width:92vw">
+    <div class="modal-header">
+      <div class="modal-title">🎲 What Should I Play?</div>
+      <button class="modal-close" onclick="closeRandomPicker()">✕</button>
+    </div>
+    <div style="padding:20px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
+        <span style="font-size:11px;color:var(--text3)">I have</span>
+        <select id="pickerTimeFilter" class="sort-select" style="font-size:11px;width:auto">
+          <option value="0">any amount of time</option>
+          <option value="1">~1 hour</option>
+          <option value="2">~2 hours</option>
+          <option value="4">~4 hours</option>
+          <option value="8">a full evening (8h+)</option>
+        </select>
+        <span style="font-size:11px;color:var(--text3)">to play</span>
+        <button class="settings-btn" onclick="window.spinRandomGame()" style="font-size:11px;padding:5px 12px;margin-left:4px">🎲 Pick</button>
+      </div>
+      <div id="randomPickerCard"></div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
