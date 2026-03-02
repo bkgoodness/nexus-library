@@ -4508,42 +4508,36 @@ async function _fillMetadata(doSteam, doRawg) {
 
   showStatus('Filling metadata for ' + total + ' games…', 0);
 
-  // Steam games — use Steam API (fast, batch)
+  // Steam games — process one at a time to respect SteamSpy rate limit (1 req/sec)
   if (steamTargets.length) {
-    var batchSize = 50;
-    for (var i = 0; i < steamTargets.length; i += batchSize) {
-      var batch = steamTargets.slice(i, i + batchSize);
-      var appIds = batch.map(function(g) { return g.steamAppId; });
-      var pct = Math.round((i / total) * (doRawg ? 50 : 100));
-      showStatus('Steam metadata: ' + Math.min(i + batchSize, steamTargets.length) + '/' + steamTargets.length, pct);
+    for (var i = 0; i < steamTargets.length; i++) {
+      var sGame = steamTargets[i];
+      var pct = Math.round((i / steamTargets.length) * (doRawg ? 50 : 100));
+      showStatus('Steam metadata: ' + (i + 1) + '/' + steamTargets.length + ' — ' + sGame.title, pct);
       try {
-        var results = await window.nexus.games.fetchSteamGenres(appIds);
-        for (var appId in results) {
-          var result = results[appId];
-          var game = batch.find(function(gm) { return String(gm.steamAppId) === String(appId); });
-          if (!game || !result) continue;
-          var fields = {};
-          if (result.genres && result.genres.length) {
-            var mapped = mapSteamGenres(result.genres);
-            fields.genres = mapped;
-            if (!game.genre || game.genre === 'Other') fields.genre = mapped[0];
-          }
-          if (result.tags && result.tags.length) {
-            // Overwrite tags entirely — old tags were useless Steam categories
-            fields.tags = result.tags
-              .filter(function(t) { return t && typeof t === 'string'; })
-              .map(function(t) { return t.toLowerCase(); });
-          }
-          if (Object.keys(fields).length) {
-            await window.nexus.games.update(game.id, fields);
-            var gObj = games.find(function(g2) { return g2.id === game.id; });
-            if (gObj) Object.assign(gObj, fields);
-          }
+        var sResults = await window.nexus.games.fetchSteamGenres([sGame.steamAppId]);
+        var sResult = sResults[String(sGame.steamAppId)];
+        if (!sResult) { console.warn('[FillMetadata] No result for', sGame.title, sGame.steamAppId); continue; }
+        console.log('[FillMetadata]', sGame.title, '| tags:', sResult.tags);
+        var fields = {};
+        if (sResult.genres && sResult.genres.length) {
+          var mapped = mapSteamGenres(sResult.genres);
+          fields.genres = mapped;
+          if (!sGame.genre || sGame.genre === 'Other') fields.genre = mapped[0];
         }
-      } catch(e) { console.warn('Steam metadata batch failed:', e.message); }
+        if (sResult.tags && sResult.tags.length) {
+          fields.tags = sResult.tags
+            .filter(function(t) { return t && typeof t === 'string'; })
+            .map(function(t) { return t.toLowerCase(); });
+        }
+        if (Object.keys(fields).length) {
+          await window.nexus.games.update(sGame.id, fields);
+          var gObj = games.find(function(g2) { return g2.id === sGame.id; });
+          if (gObj) Object.assign(gObj, fields);
+        }
+      } catch(e) { console.warn('[FillMetadata] Failed for', sGame.title, ':', e.message); }
     }
   }
-
   // Non-Steam games — use RAWG (slower, 1 per 3s to respect rate limit)
   if (rawgTargets.length && rawgApiKey) {
     for (var j = 0; j < rawgTargets.length; j++) {

@@ -372,27 +372,45 @@ ipcMain.handle('games:fetchSteamGenres', async (_event, steamAppIds) => {
       // Step 2: SteamSpy for real community tags (FPS, Atmospheric, Roguelike, etc.)
       // Returns { tagName: voteCount } — sort by votes, take top 12
       let tags = [];
+      let spyDebug = 'not attempted';
       try {
         const spyUrl = 'https://steamspy.com/api.php?request=appdetails&appid=' + appId;
         const spyData = await httpsGet(spyUrl);
+        spyDebug = 'keys=' + Object.keys(spyData || {}).join(',') + ' tagsType=' + typeof spyData?.tags + ' sample=' + JSON.stringify(spyData?.tags)?.slice(0, 100);
         if (spyData && spyData.tags && typeof spyData.tags === 'object') {
           tags = Object.entries(spyData.tags)
-            .sort((a, b) => b[1] - a[1])   // sort by vote count descending
+            .sort((a, b) => b[1] - a[1])
             .slice(0, 12)
             .map(([name]) => name.toLowerCase())
             .filter(Boolean);
         }
       } catch(e) {
-        console.warn('[SteamSpy] Failed for appId', appId, ':', e.message);
+        spyDebug = 'ERROR: ' + e.message;
       }
 
-      results[appId] = { genres, tags };
+      results[appId] = { genres, tags, _spyDebug: spyDebug };
     } catch(e) {
       // skip silently
     }
     await sleep(1000); // SteamSpy rate limit: ~1 req/sec
   }
   return results;
+});
+
+// ── STEAMSPY TEST — call from console: window.nexus.testSteamSpy(10) ──
+ipcMain.handle('games:testSteamSpy', async (_event, appId) => {
+  console.log('[SteamSpy test] fetching appId:', appId);
+  try {
+    const url = 'https://steamspy.com/api.php?request=appdetails&appid=' + appId;
+    console.log('[SteamSpy test] URL:', url);
+    const data = await httpsGet(url);
+    console.log('[SteamSpy test] SUCCESS. Keys:', Object.keys(data).join(', '));
+    console.log('[SteamSpy test] tags field:', JSON.stringify(data.tags).slice(0, 300));
+    return { ok: true, data };
+  } catch(e) {
+    console.error('[SteamSpy test] FAILED:', e.message);
+    return { ok: false, error: e.message };
+  }
 });
 
 ipcMain.handle('store:get', (_event, key) => store.get(key));
