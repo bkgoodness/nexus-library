@@ -824,12 +824,12 @@ body::before {
 /* Fixed-position close button for game detail modal */
 .game-detail-close-fixed {
   position: absolute;
-  top: 20px; right: 20px;
-  z-index: 10;
-  width: 36px; height: 36px;
+  top: 14px; right: 14px;
+  z-index: 20;
+  width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 8px; cursor: pointer;
-  font-size: 20px; line-height: 1; flex-shrink: 0; padding: 0;
+  font-size: 18px; line-height: 1; flex-shrink: 0; padding: 0;
   background: var(--surface2);
   border: 1px solid var(--border2);
   color: var(--text2);
@@ -889,6 +889,12 @@ body::before {
   box-shadow: 0 32px 80px rgba(0,0,0,0.65), 0 4px 20px rgba(0,0,0,0.4);
   display: flex; overflow: hidden;
   position: relative;
+  margin: auto;
+  /* Override the base .modal transform so it doesn't animate from wrong origin */
+  transform: scale(0.97) translateY(6px);
+}
+.overlay.open .game-detail-modal {
+  transform: scale(1) translateY(0);
 }
 
 /* Blurred backdrop cover art */

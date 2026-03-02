@@ -362,31 +362,35 @@ ipcMain.handle('games:fetchSteamGenres', async (_event, steamAppIds) => {
   const results = {};
   for (const appId of steamAppIds) {
     try {
-      // genres + categories in one call (categories give us co-op, online, VR, etc.)
-      const url = 'https://store.steampowered.com/api/appdetails?appids=' + appId + '&filters=genres,categories';
-      const data = await httpsGet(url);
-      const entry = data && data[String(appId)];
-      if (entry && entry.success && entry.data) {
-        const d = entry.data;
-        const genres = (d.genres || []).map(g => g.description).filter(Boolean);
-        // Categories: "Single-player", "Multi-player", "Co-op", "Online Co-op",
-        // "Steam Achievements", "Steam Cloud", "VR Support", etc.
-        // We use them as tags (filter out pure marketing ones)
-        const skipCats = new Set([
-          'Steam Achievements', 'Steam Cloud', 'Steam Leaderboards',
-          'Steam Trading Cards', 'Steam Workshop', 'Full controller support',
-          'Partial Controller Support', 'SteamVR Collectibles', 'Stats',
-          'In-App Purchases', 'Includes level editor', 'Downloadable Content',
-        ]);
-        const tags = (d.categories || [])
-          .map(c => c.description)
-          .filter(c => c && !skipCats.has(c));
-        results[appId] = { genres, tags };
+      // Step 1: Steam appdetails for genres (reliable)
+      const storeUrl = 'https://store.steampowered.com/api/appdetails?appids=' + appId + '&filters=genres';
+      const storeData = await httpsGet(storeUrl);
+      const entry = storeData && storeData[String(appId)];
+      const genres = (entry && entry.success && entry.data && entry.data.genres || [])
+        .map(g => g.description).filter(Boolean);
+
+      // Step 2: SteamSpy for real community tags (FPS, Atmospheric, Roguelike, etc.)
+      // Returns { tagName: voteCount } — sort by votes, take top 12
+      let tags = [];
+      try {
+        const spyUrl = 'https://steamspy.com/api.php?request=appdetails&appid=' + appId;
+        const spyData = await httpsGet(spyUrl);
+        if (spyData && spyData.tags && typeof spyData.tags === 'object') {
+          tags = Object.entries(spyData.tags)
+            .sort((a, b) => b[1] - a[1])   // sort by vote count descending
+            .slice(0, 12)
+            .map(([name]) => name.toLowerCase())
+            .filter(Boolean);
+        }
+      } catch(e) {
+        console.warn('[SteamSpy] Failed for appId', appId, ':', e.message);
       }
+
+      results[appId] = { genres, tags };
     } catch(e) {
-      // skip silently — Steam store API is rate limited
+      // skip silently
     }
-    await sleep(300); // ~3 req/sec to avoid Steam rate limit
+    await sleep(1000); // SteamSpy rate limit: ~1 req/sec
   }
   return results;
 });
@@ -833,37 +837,13 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
 
   // Helper: clean a title for IGDB search (strips platform/edition noise)
   const cleanTitleForSearch = (title) => title
-    // Strip trademark/copyright symbols, replacing with a space to avoid joining words
-    .replace(/\s*[\u2122\u00ae\u00a9]\s*/g, ' ')
-    // Strip Amazon/Epic/GOG/Prime service suffixes
-    .replace(/\s*[-–]\s*Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\s*$/i, '')
-    .replace(/\s*\(Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\)\s*$/i, '')
-    .replace(/\s*[-–]\s*Prime\s*(Gaming|Giveaway)?\s*$/i, '')
-    .replace(/\s*\(Prime\s*(Gaming|Giveaway)?\)\s*$/i, '')
-    .replace(/\s*[-–]\s*Epic\s*Games?\s*$/i, '')
-    .replace(/\s*[-–]\s*GOG\.?CO?M?\s*$/i, '')
-    // Strip Xbox platform suffixes — covers dash, space, or "for" variants,
-    // and mangled separators: X|S, X/S, XIS, "X S"
-    .replace(/\s+for\s+Xbox\b.*$/i, '')
-    .replace(/\s*[-–]\s*Xbox\b.*$/i, '')
-    .replace(/\s+Xbox\s+Series\s+X[\|\/\s]?I?S?\s*$/i, '')
-    .replace(/\s+Xbox\s+(One|360|Series\s*X?\s*S?)?\s*$/i, '')
-    // Strip platform/OS suffixes
-    .replace(/\s*[-–]\s*Windows\s*(Edition|Version|10|11)?\s*$/i, '')
-    .replace(/\s*\((WIN|Windows|PC)\)\s*$/i, '')
-    .replace(/\s*\[(WIN|Windows|PC)\]\s*$/i, '')
-    // Strip collector's/special edition shorthands: - CE, - SE, etc.
-    .replace(/\s*[-–]\s*(CE|SE|GE|VE)\s*$/i, '')
-    // Strip edition/version noise
     .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s+(Edition|Version|Cut)?\s*$/i, '')
     .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s*$/i, '')
-    .replace(/\s*\(GOTY\)\s*$/i, '')
     .replace(/\s+(Edition|Version)\s*$/i, '')
     .replace(/^ARCADE GAME SERIES:\s*/i, '')
     .replace(/\s*\((PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
     .replace(/\s*\[(PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
-    // Collapse any double spaces left behind, then trim
-    .replace(/\s{2,}/g, ' ')
+    .replace(/[\u2122\u00ae\u00a9]/g, '')
     .trim();
 
   // IGDB covers - needs credentials
@@ -1479,12 +1459,6 @@ ipcMain.handle('app:fullReset', () => {
   // Wipe all session data
   const allKeys = Object.keys(store.store);
   allKeys.filter(k => k.startsWith('sessions:')).forEach(k => store.delete(k));
-
-  // Wipe cover cache (separate store file)
-  coverStore.set('cache', {});
-
-  // Clear cached IGDB token so it doesn't linger
-  igdbTokenCache = null;
 
   return true;
 });

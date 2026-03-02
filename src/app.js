@@ -264,6 +264,10 @@ function setupEventListeners() {
   wire('igdbSaveBtn',    'click', saveIGDBAndFetch);
   wire('igdbRefreshBtn', 'click', function() { bulkFetchMissingArt(false); });
   wire('igdbRefetchAllBtn', 'click', function() { bulkFetchMissingArt(true); });
+  wire('fillMetadataBtn',      'click', fillMissingMetadata);
+  wire('fillMetadataSteamBtn', 'click', fillMissingMetadataSteam);
+  wire('fillMetadataRawgBtn',  'click', fillMissingMetadataRawg);
+  wire('helpMeDecideBtn', 'click', openHelpMeDecide);
   wire('fullResetBtn',   'click', openFullResetDialog);
   wire('openOnboardingBtn', 'click', function() { openOnboarding(false); });
   wire('resetConfirmInput', 'input', function() {
@@ -4437,12 +4441,31 @@ async function enrichWithRawgData(gameList) {
             releaseDate: d.released || '',
             metacriticScore: d.metacritic || null,
           };
-          if (game.genre === 'Other' && d.genres && d.genres.length) updates.genre = d.genres[0].name;
+          // Always write full genres array — richer than our defaults
+          if (d.genres && d.genres.length) {
+            updates.genres = d.genres.map(function(g) { return g.name; });
+            if (!game.genre || game.genre === 'Other') updates.genre = d.genres[0].name;
+          }
+          // Save RAWG tags — merge with existing user tags so nothing is lost
+          if (d.tags && d.tags.length) {
+            var rawgTags = d.tags.slice(0, 12).map(function(t) { return t.name.toLowerCase(); });
+            var existingTags = (game.tags || []).filter(function(t) { return t && typeof t === 'string'; });
+            updates.tags = [...new Set([...existingTags, ...rawgTags])];
+          }
           var idx = games.findIndex(function(g) { return g.id === game.id; });
           if (idx !== -1) { Object.assign(games[idx], updates); }
-          await window.nexus.games.update(game.id, updates );
+          await window.nexus.games.update(game.id, updates);
         }
       }
+
+
+
+
+
+
+
+
+
     } catch(e) {
       console.warn('[RAWGEnrich] Failed for', game.title, ':', e.message);
     }
@@ -4463,7 +4486,108 @@ async function enrichRawgGamesInBackground() {
   setTimeout(function() { enrichWithRawgData(needsEnrich); }, 5000);
 }
 
-// ── REMOVE OWNED GAMES FROM WISHLIST ──
+// ── FILL MISSING METADATA (on-demand, for picker quality) ──
+async function fillMissingMetadata()      { await _fillMetadata(true, true);  }
+async function fillMissingMetadataSteam() { await _fillMetadata(true, false); }
+async function fillMissingMetadataRawg()  { await _fillMetadata(false, true); }
+
+async function _fillMetadata(doSteam, doRawg) {
+  var steamTargets = doSteam ? games.filter(function(g) {
+    return g.steamAppId; // always re-fetch — old tags may be wrong category-based ones
+  }) : [];
+  var rawgTargets = doRawg ? games.filter(function(g) {
+    return !g.steamAppId && (!g.genres || !g.genres.length || !g.tags || !g.tags.length);
+  }) : [];
+
+  var total = steamTargets.length + rawgTargets.length;
+  if (!total) {
+    showStatus('✓ All games already have genres & tags', 100, {type:'success'});
+    setTimeout(hideStatus, 3000);
+    return;
+  }
+
+  showStatus('Filling metadata for ' + total + ' games…', 0);
+
+  // Steam games — use Steam API (fast, batch)
+  if (steamTargets.length) {
+    var batchSize = 50;
+    for (var i = 0; i < steamTargets.length; i += batchSize) {
+      var batch = steamTargets.slice(i, i + batchSize);
+      var appIds = batch.map(function(g) { return g.steamAppId; });
+      var pct = Math.round((i / total) * (doRawg ? 50 : 100));
+      showStatus('Steam metadata: ' + Math.min(i + batchSize, steamTargets.length) + '/' + steamTargets.length, pct);
+      try {
+        var results = await window.nexus.games.fetchSteamGenres(appIds);
+        for (var appId in results) {
+          var result = results[appId];
+          var game = batch.find(function(gm) { return String(gm.steamAppId) === String(appId); });
+          if (!game || !result) continue;
+          var fields = {};
+          if (result.genres && result.genres.length) {
+            var mapped = mapSteamGenres(result.genres);
+            fields.genres = mapped;
+            if (!game.genre || game.genre === 'Other') fields.genre = mapped[0];
+          }
+          if (result.tags && result.tags.length) {
+            // Overwrite tags entirely — old tags were useless Steam categories
+            fields.tags = result.tags
+              .filter(function(t) { return t && typeof t === 'string'; })
+              .map(function(t) { return t.toLowerCase(); });
+          }
+          if (Object.keys(fields).length) {
+            await window.nexus.games.update(game.id, fields);
+            var gObj = games.find(function(g2) { return g2.id === game.id; });
+            if (gObj) Object.assign(gObj, fields);
+          }
+        }
+      } catch(e) { console.warn('Steam metadata batch failed:', e.message); }
+    }
+  }
+
+  // Non-Steam games — use RAWG (slower, 1 per 3s to respect rate limit)
+  if (rawgTargets.length && rawgApiKey) {
+    for (var j = 0; j < rawgTargets.length; j++) {
+      var rGame = rawgTargets[j];
+      var pct2 = doSteam
+        ? Math.round(50 + (j / rawgTargets.length) * 50)
+        : Math.round((j / rawgTargets.length) * 100);
+      showStatus('RAWG metadata: ' + (j + 1) + '/' + rawgTargets.length + ' — ' + rGame.title, pct2);
+      try {
+        var rResults = await window.nexus.rawg.search(rGame.title, rawgApiKey);
+        if (rResults && rResults.length) {
+          var rBest = rResults[0];
+          var rD = await window.nexus.rawg.game(rBest.id, rawgApiKey);
+          if (rD) {
+            var rFields = { rawgEnriched: true };
+            if (rD.genres && rD.genres.length) {
+              rFields.genres = rD.genres.map(function(g) { return g.name; });
+              if (!rGame.genre || rGame.genre === 'Other') rFields.genre = rD.genres[0].name;
+            }
+            if (rD.tags && rD.tags.length) {
+              var rTags = rD.tags.slice(0, 12).map(function(t) { return t.name.toLowerCase(); });
+              var rExisting = (rGame.tags || []).filter(function(t) { return t && typeof t === 'string'; });
+              rFields.tags = [...new Set([...rExisting, ...rTags])];
+            }
+            if (!rGame.description && rD.description_raw) rFields.description = rD.description_raw;
+            if (!rGame.metacriticScore && rD.metacritic) rFields.metacriticScore = rD.metacritic;
+            await window.nexus.games.update(rGame.id, rFields);
+            var rObj = games.find(function(g2) { return g2.id === rGame.id; });
+            if (rObj) Object.assign(rObj, rFields);
+          }
+        }
+      } catch(e) { console.warn('RAWG metadata failed for', rGame.title, ':', e.message); }
+      if (j < rawgTargets.length - 1) await new Promise(function(r) { setTimeout(r, 3000); });
+    }
+  } else if (doRawg && rawgTargets.length && !rawgApiKey) {
+    showStatus('⚠ Add a RAWG API key in Settings to fill metadata for non-Steam games', 100);
+    setTimeout(hideStatus, 4000);
+    return;
+  }
+
+  updateGenreDropdown(); updateTagDropdown(); renderLibrary();
+  showStatus('✓ Metadata filled for ' + total + ' games', 100);
+  setTimeout(hideStatus, 3000);
+}
 async function removeOwnedFromWishlist() {
   var owned = wishlist.filter(function(w) {
     return games.some(function(g) { return normalizeTitle(g.title) === normalizeTitle(w.title); });
@@ -6352,6 +6476,15 @@ function hideContextMenu() {
 // Close on any click or scroll outside
 document.addEventListener('click',    function(e) { if (!document.getElementById('nexusContextMenu')?.contains(e.target)) hideContextMenu(); });
 document.addEventListener('keydown',  function(e) { if (e.key === 'Escape') hideContextMenu(); });
+document.addEventListener('keydown', function(e) {
+  if (e.key !== 'Escape') return;
+  var detailOverlay = document.getElementById('gameDetailOverlay');
+  if (detailOverlay && detailOverlay.classList.contains('open')) { closeGameDetail(); return; }
+  var pickerOverlay = document.getElementById('helpMeDecideOverlay');
+  if (pickerOverlay && pickerOverlay.classList.contains('open')) { closeHelpMeDecide(); return; }
+  var randomOverlay = document.getElementById('randomPickerOverlay');
+  if (randomOverlay && randomOverlay.classList.contains('open')) { closeRandomPicker(); return; }
+});
 document.addEventListener('scroll',   hideContextMenu, true);
 
 // ── Context menu actions ──
@@ -6520,47 +6653,35 @@ window.closeRandomPicker = function() {
 window.spinRandomGame = function() {
   var el = document.getElementById('randomPickerCard');
   if (!el) return;
-
   var timeSel  = document.getElementById('pickerTimeFilter');
   var maxHours = timeSel ? parseInt(timeSel.value) : 0;
-
   var genreScore = {}, tagScore = {};
   var played = games.filter(function(g) { return (g.playtimeHours || 0) > 0; });
   played.forEach(function(g) {
     var hrs = Math.log(1 + (g.playtimeHours || 0));
-    (g.genres && g.genres.length ? g.genres : [g.genre]).forEach(function(gn) {
-      if (gn && typeof gn === 'string' && gn !== 'Other') genreScore[gn] = (genreScore[gn] || 0) + hrs;
-    });
-    (g.tags || []).forEach(function(t) { if (t) tagScore[t] = (tagScore[t] || 0) + hrs; });
+    var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
+    gGenres.forEach(function(gn) { if (gn && typeof gn === 'string' && gn !== 'Other') genreScore[gn] = (genreScore[gn] || 0) + hrs; });
+    var allTags = [...(g.tags || []), ...(g.steamTags || [])];
+    allTags.forEach(function(t) { if (t && typeof t === 'string') tagScore[t.toLowerCase()] = (tagScore[t.toLowerCase()] || 0) + hrs; });
   });
   var topGenres = Object.entries(genreScore).sort(function(a,b){return b[1]-a[1];}).slice(0,5).map(function(e){return e[0];});
-  var topTags   = Object.entries(tagScore).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(e){return e[0];});
-
-  var candidates = games.filter(function(g) {
-    if ((g.playtimeHours || 0) > 0) return false;
-    if (g.status === 'abandoned' || g.status === 'completed') return false;
-    if (g.hidden) return false;
-    return true;
-  });
-
-  if (!candidates.length) {
-    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found!</div>';
-    return;
-  }
-
+  var topTags   = Object.entries(tagScore).sort(function(a,b){return b[1]-a[1];}).slice(0,15).map(function(e){return e[0];});
+  var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+  if (!candidates.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found!</div>'; return; }
   var scored = candidates.map(function(g) {
     var score = 1;
     var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
-    gGenres.forEach(function(gn) { if (topGenres.includes(gn)) score += 4; });
-    (g.tags || []).forEach(function(t) { if (topTags.includes(t)) score += 1; });
-    if (g.status === 'backlog') score += 3;
-    if (g.userRating > 0) score += g.userRating;
+    gGenres.forEach(function(gn) { if (gn && topGenres.includes(gn)) score += 4; });
+    var allTags = [...(g.tags||[]),...(g.steamTags||[])].map(function(t){return t.toLowerCase();});
+    allTags.forEach(function(t) { if (topTags.includes(t)) score += 1.5; });
+    if (g.metacriticScore >= 80) score += 3;
+    if (g.metacriticScore >= 90) score += 2;
+    if (g.userRating > 0) score += g.userRating * 0.5;
     return { game: g, score: score };
   });
-
-  var totalWeight = scored.reduce(function(s, e) { return s + e.score; }, 0);
+  var totalWeight = scored.reduce(function(s,e){return s+e.score;},0);
   var pick = null;
-  for (var attempt = 0; attempt < 20; attempt++) {
+  for (var attempt = 0; attempt < 30; attempt++) {
     var r = Math.random() * totalWeight;
     var candidate = scored[0].game;
     for (var i = 0; i < scored.length; i++) { r -= scored[i].score; if (r <= 0) { candidate = scored[i].game; break; } }
@@ -6573,12 +6694,11 @@ window.spinRandomGame = function() {
     if (maxHours === 8 && est > 8)   { pick = candidate; break; }
   }
   if (!pick) pick = scored[Math.floor(Math.random() * scored.length)].game;
-
   var cUrl = coverCache[pick.id] || coverCache[String(pick.id)];
-  var pal  = COVER_PALETTES[(pick.pal || 0) % COVER_PALETTES.length];
+  var pal  = COVER_PALETTES[(pick.pal||0) % COVER_PALETTES.length];
   var gGenres = pick.genres && pick.genres.length ? pick.genres.filter(function(g){return typeof g==='string';}) : (pick.genre ? [pick.genre] : ['Other']);
-  var metaHint = pick.metacriticScore ? '<span style="font-size:10px;color:' + (pick.metacriticScore >= 80 ? '#4ade80' : pick.metacriticScore >= 60 ? '#facc15' : '#f87171') + ';font-weight:700;background:rgba(0,0,0,0.3);padding:2px 7px;border-radius:4px">' + pick.metacriticScore + ' MC</span>' : '';
-
+  var allPickTags = [...new Set([...(pick.tags||[]),...(pick.steamTags||[])])].slice(0,5);
+  var metaHint = pick.metacriticScore ? '<span style="font-size:10px;color:' + (pick.metacriticScore>=80?'#4ade80':pick.metacriticScore>=60?'#facc15':'#f87171') + ';font-weight:700;background:rgba(0,0,0,0.3);padding:2px 7px;border-radius:4px">' + pick.metacriticScore + ' MC</span>' : '';
   el.innerHTML =
     '<div style="display:flex;gap:16px;align-items:flex-start">' +
       '<div style="width:100px;height:133px;border-radius:8px;overflow:hidden;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')">' +
@@ -6586,16 +6706,18 @@ window.spinRandomGame = function() {
       '</div>' +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:16px;font-weight:900;margin-bottom:4px;line-height:1.2">' + escHtml(pick.title) + '</div>' +
-        '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">' + escHtml(gGenres.slice(0,2).join(' \u00b7 ')) + '</div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">' + metaHint + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">' + escHtml(gGenres.slice(0,3).join(' · ')) + '</div>' +
+        (allPickTags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">' + allPickTags.map(function(t){return '<span style="font-size:9px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2)">'+escHtml(t)+'</span>';}).join('') + '</div>' : '') +
+        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' + metaHint + '</div>' +
         (pick.description ? '<div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">' + escHtml(pick.description) + '</div>' : '') +
         '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-          '<button class="settings-btn" style="font-size:11px;padding:6px 14px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:700" onclick="closeRandomPicker();openGameDetailById(' + pick.id + ')">\u25b6 Let\'s Play</button>' +
-          '<button class="settings-btn" style="font-size:11px;padding:6px 14px" onclick="spinRandomGame()">\ud83c\udfb2 Spin Again</button>' +
+          '<button class="settings-btn" style="font-size:11px;padding:6px 14px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:700" onclick="closeRandomPicker();openGameDetailById(' + pick.id + ')">▶ Let\'s Play</button>' +
+          '<button class="settings-btn" style="font-size:11px;padding:6px 14px" onclick="spinRandomGame()">🎲 Spin Again</button>' +
         '</div>' +
       '</div>' +
     '</div>';
 };
+
 
 // ── BULK COVER ART FETCH ──
 
@@ -6967,3 +7089,439 @@ async function obSaveRawg() {
   rawgApiKey = key.trim();
   st.innerHTML = '<div class="onboard-status ok">✓ RAWG key saved!</div>';
 }
+
+// ══════════════════════════════════════════════════════
+// HELP ME DECIDE — QUIZ-BASED GAME PICKER
+// ══════════════════════════════════════════════════════
+
+var pickerQuizAnswers = { energy: null, time: null, mode: null };
+var pickerResults     = [];
+var pickerResultIndex = 0;
+
+// Genre lists use your actual Steam/library genres exactly as stored
+// Tag matching uses keyword stems — any tag containing the stem matches
+// e.g. 'challeng' matches 'challenging', 'challenge', 'hard challenge', etc.
+
+var PICKER_ENERGY_MAP = {
+  chill: {
+    genres:   ['Adventure','Casual','Indie','Racing','RPG','Simulation','Strategy'],
+    tagStems: ['relax','chill','calm','casual','peaceful','cozy','atmospher',
+               'walking','slow','wholesome','meditat','tranquil','laid'],
+    penalty:  [] // no hard penalties — genres already target the right pool
+  },
+  intense: {
+    genres:   ['Action','Adventure','Indie','Massively Multiplayer','Racing',
+               'Simulation','Sports','Strategy'],
+    tagStems: ['action','intense','fast','adrenalin','combat','shoot','fight',
+               'compet','challeng','difficult','hard','brutal','aggressive','violent'],
+    penalty:  []
+  },
+  think: {
+    genres:   ['Indie','RPG','Simulation','Strategy'],
+    tagStems: ['strateg','puzzle','think','brain','logic','tactical','turn-based',
+               'turn based','manag','resource','plan','complex','deep','cerebral'],
+    penalty:  []
+  },
+  surprise: { genres: [], tagStems: [], penalty: [], skip: true }
+};
+
+var PICKER_TIME_MAP = {
+  30:  {
+    genres:   ['Action','Casual','Free to Play','Indie','Racing','RPG','Sports','Strategy'],
+    maxHours: 1
+  },
+  120: {
+    genres:   ['Action','Adventure','Casual','Free to Play','Indie','Racing','RPG',
+               'Simulation','Sports','Strategy'],
+    maxHours: 3
+  },
+  240: {
+    genres:   ['Adventure','Free to Play','RPG','Simulation','Strategy'],
+    maxHours: 6
+  },
+  480: {
+    genres:   ['Free to Play','Massively Multiplayer','RPG','Simulation','Strategy'],
+    maxHours: 999
+  }
+};
+
+// Mental Mode uses both genres and tag stems
+var PICKER_MODE_MAP = {
+  story: {
+    genres:   ['Adventure','Indie','RPG'],
+    tagStems: ['story','narrativ','dialog','choice','character','visual novel',
+               'atmospher','emotion','cinemat','lore','plot','written']
+  },
+  skill: {
+    genres:   ['Action','Indie','Racing','Sports'],
+    tagStems: ['skill','difficult','challeng','precision','reflex','hard',
+               'punish','mastery','timing','compet','twitch','precise']
+  },
+  strategic: {
+    genres:   ['Indie','RPG','Simulation','Strategy'],
+    tagStems: ['strateg','tactical','turn','resource','manag','plan',
+               'build','4x','base','tower','city','puzzle','construct']
+  },
+  cozy: {
+    genres:   ['Adventure','Casual','Indie','Simulation'],
+    tagStems: ['cozy','chill','relax','wholesome','farm','craft','cute',
+               'peaceful','casual','comfort','garden','animal','friend']
+  },
+  fastpaced: {
+    genres:   ['Action','Indie','Racing','Sports'],
+    tagStems: ['fast','quick','speed','rapid','arcade','rush','race',
+               'action','shoot','reflex','twitch','hectic','frantic']
+  }
+};;
+
+function openHelpMeDecide() {
+  pickerQuizAnswers = { energy: null, time: null, mode: null };
+  pickerResults = [];
+  pickerResultIndex = 0;
+  var overlay = document.getElementById('helpMeDecideOverlay');
+  if (overlay) overlay.classList.add('open');
+  renderPickerQuiz();
+}
+
+function closeHelpMeDecide() {
+  var overlay = document.getElementById('helpMeDecideOverlay');
+  if (overlay) overlay.classList.remove('open');
+}
+
+function renderPickerQuiz() {
+  var el = document.getElementById('helpMeDecideBody');
+  if (!el) return;
+
+  // Determine current step
+  var step = !pickerQuizAnswers.energy ? 1 : !pickerQuizAnswers.time ? 2 : !pickerQuizAnswers.mode ? 3 : 4;
+
+  if (step === 4) { runPickerAndShowResults(); return; }
+
+  var questions = [
+    null,
+    {
+      label: 'Question 1 of 3',
+      title: 'How are you feeling right now?',
+      icon: '⚡',
+      key: 'energy',
+      options: [
+        { val: 'chill',    icon: '😌', label: 'Chill',   sub: 'Something low-key' },
+        { val: 'intense',  icon: '🔥', label: 'Intense', sub: 'I want action' },
+        { val: 'think',    icon: '🧠', label: 'Thinky',  sub: 'Make me use my brain' },
+        { val: 'surprise', icon: '🎲', label: 'Surprise me', sub: 'Whatever' }
+      ]
+    },
+    {
+      label: 'Question 2 of 3',
+      title: 'How much time do you have?',
+      icon: '⏱',
+      key: 'time',
+      options: [
+        { val: '30',  icon: '⚡', label: '30 minutes', sub: 'Quick session' },
+        { val: '120', icon: '☕', label: '1–2 hours',  sub: 'A good sit' },
+        { val: '240', icon: '🎮', label: '3–4 hours',  sub: 'Proper session' },
+        { val: '480', icon: '🌙', label: 'All night',  sub: 'I\'m committed' }
+      ]
+    },
+    {
+      label: 'Question 3 of 3',
+      title: 'What sounds good?',
+      icon: '🎯',
+      key: 'mode',
+      options: [
+        { val: 'story',     icon: '📖', label: 'Story-driven', sub: 'Narrative & characters' },
+        { val: 'skill',     icon: '⚔️', label: 'Skill-based',  sub: 'Test my reflexes' },
+        { val: 'strategic', icon: '♟️', label: 'Strategic',    sub: 'Plans & decisions' },
+        { val: 'cozy',      icon: '🏡', label: 'Cozy',         sub: 'No pressure' },
+        { val: 'fastpaced', icon: '💨', label: 'Fast-paced',   sub: 'High energy' }
+      ]
+    }
+  ];
+
+  var q = questions[step];
+
+  el.innerHTML =
+    '<div style="padding:8px 0 4px">' +
+      '<div style="font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--text3);margin-bottom:16px">' + q.label + '</div>' +
+      '<div style="font-size:20px;font-weight:900;color:var(--text);margin-bottom:20px;line-height:1.2">' + q.icon + '  ' + q.title + '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:9px">' +
+        q.options.map(function(opt) {
+          return '<button onclick="pickerSelectAnswer(\'' + q.key + '\',\'' + opt.val + '\')" style="' +
+            'display:flex;align-items:center;gap:14px;padding:13px 16px;' +
+            'background:var(--surface2);border:1px solid var(--border2);border-radius:12px;' +
+            'cursor:pointer;transition:all 0.15s;text-align:left;width:100%;' +
+            'font-family:inherit;color:var(--text)">' +
+            '<span style="font-size:22px;width:28px;text-align:center">' + opt.icon + '</span>' +
+            '<span style="flex:1">' +
+              '<span style="display:block;font-size:13px;font-weight:700;color:var(--text)">' + opt.label + '</span>' +
+              '<span style="display:block;font-size:11px;color:var(--text3);margin-top:1px">' + opt.sub + '</span>' +
+            '</span>' +
+            '<span style="font-size:16px;color:var(--text3);opacity:0.4">›</span>' +
+          '</button>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+}
+
+window.pickerSelectAnswer = function(key, val) {
+  pickerQuizAnswers[key] = val;
+  renderPickerQuiz();
+};
+
+function runPickerAndShowResults() {
+  var el = document.getElementById('helpMeDecideBody');
+  if (el) el.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--text3);font-size:13px">Finding your games…</div>';
+
+  setTimeout(function() {
+    var energy = PICKER_ENERGY_MAP[pickerQuizAnswers.energy] || PICKER_ENERGY_MAP.surprise;
+    var time   = PICKER_TIME_MAP[pickerQuizAnswers.time]     || PICKER_TIME_MAP[120];
+    var mode   = PICKER_MODE_MAP[pickerQuizAnswers.mode]     || { genres: [], tagStems: [] };
+    var isSurprise = !!energy.skip;
+
+    // Merge genre lists from time + mode (energy handled separately per game)
+    var timeGenres = time.genres   || [];
+    var modeGenres = mode.genres   || [];
+    var modeStems  = mode.tagStems || [];
+    var energyGenres = energy.genres   || [];
+    var energyStems  = energy.tagStems || [];
+
+    // Helper: does any stem appear as a substring of the tag?
+    function stemMatch(tag, stems) {
+      var t = tag.toLowerCase();
+      return stems.some(function(s) { return t.indexOf(s.toLowerCase()) !== -1; });
+    }
+
+    // Preference scores from play history — genres and tags the user has spent time with
+    var prefGenre = {}, prefTag = {};
+    games.filter(function(g) { return (g.playtimeHours||0) > 0; }).forEach(function(g) {
+      var hrs = Math.log(1 + (g.playtimeHours||0));
+      var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
+      gGenres.forEach(function(gn) { if (gn) prefGenre[gn] = (prefGenre[gn]||0) + hrs; });
+      [...(g.tags||[]),...(g.steamTags||[])].forEach(function(t) {
+        if (t) prefTag[t.toLowerCase()] = (prefTag[t.toLowerCase()]||0) + hrs;
+      });
+    });
+
+    // Candidates = all unplayed, unhidden games
+    var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+
+    if (!candidates.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found in your library!</div>';
+      return;
+    }
+
+    // Score every candidate
+    var scored = candidates.map(function(g) {
+      var quizScore = 0;
+      var hasMetadata = (g.genres && g.genres.length) || (g.tags && g.tags.length) || (g.steamTags && g.steamTags.length);
+      var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
+      var allTags = [...new Set([...(g.tags||[]),...(g.steamTags||[])].map(function(t){return t.toLowerCase();}))];
+
+      if (!isSurprise) {
+        // --- GENRE SCORING ---
+        // Each answer contributes independently; a genre can match multiple answers
+        // Cap total genre bonus at 9 so tag-rich games can compete
+        var genreBonus = 0;
+        gGenres.forEach(function(gn) {
+          if (energyGenres.some(function(eg){return eg.toLowerCase()===gn.toLowerCase();})) genreBonus += 3;
+          if (timeGenres.some(function(tg){return tg.toLowerCase()===gn.toLowerCase();}))   genreBonus += 3;
+          if (modeGenres.some(function(mg){return mg.toLowerCase()===gn.toLowerCase();}))   genreBonus += 3;
+        });
+        quizScore += Math.min(genreBonus, 9);
+
+        // --- TAG SCORING via stem matching ---
+        // Energy stems + mode stems; time contributes no tags (genre carries it)
+        var tagBonus = 0;
+        allTags.forEach(function(t) {
+          if (stemMatch(t, energyStems)) tagBonus += 1.5;
+          if (stemMatch(t, modeStems))   tagBonus += 1.5;
+        });
+        // Cap tag bonus at 9 so it's on equal footing with genre
+        quizScore += Math.min(tagBonus, 9);
+      }
+
+      // Time filter — soft penalty if game is way over time budget
+      var maxH = time.maxHours;
+      var est = g.avgPlaytime || 0;
+      if (maxH < 999 && est > 0 && est > maxH * 2) quizScore -= 4;
+
+      // Play history preference bonus (low weight — quiz answers dominate)
+      var prefBonus = 0;
+      gGenres.forEach(function(gn) { if (prefGenre[gn]) prefBonus += Math.log(1+prefGenre[gn]) * 0.25; });
+      allTags.forEach(function(t)  { if (prefTag[t])    prefBonus += Math.log(1+prefTag[t])    * 0.1;  });
+      quizScore += Math.min(prefBonus, 4); // cap pref bonus so it can't override quiz signal
+
+      // Quality signals
+      if (g.metacriticScore >= 90) quizScore += 2;
+      else if (g.metacriticScore >= 80) quizScore += 1;
+      if (g.userRating > 0) quizScore += g.userRating * 0.3;
+
+      // No metadata — deprioritize but don't exclude
+      if (!hasMetadata) quizScore = Math.min(quizScore, 1);
+
+      // Surprise: score based purely on preference history + quality, nothing quiz-driven
+      var finalScore = isSurprise
+        ? (1 + Math.min(prefBonus, 6) + (g.metacriticScore >= 80 ? 1 : 0) + (g.userRating||0) * 0.3)
+        : quizScore;
+
+      return { game: g, score: Math.max(0.1, finalScore), genres: gGenres, tags: allTags, hasMetadata: hasMetadata };
+    });
+    function weightedPick(pool) {
+      if (!pool.length) return null;
+      var total = pool.reduce(function(s,e) { return s + Math.max(0.1, e.score); }, 0);
+      var r = Math.random() * total;
+      for (var pi = 0; pi < pool.length; pi++) {
+        r -= Math.max(0.1, pool[pi].score);
+        if (r <= 0) return pool[pi];
+      }
+      return pool[0];
+    }
+
+    // Select 3 distinct cards — different primary genres, weighted-random within top candidates
+    var picks = [];
+    var usedGenres = new Set();
+    var usedIds = new Set();
+
+    // Card 1: weighted random from top 8 overall
+    var pool1 = scored.slice(0, Math.min(8, scored.length));
+    var card1 = weightedPick(pool1);
+    picks.push(card1);
+    usedGenres.add((card1.genres[0]||'none').toLowerCase());
+    usedIds.add(card1.game.id);
+
+    // Card 2: weighted random from top candidates with a different primary genre
+    var pool2 = scored.filter(function(s) {
+      return !usedIds.has(s.game.id) && !usedGenres.has((s.genres[0]||'none').toLowerCase());
+    }).slice(0, Math.min(8, scored.length));
+    var card2 = pool2.length ? weightedPick(pool2) : scored.find(function(s) { return !usedIds.has(s.game.id); });
+    if (card2) {
+      picks.push(card2);
+      usedGenres.add((card2.genres[0]||'none').toLowerCase());
+      usedIds.add(card2.game.id);
+    }
+
+    // Card 3: wildcard — different genre, wider random pool for variety
+    var pool3 = scored.filter(function(s) {
+      return !usedIds.has(s.game.id) && !usedGenres.has((s.genres[0]||'none').toLowerCase());
+    }).slice(0, Math.min(12, scored.length));
+    var card3 = pool3.length ? weightedPick(pool3) : scored.find(function(s) { return !usedIds.has(s.game.id); });
+    if (card3) picks.push(card3);
+
+    pickerResults = picks;
+    pickerResultIndex = 0;
+    renderPickerResult();
+  }, 400);
+}
+
+function renderPickerResult() {
+  var el = document.getElementById('helpMeDecideBody');
+  if (!el || !pickerResults.length) return;
+
+  var entry  = pickerResults[pickerResultIndex];
+  var g      = entry.game;
+  var cUrl   = coverCache[g.id] || coverCache[String(g.id)];
+  var pal    = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
+  var total  = pickerResults.length;
+  var idx    = pickerResultIndex;
+
+  // Build "why this" reason string
+  var energy = pickerQuizAnswers.energy;
+  var mode   = pickerQuizAnswers.mode;
+  var reasons = [];
+  if (energy && energy !== 'surprise') reasons.push({ chill:'Chill',intense:'Intense',think:'Thinky' }[energy] || energy);
+  if (mode) reasons.push({ story:'Story-driven',skill:'Skill-based',strategic:'Strategic',cozy:'Cozy',fastpaced:'Fast-paced' }[mode] || mode);
+  var reasonStr = reasons.join(' · ');
+  if (!entry.hasMetadata) reasonStr += (reasonStr ? ' · ' : '') + '⚠ Limited metadata';
+
+  var displayGenres = entry.genres.slice(0, 3);
+  var displayTags   = entry.tags.slice(0, 6);
+
+  // Matched tags (highlighted)
+  var energy2  = PICKER_ENERGY_MAP[pickerQuizAnswers.energy] || { tagStems: [] };
+  var mode2    = PICKER_MODE_MAP[pickerQuizAnswers.mode]     || { tagStems: [] };
+  var allStems = [...(energy2.tagStems||[]), ...(mode2.tagStems||[])].map(function(s){return s.toLowerCase();});
+  function tagIsMatch(tag) {
+    var t = tag.toLowerCase();
+    return allStems.some(function(s){ return t.indexOf(s) !== -1; });
+  }
+
+  var metaColor = g.metacriticScore >= 80 ? '#4ade80' : g.metacriticScore >= 60 ? '#facc15' : '#f87171';
+
+  el.innerHTML =
+    // Card counter dots
+    '<div style="display:flex;align-items:center;justify-content:center;gap:6px;margin-bottom:20px">' +
+      [0,1,2].map(function(i) {
+        return '<div style="width:' + (i===idx?'20':'7') + 'px;height:7px;border-radius:4px;background:' + (i===idx?'var(--steam)':'var(--surface3)') + ';transition:all 0.3s"></div>';
+      }).join('') +
+    '</div>' +
+
+    // Cover + core info
+    '<div style="display:flex;gap:18px;align-items:flex-start;margin-bottom:18px">' +
+      '<div style="width:110px;height:147px;border-radius:10px;overflow:hidden;flex-shrink:0;' +
+           'background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ');' +
+           'box-shadow:0 12px 32px rgba(0,0,0,0.5)">' +
+        (cUrl ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+      '</div>' +
+      '<div style="flex:1;min-width:0;padding-top:2px">' +
+        '<div style="font-size:18px;font-weight:900;line-height:1.15;margin-bottom:6px;color:var(--text)">' + escHtml(g.title) + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:10px">' + escHtml(displayGenres.join(' · ')) + '</div>' +
+        // Tags row
+        (displayTags.length ?
+          '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:10px">' +
+            displayTags.map(function(t) {
+              var isMatch = tagIsMatch(t);
+              return '<span style="font-size:9px;padding:2px 7px;border-radius:4px;font-weight:' + (isMatch?'700':'500') + ';' +
+                'background:' + (isMatch?'rgba(91,163,245,0.15)':'var(--surface3)') + ';' +
+                'border:1px solid ' + (isMatch?'rgba(91,163,245,0.35)':'var(--border)') + ';' +
+                'color:' + (isMatch?'var(--steam)':'var(--text3)') + '">' + escHtml(t) + '</span>';
+            }).join('') +
+          '</div>'
+        : '') +
+        // Metacritic + platform
+        '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' +
+          (g.metacriticScore ? '<span style="font-size:11px;font-weight:800;color:' + metaColor + ';background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:5px">' + g.metacriticScore + ' MC</span>' : '') +
+          (g.platforms||[]).slice(0,3).map(function(p) {
+            return '<span style="font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--text3);background:var(--surface3);padding:2px 6px;border-radius:4px">' + escHtml(p) + '</span>';
+          }).join('') +
+        '</div>' +
+      '</div>' +
+    '</div>' +
+
+    // Why this
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:16px;font-size:11px;color:var(--text3)">' +
+      '✦ ' + escHtml(reasonStr || 'Matched your vibe') +
+    '</div>' +
+
+    // Description
+    (g.description ?
+      '<div style="font-size:11px;color:var(--text2);line-height:1.65;margin-bottom:16px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">' +
+        escHtml(g.description) +
+      '</div>'
+    : '') +
+
+    // Action buttons
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+      '<button class="settings-btn" style="flex:1;font-size:12px;padding:9px 16px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:800;justify-content:center" ' +
+        'onclick="closeHelpMeDecide();openGameDetailById(' + g.id + ')">▶ Play This</button>' +
+      (idx < total-1 ?
+        '<button class="settings-btn" style="font-size:12px;padding:9px 16px" onclick="pickerNextResult()">Next option →</button>'
+      : '<button class="settings-btn" style="font-size:12px;padding:9px 16px" onclick="openHelpMeDecide()">↺ Start over</button>') +
+    '</div>' +
+
+    // Prev/next dots nav
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">' +
+      '<button class="settings-btn" style="font-size:11px;padding:4px 10px;opacity:' + (idx>0?'1':'0.3') + '" ' +
+        (idx>0 ? 'onclick="pickerPrevResult()"' : 'disabled') + '>← Prev</button>' +
+      '<span style="font-size:10px;color:var(--text3)">' + (idx+1) + ' of ' + total + '</span>' +
+      '<button class="settings-btn" style="font-size:11px;padding:4px 10px;opacity:' + (idx<total-1?'1':'0.3') + '" ' +
+        (idx<total-1 ? 'onclick="pickerNextResult()"' : 'disabled') + '>Next →</button>' +
+    '</div>';
+}
+
+window.pickerNextResult = function() {
+  if (pickerResultIndex < pickerResults.length - 1) { pickerResultIndex++; renderPickerResult(); }
+};
+window.pickerPrevResult = function() {
+  if (pickerResultIndex > 0) { pickerResultIndex--; renderPickerResult(); }
+};
+
