@@ -268,6 +268,7 @@ function setupEventListeners() {
   wire('fillMetadataSteamBtn', 'click', fillMissingMetadataSteam);
   wire('fillMetadataRawgBtn',  'click', fillMissingMetadataRawg);
   wire('helpMeDecideBtn', 'click', openHelpMeDecide);
+  wire('replayPickerBtn',  'click', openReplayPicker);
   wire('fullResetBtn',   'click', openFullResetDialog);
   wire('openOnboardingBtn', 'click', function() { openOnboarding(false); });
   wire('resetConfirmInput', 'input', function() {
@@ -6685,71 +6686,178 @@ window.closeRandomPicker = function() {
 window.spinRandomGame = function() {
   var el = document.getElementById('randomPickerCard');
   if (!el) return;
-  var timeSel  = document.getElementById('pickerTimeFilter');
-  var maxHours = timeSel ? parseInt(timeSel.value) : 0;
-  var genreScore = {}, tagScore = {};
-  var played = games.filter(function(g) { return (g.playtimeHours || 0) > 0; });
-  played.forEach(function(g) {
-    var hrs = Math.log(1 + (g.playtimeHours || 0));
-    var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
-    gGenres.forEach(function(gn) { if (gn && typeof gn === 'string' && gn !== 'Other') genreScore[gn] = (genreScore[gn] || 0) + hrs; });
-    var allTags = [...(g.tags || []), ...(g.steamTags || [])];
-    allTags.forEach(function(t) { if (t && typeof t === 'string') tagScore[t.toLowerCase()] = (tagScore[t.toLowerCase()] || 0) + hrs; });
-  });
-  var topGenres = Object.entries(genreScore).sort(function(a,b){return b[1]-a[1];}).slice(0,5).map(function(e){return e[0];});
-  var topTags   = Object.entries(tagScore).sort(function(a,b){return b[1]-a[1];}).slice(0,15).map(function(e){return e[0];});
-  var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
-  if (!candidates.length) { el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found!</div>'; return; }
-  var scored = candidates.map(function(g) {
-    var score = 1;
-    var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
-    gGenres.forEach(function(gn) { if (gn && topGenres.includes(gn)) score += 4; });
-    var allTags = [...(g.tags||[]),...(g.steamTags||[])].map(function(t){return t.toLowerCase();});
-    allTags.forEach(function(t) { if (topTags.includes(t)) score += 1.5; });
-    if (g.metacriticScore >= 80) score += 3;
-    if (g.metacriticScore >= 90) score += 2;
-    if (g.userRating > 0) score += g.userRating * 0.5;
-    return { game: g, score: score };
-  });
-  var totalWeight = scored.reduce(function(s,e){return s+e.score;},0);
-  var pick = null;
-  for (var attempt = 0; attempt < 30; attempt++) {
-    var r = Math.random() * totalWeight;
-    var candidate = scored[0].game;
-    for (var i = 0; i < scored.length; i++) { r -= scored[i].score; if (r <= 0) { candidate = scored[i].game; break; } }
-    if (maxHours === 0) { pick = candidate; break; }
-    var est = candidate.avgPlaytime || 0;
-    if (est === 0) { pick = candidate; break; }
-    if (maxHours === 1 && est <= 3)  { pick = candidate; break; }
-    if (maxHours === 2 && est <= 5)  { pick = candidate; break; }
-    if (maxHours === 4 && est <= 10) { pick = candidate; break; }
-    if (maxHours === 8 && est > 8)   { pick = candidate; break; }
-  }
-  if (!pick) pick = scored[Math.floor(Math.random() * scored.length)].game;
-  var cUrl = coverCache[pick.id] || coverCache[String(pick.id)];
-  var pal  = COVER_PALETTES[(pick.pal||0) % COVER_PALETTES.length];
-  var gGenres = pick.genres && pick.genres.length ? pick.genres.filter(function(g){return typeof g==='string';}) : (pick.genre ? [pick.genre] : ['Other']);
-  var allPickTags = [...new Set([...(pick.tags||[]),...(pick.steamTags||[])])].slice(0,5);
-  var metaHint = pick.metacriticScore ? '<span style="font-size:10px;color:' + (pick.metacriticScore>=80?'#4ade80':pick.metacriticScore>=60?'#facc15':'#f87171') + ';font-weight:700;background:rgba(0,0,0,0.3);padding:2px 7px;border-radius:4px">' + pick.metacriticScore + ' MC</span>' : '';
+
+  // Randomly pick quiz answers
+  var energyKeys = ['chill', 'intense', 'think', 'surprise'];
+  var timeKeys   = [30, 120, 240, 480];
+  var modeKeys   = ['story', 'skill', 'strategic', 'cozy', 'fastpaced'];
+  var chosenEnergy = energyKeys[Math.floor(Math.random() * energyKeys.length)];
+  var chosenTime   = timeKeys[Math.floor(Math.random() * timeKeys.length)];
+  var chosenMode   = modeKeys[Math.floor(Math.random() * modeKeys.length)];
+
+  var energyLabels = { chill: '😌 Chill', intense: '🔥 Intense', think: '🧠 Thinky', surprise: '🎲 Surprise' };
+  var timeLabels   = { 30: '30 min', 120: '2 hours', 240: '4 hours', 480: 'All day' };
+  var modeLabels   = { story: '📖 Story', skill: '🎯 Skill', strategic: '♟ Strategic', cozy: '🛋 Cozy', fastpaced: '💨 Fast-paced' };
+
+  var descriptions = {
+    'chill-cozy':       'A relaxing, cozy game perfect for unwinding',
+    'chill-story':      'A laid-back story to get lost in',
+    'chill-strategic':  'A calm, thoughtful strategy session',
+    'chill-skill':      'A gentle game to ease into',
+    'chill-fastpaced':  'A light, breezy pick-up-and-play game',
+    'intense-skill':    'A challenging game that will test your skills',
+    'intense-fastpaced':'A high-energy, adrenaline-fueled experience',
+    'intense-story':    'An action-packed adventure with a gripping story',
+    'intense-strategic':'An intense, high-stakes strategy game',
+    'intense-cozy':     'An exciting game with a fun, welcoming vibe',
+    'think-strategic':  'A deep, brain-teasing strategy game',
+    'think-story':      'A thoughtful, narrative-driven experience',
+    'think-skill':      'A challenging puzzler that rewards mastery',
+    'think-cozy':       'A relaxing game with satisfying depth',
+    'think-fastpaced':  'A fast-thinking game that keeps you on your toes',
+    'surprise-cozy':    'A wildcard pick — could be anything cozy',
+    'surprise-story':   'A wildcard story — let fate decide',
+    'surprise-skill':   'A random skill challenge awaits',
+    'surprise-strategic':'A strategic surprise from your backlog',
+    'surprise-fastpaced':'A random fast-paced pick — spin and see'
+  };
+  var timeDesc = { 30: 'in about 30 minutes', 120: 'over a couple of hours', 240: 'over a few hours', 480: 'for a long session' };
+  var descKey  = chosenEnergy + '-' + chosenMode;
+  var baseDesc = descriptions[descKey] || 'A randomly chosen game from your library';
+  var fullDesc = baseDesc + ' — ' + timeDesc[chosenTime];
+
+  // Rolling animation
   el.innerHTML =
-    '<div style="display:flex;gap:16px;align-items:flex-start">' +
-      '<div style="width:100px;height:133px;border-radius:8px;overflow:hidden;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')">' +
-        (cUrl ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
-      '</div>' +
-      '<div style="flex:1;min-width:0">' +
-        '<div style="font-size:16px;font-weight:900;margin-bottom:4px;line-height:1.2">' + escHtml(pick.title) + '</div>' +
-        '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">' + escHtml(gGenres.slice(0,3).join(' · ')) + '</div>' +
-        (allPickTags.length ? '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">' + allPickTags.map(function(t){return '<span style="font-size:9px;background:var(--surface3);border:1px solid var(--border2);border-radius:4px;padding:2px 6px;color:var(--text2)">'+escHtml(t)+'</span>';}).join('') + '</div>' : '') +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">' + metaHint + '</div>' +
-        (pick.description ? '<div style="font-size:11px;color:var(--text2);line-height:1.6;margin-bottom:12px;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden">' + escHtml(pick.description) + '</div>' : '') +
-        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
-          '<button class="settings-btn" style="font-size:11px;padding:6px 14px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:700" onclick="closeRandomPicker();openGameDetailById(' + pick.id + ')">▶ Let\'s Play</button>' +
-          '<button class="settings-btn" style="font-size:11px;padding:6px 14px" onclick="spinRandomGame()">🎲 Spin Again</button>' +
-        '</div>' +
+    '<div style="text-align:center;padding:32px 16px">' +
+      '<div style="font-size:28px;margin-bottom:16px">🎲</div>' +
+      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">Rolling the dice…</div>' +
+      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' +
+        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">' + energyLabels[chosenEnergy] + '</span>' +
+        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">⏱ ' + timeLabels[chosenTime] + '</span>' +
+        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">' + modeLabels[chosenMode] + '</span>' +
       '</div>' +
     '</div>';
-};
 
+  setTimeout(function() {
+    var energy = PICKER_ENERGY_MAP[chosenEnergy] || PICKER_ENERGY_MAP.surprise;
+    var time   = PICKER_TIME_MAP[chosenTime]     || PICKER_TIME_MAP[120];
+    var mode   = PICKER_MODE_MAP[chosenMode]     || { genres: [], tagStems: [] };
+    var isSurprise = !!energy.skip;
+
+    var energyGenres  = energy.genres       || [];
+    var timeGenres    = time.genres         || [];
+    var timeStems     = time.tagStems       || [];
+    var modeGenres    = mode.genres         || [];
+    var energyStems   = energy.tagStems     || [];
+    var modeStems     = mode.tagStems       || [];
+    var energyPenalty = energy.penaltyStems || [];
+    var modePenalty   = mode.penaltyStems   || [];
+
+    function stemMatch(tag, stems) {
+      var t = tag.toLowerCase();
+      return stems.some(function(s) { return t.indexOf(s.toLowerCase()) !== -1; });
+    }
+
+    var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+    if (!candidates.length) {
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found!</div>';
+      return;
+    }
+
+    var scored = candidates.map(function(g) {
+      var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
+      var allTags = [...new Set([...(g.tags||[]),...(g.steamTags||[])].map(function(t){return t.toLowerCase();}))];
+      var quizScore = 0;
+      var hasMetadata = gGenres.length || allTags.length;
+
+      if (!isSurprise) {
+        var genreBonus = 0;
+        gGenres.forEach(function(gn) {
+          if (energyGenres.some(function(eg){return eg.toLowerCase()===gn.toLowerCase();})) genreBonus+=3;
+          if (timeGenres.some(function(tg){return tg.toLowerCase()===gn.toLowerCase();}))   genreBonus+=3;
+          if (modeGenres.some(function(mg){return mg.toLowerCase()===gn.toLowerCase();}))   genreBonus+=3;
+        });
+        quizScore += Math.min(genreBonus, 9);
+        var tagBonus = 0, tagPenalty = 0;
+        allTags.forEach(function(t) {
+          if (stemMatch(t,energyStems)||stemMatch(t,modeStems)||stemMatch(t,timeStems)) tagBonus+=1.5;
+          if (stemMatch(t,energyPenalty)) tagPenalty+=2;
+          if (stemMatch(t,modePenalty))   tagPenalty+=2;
+        });
+        quizScore += Math.min(tagBonus, 15);
+        quizScore -= Math.min(tagPenalty, 15);
+      }
+
+      if (g.notForMeAt) {
+        var daysSince = (Date.now() - new Date(g.notForMeAt).getTime()) / (1000*60*60*24);
+        var pen = 8 * Math.pow(0.5, daysSince/7);
+        if (pen > 0.25) quizScore -= pen;
+      }
+
+      if (g.metacriticScore >= 90) quizScore += 2;
+      else if (g.metacriticScore >= 80) quizScore += 1;
+      if (g.userRating > 0) quizScore += g.userRating * 0.3;
+      if (!hasMetadata) quizScore = Math.min(quizScore, 1);
+
+      var finalScore = isSurprise
+        ? (1 + (g.metacriticScore>=90?2:g.metacriticScore>=80?1:0) + (g.userRating||0)*0.3)
+        : quizScore;
+
+      return { game: g, score: finalScore * (0.8 + Math.random() * 0.4), genres: gGenres, tags: allTags };
+    }).sort(function(a,b){ return b.score - a.score; });
+
+    var MIN_SCORE = isSurprise ? 0.5 : 3.0;
+    var qualifying = scored.filter(function(s){ return s.score >= MIN_SCORE; });
+    if (qualifying.length < 3) qualifying = scored.slice(0, Math.min(15, scored.length));
+    var topScore = qualifying.length ? qualifying[0].score : 1;
+    var pool = qualifying.filter(function(s){ return s.score >= topScore * 0.75; }).slice(0, 12);
+    if (!pool.length) pool = qualifying.slice(0, 5);
+
+    var totalWeight = pool.reduce(function(s,e){ return s + Math.max(0.1, e.score); }, 0);
+    var r2 = Math.random() * totalWeight;
+    var pick = pool[0];
+    for (var i = 0; i < pool.length; i++) {
+      r2 -= Math.max(0.1, pool[i].score);
+      if (r2 <= 0) { pick = pool[i]; break; }
+    }
+
+    var g2   = pick.game;
+    var cUrl = coverCache[g2.id] || coverCache[String(g2.id)];
+    var pal  = COVER_PALETTES[(g2.pal||0) % COVER_PALETTES.length];
+    var displayTags = pick.tags.slice(0, 6);
+    var metaColor = g2.metacriticScore >= 80 ? '#4ade80' : g2.metacriticScore >= 60 ? '#facc15' : '#f87171';
+
+    el.innerHTML =
+      '<div style="display:flex;gap:6px;justify-content:center;flex-wrap:wrap;margin-bottom:14px">' +
+        '<span style="font-size:10px;padding:3px 8px;background:rgba(91,163,245,0.12);border:1px solid rgba(91,163,245,0.3);border-radius:5px;color:var(--steam)">' + energyLabels[chosenEnergy] + '</span>' +
+        '<span style="font-size:10px;padding:3px 8px;background:rgba(91,163,245,0.12);border:1px solid rgba(91,163,245,0.3);border-radius:5px;color:var(--steam)">&#9201; ' + timeLabels[chosenTime] + '</span>' +
+        '<span style="font-size:10px;padding:3px 8px;background:rgba(91,163,245,0.12);border:1px solid rgba(91,163,245,0.3);border-radius:5px;color:var(--steam)">' + modeLabels[chosenMode] + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:16px;align-items:flex-start;margin-bottom:14px">' +
+        '<div style="width:90px;height:120px;border-radius:8px;overflow:hidden;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ');box-shadow:0 8px 24px rgba(0,0,0,0.4)">' +
+          (cUrl ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+        '</div>' +
+        '<div style="flex:1;min-width:0;padding-top:2px">' +
+          '<div style="font-size:17px;font-weight:900;line-height:1.2;margin-bottom:5px">' + escHtml(g2.title) + '</div>' +
+          '<div style="font-size:11px;color:var(--text3);margin-bottom:8px">' + escHtml(pick.genres.slice(0,3).join(' · ')) + '</div>' +
+          (displayTags.length ?
+            '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px">' +
+              displayTags.map(function(t){ return '<span style="font-size:9px;padding:2px 6px;border-radius:4px;background:var(--surface3);border:1px solid var(--border);color:var(--text3)">' + escHtml(t) + '</span>'; }).join('') +
+            '</div>' : '') +
+          (g2.metacriticScore ? '<span style="font-size:11px;font-weight:800;color:' + metaColor + ';background:rgba(0,0,0,0.25);padding:2px 8px;border-radius:5px">' + g2.metacriticScore + ' MC</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 12px;margin-bottom:14px;font-size:11px;color:var(--text3)">' +
+        '&#10022; ' + escHtml(fullDesc) +
+      '</div>' +
+      '<div style="display:flex;gap:8px">' +
+        '<button class="settings-btn" style="flex:1;font-size:12px;padding:9px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:800;justify-content:center" ' +
+          'onclick="closeRandomPicker();openGameDetailById(' + g2.id + ')">&#9658; Play This</button>' +
+        '<button class="settings-btn" style="font-size:12px;padding:9px 14px" onclick="spinRandomGame()">&#9861; Try Again</button>' +
+      '</div>';
+
+  }, 800);
+};
 
 // ── BULK COVER ART FETCH ──
 
@@ -7126,90 +7234,212 @@ async function obSaveRawg() {
 // HELP ME DECIDE — QUIZ-BASED GAME PICKER
 // ══════════════════════════════════════════════════════
 
-var pickerQuizAnswers = { energy: null, time: null, mode: null };
-var pickerResults     = [];
-var pickerResultIndex = 0;
+var pickerQuizAnswers  = { energy: null, time: null, mode: null };
+var pickerResults      = [];
+var pickerResultIndex  = 0;
+var pickerShownIds     = new Set(); // tracks all games shown this session across rerolls
+var pickerReplayMode   = false;     // true = pick from played games instead of backlog
 
 // Genre lists use your actual Steam/library genres exactly as stored
 // Tag matching uses keyword stems — any tag containing the stem matches
 // e.g. 'challeng' matches 'challenging', 'challenge', 'hard challenge', etc.
 
+// ── PICKER MAPS ──
+// tagStems: any tag CONTAINING the stem scores positively (+1.5 per match)
+// penaltyStems: any tag CONTAINING the stem scores negatively (-2 per match)
+// Genre matches score +3 each, capped at 9 total across all answers
+// Grounded entirely in actual library tag vocabulary
+
+// ── PICKER MAPS ──
+// Energy genres: medium — only genres that clearly signal energy level, no broad overlaps
+// Mode genres:   narrow — only the single most diagnostic genre per mode
+// Tag scoring:   stems match substrings (+1.5 per match, capped at 15)
+// Penalty stems: actively score against an answer (-2 per match, capped at 15)
+
+// ── PICKER MAPS ──
+// GENRE SCORING: coarse signal — only the most diagnostic genres per answer
+// TAG SCORING:   fine signal — stems match substrings, do the real work
+// TAG PENALTIES: conservative — only unambiguous tags, NOT broad words like
+//                "action", "combat", "simulation" which appear in innocent games
+// GENRE PENALTIES are handled implicitly — wrong genres simply don't score
+
+// ── PICKER MAPS ──
+// Decisions grounded in actual library tag vocabulary and gameplay reasoning:
+// - Setting tags (sci-fi, fantasy, historical): IGNORED — theme not gameplay
+// - Mood tags (dark, surreal, emotional except Story): IGNORED — no dedicated axis yet
+// - Multiplayer type tags (co-op, split screen): IGNORED — neutral
+// - Stealth: IGNORED — mechanic that spans all categories
+// - beat em up: light Intense only — can appear on tactical games (Fights in Tight Spaces)
+// - hack and slash, shoot em up: strong Intense + Fast-paced — almost always reflex-based
+// - souls-like: strong Intense + Skill, penalty for Chill/Cozy
+// - metroidvania: Intense + Skill, neutral on time
+// - side scroller: moderate Intense + Fast-paced, positive for short sessions
+// - great soundtrack: Chill + Cozy positive — correlates with atmospheric relaxed games
+// - procedural generation: Thinky + Strategic
+// - replay value: Fast-paced + Intense
+// - emotional, female protagonist, lore-rich: Story mode
+// - cyberpunk, post-apocalyptic, lovecraftian: Cozy penalty
+
 var PICKER_ENERGY_MAP = {
   chill: {
-    genres:   ['Adventure','Casual','Indie','Racing','RPG','Simulation','Strategy'],
-    tagStems: ['relax','chill','calm','casual','peaceful','cozy','atmospher',
-               'walking','slow','wholesome','meditat','tranquil','laid'],
-    penalty:  [] // no hard penalties — genres already target the right pool
+    genres:   ['Casual'],
+    tagStems: [
+      'relax','atmospher','cozy','wholesome','casual','peaceful','calm','chill',
+      'beautiful','nature','meditat','tranquil','minimalist','walking sim',
+      'point & click','hidden object','visual novel','farming sim','life sim',
+      'puzzle','colorful','hand-drawn','cute','funny','comedy','family friend',
+      'fishing','sailing','music','short','great soundtrack'
+    ],
+    penaltyStems: [
+      'fps','gore','survival horror','bullet hell','souls-like','perma death',
+      'unforgiving','battle royale','boomer shooter','pvp','online pvp',
+      'arena shooter','fast-paced','violent','hack and slash','shoot em up'
+    ]
   },
   intense: {
-    genres:   ['Action','Adventure','Indie','Massively Multiplayer','Racing',
-               'Simulation','Sports','Strategy'],
-    tagStems: ['action','intense','fast','adrenalin','combat','shoot','fight',
-               'compet','challeng','difficult','hard','brutal','aggressive','violent'],
-    penalty:  []
+    genres:   ['Action', 'Sports', 'Racing', 'Massively Multiplayer'],
+    tagStems: [
+      'fps','shoot','gore','violent','horror','difficult','challeng','fast-paced',
+      'arcade','bullet hell','souls-like','roguelike','survival','war','battle',
+      'brutal','unforgiving','perma death','military','pvp','boomer shoot',
+      'twin stick','parkou','action roguelike','beat em up',
+      'hack and slash','shoot em up','side scroller','metroidvania',
+      'replay value','spectacle','character action'
+    ],
+    penaltyStems: [
+      'farming sim','life sim','walking sim','hidden object','visual novel',
+      'fishing','cooking','gardening','point & click','turn-based','4x',
+      'grand strat','colony sim','puzzle'
+    ]
   },
   think: {
-    genres:   ['Indie','RPG','Simulation','Strategy'],
-    tagStems: ['strateg','puzzle','think','brain','logic','tactical','turn-based',
-               'turn based','manag','resource','plan','complex','deep','cerebral'],
-    penalty:  []
+    genres:   ['Strategy', 'Simulation'],
+    tagStems: [
+      'strateg','tactical','turn-based','turn based','puzzle','manag','resource',
+      'grand strat','4x','city build','base build','economy','deck','card game',
+      'logic','investigat','detective','mystery','crpg','dungeon crawler',
+      'isometric','rts','wargame','hex grid','autom','diplomacy','colony',
+      'immersive sim','real time tactics','real-time with pause',
+      'political','choices matter','multiple end','party-based rpg',
+      'procedural generation'
+    ],
+    penaltyStems: [
+      'fps','gore','fast-paced','bullet hell','souls-like','perma death',
+      'boomer shoot','battle royale','arena shooter'
+    ]
   },
-  surprise: { genres: [], tagStems: [], penalty: [], skip: true }
+  surprise: { genres: [], tagStems: [], penaltyStems: [], skip: true }
 };
 
 var PICKER_TIME_MAP = {
+  // 30min: pick-up-and-play mechanics score here
   30:  {
-    genres:   ['Action','Casual','Free to Play','Indie','Racing','RPG','Sports','Strategy'],
+    genres:   ['Casual', 'Indie', 'Racing', 'Sports'],
+    tagStems: ['hack and slash','shoot em up','side scroller','beat em up','arcade','casual'],
     maxHours: 1
   },
-  120: {
-    genres:   ['Action','Adventure','Casual','Free to Play','Indie','Racing','RPG',
-               'Simulation','Sports','Strategy'],
-    maxHours: 3
+  120: { genres: ['Action', 'Adventure', 'Casual', 'Indie', 'Racing', 'Sports'], maxHours: 3 },
+  240: { genres: ['Adventure', 'RPG', 'Simulation', 'Strategy'], maxHours: 6 },
+  480: { genres: ['Free to Play', 'Massively Multiplayer', 'RPG', 'Simulation', 'Strategy'], maxHours: 999 }
+};
+
+var PICKER_MODE_MAP = {
+  story: {
+    genres:   ['Adventure'],
+    tagStems: [
+      'story rich','narrativ','atmospher','choice','visual novel','emotion','cinemat',
+      'lore','multiple end','point & click','mystery','detective','noir','narrat',
+      'interactive fic','walking sim','episodic','drama','psycholog',
+      'female protagonist','lgbtq','choices matter','lore-rich','text-based',
+      'great soundtrack'
+    ],
+    penaltyStems: [
+      'fps','pvp','battle royale','arena shooter','boomer shoot','e-sport','fast-paced'
+    ]
   },
-  240: {
-    genres:   ['Adventure','Free to Play','RPG','Simulation','Strategy'],
-    maxHours: 6
+  skill: {
+    genres:   ['Action', 'Sports', 'Racing'],
+    tagStems: [
+      'difficult','challeng','souls-like','precision','bullet hell','fps',
+      'shooter','hack and slash','shoot em up','action roguelike','perma death',
+      'unforgiving','reflex','timing','mastery','compet','arcade','platfor',
+      'parkou','twitch','boomer shoot','spectacle','character action',
+      'metroidvania','rogue-like','rogue-lite','roguelike','martial art',
+      'swordplay','precision platfor','replay value'
+    ],
+    penaltyStems: [
+      'farming sim','life sim','walking sim','point & click','hidden object',
+      'visual novel','fishing','cooking','turn-based','4x','grand strat'
+    ]
   },
-  480: {
-    genres:   ['Free to Play','Massively Multiplayer','RPG','Simulation','Strategy'],
-    maxHours: 999
+  strategic: {
+    genres:   ['Strategy', 'Simulation'],
+    tagStems: [
+      'strateg','tactical','turn-based','turn based','manag','resource','4x',
+      'grand strat','city build','base build','economy','rts','deck','card game',
+      'wargame','hex grid','autom','diplomacy','colony','isometric','crpg',
+      'party-based rpg','real time tactics','real-time with pause',
+      'political','dungeon','sandbox','puzzle','procedural generation'
+    ],
+    penaltyStems: [
+      'fps','gore','fast-paced','bullet hell','boomer shoot','battle royale',
+      'arena shooter','perma death'
+    ]
+  },
+  cozy: {
+    genres:   ['Casual'],
+    tagStems: [
+      'cozy','relax','wholesome','cute','casual','atmospher','beautiful','peaceful',
+      'farming sim','life sim','walking sim','puzzle','colorful','cartoon','funny',
+      'comedy','family friend','point & click','hidden object','minimalist',
+      'hand-drawn','nature','music','fishing','sailing','cooking','short',
+      'episodic','interactive fic','visual novel','garden','animal',
+      'party game','local co-op','couch co-op','great soundtrack'
+    ],
+    penaltyStems: [
+      'gore','survival horror','bullet hell','pvp','online pvp','battle royale',
+      'perma death','unforgiving','boomer shoot','arena shooter',
+      'souls-like','hack and slash','shoot em up',
+      'dark fantasy','lovecraft','mature','blood','violent','war','military',
+      'post-apocalypt','cyberpunk','dystop','zombies','demons',
+      'difficult','challeng','third-person shooter','action rpg','open world'
+    ]
+  },
+  fastpaced: {
+    genres:   ['Action', 'Racing', 'Sports'],
+    tagStems: [
+      'fast-paced','arcade','fps','shoot','action roguelike','bullet','racing',
+      'sport','hack and slash','shoot em up','beat em up','side scroller',
+      'reflex','twitch','compet','parkou','twin stick','boomer shoot','souls-like',
+      'spectacle','character action','platfor','metroidvania','rogue-like',
+      'rogue-lite','roguelike','shooter','pvp','team-based','difficult','challeng',
+      'replay value'
+    ],
+    penaltyStems: [
+      'farming sim','life sim','walking sim','point & click','hidden object',
+      'visual novel','turn-based','4x','grand strat','colony sim','fishing',
+      'cooking','puzzle'
+    ]
   }
 };
 
-// Mental Mode uses both genres and tag stems
-var PICKER_MODE_MAP = {
-  story: {
-    genres:   ['Adventure','Indie','RPG'],
-    tagStems: ['story','narrativ','dialog','choice','character','visual novel',
-               'atmospher','emotion','cinemat','lore','plot','written']
-  },
-  skill: {
-    genres:   ['Action','Indie','Racing','Sports'],
-    tagStems: ['skill','difficult','challeng','precision','reflex','hard',
-               'punish','mastery','timing','compet','twitch','precise']
-  },
-  strategic: {
-    genres:   ['Indie','RPG','Simulation','Strategy'],
-    tagStems: ['strateg','tactical','turn','resource','manag','plan',
-               'build','4x','base','tower','city','puzzle','construct']
-  },
-  cozy: {
-    genres:   ['Adventure','Casual','Indie','Simulation'],
-    tagStems: ['cozy','chill','relax','wholesome','farm','craft','cute',
-               'peaceful','casual','comfort','garden','animal','friend']
-  },
-  fastpaced: {
-    genres:   ['Action','Indie','Racing','Sports'],
-    tagStems: ['fast','quick','speed','rapid','arcade','rush','race',
-               'action','shoot','reflex','twitch','hectic','frantic']
-  }
-};;
-
 function openHelpMeDecide() {
+  pickerReplayMode  = false;
   pickerQuizAnswers = { energy: null, time: null, mode: null };
-  pickerResults = [];
+  pickerResults     = [];
   pickerResultIndex = 0;
+  pickerShownIds    = new Set();
+  var overlay = document.getElementById('helpMeDecideOverlay');
+  if (overlay) overlay.classList.add('open');
+  renderPickerQuiz();
+}
+
+function openReplayPicker() {
+  pickerReplayMode  = true;
+  pickerQuizAnswers = { energy: null, time: null, mode: null };
+  pickerResults     = [];
+  pickerResultIndex = 0;
+  pickerShownIds    = new Set();
   var overlay = document.getElementById('helpMeDecideOverlay');
   if (overlay) overlay.classList.add('open');
   renderPickerQuiz();
@@ -7223,6 +7453,10 @@ function closeHelpMeDecide() {
 function renderPickerQuiz() {
   var el = document.getElementById('helpMeDecideBody');
   if (!el) return;
+
+  // Update modal title to reflect mode
+  var titleEl = document.querySelector('#helpMeDecideOverlay .modal-title');
+  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Help Me Decide';
 
   // Determine current step
   var step = !pickerQuizAnswers.energy ? 1 : !pickerQuizAnswers.time ? 2 : !pickerQuizAnswers.mode ? 3 : 4;
@@ -7302,7 +7536,8 @@ window.pickerSelectAnswer = function(key, val) {
 
 function runPickerAndShowResults() {
   var el = document.getElementById('helpMeDecideBody');
-  if (el) el.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--text3);font-size:13px">Finding your games…</div>';
+  var loadMsg = pickerReplayMode ? 'Finding games to replay…' : 'Finding your games…';
+  if (el) el.innerHTML = '<div style="text-align:center;padding:48px 0;color:var(--text3);font-size:13px">' + loadMsg + '</div>';
 
   setTimeout(function() {
     var energy = PICKER_ENERGY_MAP[pickerQuizAnswers.energy] || PICKER_ENERGY_MAP.surprise;
@@ -7311,11 +7546,14 @@ function runPickerAndShowResults() {
     var isSurprise = !!energy.skip;
 
     // Merge genre lists from time + mode (energy handled separately per game)
-    var timeGenres = time.genres   || [];
-    var modeGenres = mode.genres   || [];
-    var modeStems  = mode.tagStems || [];
-    var energyGenres = energy.genres   || [];
-    var energyStems  = energy.tagStems || [];
+    var timeGenres    = time.genres          || [];
+    var timeStems     = time.tagStems        || [];
+    var modeGenres    = mode.genres          || [];
+    var modeStems     = mode.tagStems        || [];
+    var modePenalty   = mode.penaltyStems    || [];
+    var energyGenres  = energy.genres        || [];
+    var energyStems   = energy.tagStems      || [];
+    var energyPenalty = energy.penaltyStems  || [];
 
     // Helper: does any stem appear as a substring of the tag?
     function stemMatch(tag, stems) {
@@ -7323,22 +7561,13 @@ function runPickerAndShowResults() {
       return stems.some(function(s) { return t.indexOf(s.toLowerCase()) !== -1; });
     }
 
-    // Preference scores from play history — genres and tags the user has spent time with
-    var prefGenre = {}, prefTag = {};
-    games.filter(function(g) { return (g.playtimeHours||0) > 0; }).forEach(function(g) {
-      var hrs = Math.log(1 + (g.playtimeHours||0));
-      var gGenres = g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : []);
-      gGenres.forEach(function(gn) { if (gn) prefGenre[gn] = (prefGenre[gn]||0) + hrs; });
-      [...(g.tags||[]),...(g.steamTags||[])].forEach(function(t) {
-        if (t) prefTag[t.toLowerCase()] = (prefTag[t.toLowerCase()]||0) + hrs;
-      });
-    });
-
-    // Candidates = all unplayed, unhidden games
-    var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+    // Candidates — unplayed for normal mode, played for replay mode
+    var candidates = pickerReplayMode
+      ? games.filter(function(g) { return (g.playtimeHours||0) > 0 && !g.hidden; })
+      : games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
 
     if (!candidates.length) {
-      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found in your library!</div>';
+      el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">' + (pickerReplayMode ? 'No played games found!' : 'No unplayed games found!') + '</div>';
       return;
     }
 
@@ -7362,14 +7591,18 @@ function runPickerAndShowResults() {
         quizScore += Math.min(genreBonus, 9);
 
         // --- TAG SCORING via stem matching ---
-        // Energy stems + mode stems; time contributes no tags (genre carries it)
+        // Energy stems + mode stems score positively; penalty stems score negatively
         var tagBonus = 0;
+        var tagPenalty = 0;
         allTags.forEach(function(t) {
-          if (stemMatch(t, energyStems)) tagBonus += 1.5;
-          if (stemMatch(t, modeStems))   tagBonus += 1.5;
+          var posMatch = stemMatch(t, energyStems) || stemMatch(t, modeStems) || stemMatch(t, timeStems);
+          if (posMatch) tagBonus += 1.5;
+          if (stemMatch(t, energyPenalty)) tagPenalty += 2;
+          if (stemMatch(t, modePenalty))   tagPenalty += 2;
         });
-        // Cap tag bonus at 9 so it's on equal footing with genre
-        quizScore += Math.min(tagBonus, 9);
+        // Cap bonus at 15 (raised from 9 so perfect matches score significantly higher)
+        quizScore += Math.min(tagBonus, 15);
+        quizScore -= Math.min(tagPenalty, 15);
       }
 
       // Time filter — soft penalty if game is way over time budget
@@ -7377,11 +7610,12 @@ function runPickerAndShowResults() {
       var est = g.avgPlaytime || 0;
       if (maxH < 999 && est > 0 && est > maxH * 2) quizScore -= 4;
 
-      // Play history preference bonus (low weight — quiz answers dominate)
-      var prefBonus = 0;
-      gGenres.forEach(function(gn) { if (prefGenre[gn]) prefBonus += Math.log(1+prefGenre[gn]) * 0.25; });
-      allTags.forEach(function(t)  { if (prefTag[t])    prefBonus += Math.log(1+prefTag[t])    * 0.1;  });
-      quizScore += Math.min(prefBonus, 4); // cap pref bonus so it can't override quiz signal
+      // "Not for me" decaying penalty — -8 on day 1, halves every 7 days, gone after ~4 weeks
+      if (g.notForMeAt) {
+        var daysSince = (Date.now() - new Date(g.notForMeAt).getTime()) / (1000 * 60 * 60 * 24);
+        var demotePenalty = 8 * Math.pow(0.5, daysSince / 7);
+        if (demotePenalty > 0.25) quizScore -= demotePenalty;
+      }
 
       // Quality signals
       if (g.metacriticScore >= 90) quizScore += 2;
@@ -7391,13 +7625,32 @@ function runPickerAndShowResults() {
       // No metadata — deprioritize but don't exclude
       if (!hasMetadata) quizScore = Math.min(quizScore, 1);
 
-      // Surprise: score based purely on preference history + quality, nothing quiz-driven
+      // Surprise: score based purely on quality signals — truly random across library
       var finalScore = isSurprise
-        ? (1 + Math.min(prefBonus, 6) + (g.metacriticScore >= 80 ? 1 : 0) + (g.userRating||0) * 0.3)
+        ? (1 + (g.metacriticScore >= 90 ? 2 : g.metacriticScore >= 80 ? 1 : 0) + (g.userRating||0) * 0.3)
         : quizScore;
 
-      return { game: g, score: Math.max(0.1, finalScore), genres: gGenres, tags: allTags, hasMetadata: hasMetadata };
+      return { game: g, score: finalScore, genres: gGenres, tags: allTags, hasMetadata: hasMetadata };
     });
+
+    // For surprise mode use a low threshold so the whole library is eligible
+    var MIN_SCORE = isSurprise ? 0.5 : 3.0;
+    var qualifying = scored.filter(function(s) { return s.score >= MIN_SCORE; });
+    // Fall back to top 15 if sparse metadata means few games qualify
+    if (qualifying.length < 6) qualifying = scored.slice(0, Math.min(15, scored.length));
+
+    // Exclude games already shown this session — rerolls always give fresh results
+    var fresh = qualifying.filter(function(s) { return !pickerShownIds.has(s.game.id); });
+    // If we've exhausted the pool, reset exclusions and start over
+    if (fresh.length < 3) { pickerShownIds = new Set(); fresh = qualifying; }
+
+    // Score jitter — ±20% random multiplier so top games don't always win
+    // Applied after filtering so bad games can't jitter their way into qualifying
+    fresh = fresh.map(function(s) {
+      var jitter = 0.8 + Math.random() * 0.4; // 0.8 to 1.2
+      return Object.assign({}, s, { score: s.score * jitter });
+    }).sort(function(a, b) { return b.score - a.score; });
+
     function weightedPick(pool) {
       if (!pool.length) return null;
       var total = pool.reduce(function(s,e) { return s + Math.max(0.1, e.score); }, 0);
@@ -7409,35 +7662,43 @@ function runPickerAndShowResults() {
       return pool[0];
     }
 
-    // Select 3 distinct cards — different primary genres, weighted-random within top candidates
-    var picks = [];
+    // Score bands — wider pools for more variety
+    var topScore   = fresh.length ? fresh[0].score : 1;
+    var bandStrong = fresh.filter(function(s) { return s.score >= topScore * 0.75; });
+    var bandGood   = fresh.filter(function(s) { return s.score >= topScore * 0.4 && s.score < topScore * 0.75; });
+    var bandWild   = fresh.filter(function(s) { return s.score < topScore * 0.4; });
+    // Ensure bands have enough candidates; fall back up if thin
+    if (bandGood.length < 4)  bandGood  = fresh.slice(Math.min(5, fresh.length));
+    if (bandWild.length < 4)  bandWild  = fresh.slice(Math.min(10, fresh.length));
+
+    var picks    = [];
+    var usedIds  = new Set();
     var usedGenres = new Set();
-    var usedIds = new Set();
 
-    // Card 1: weighted random from top 8 overall
-    var pool1 = scored.slice(0, Math.min(8, scored.length));
-    var card1 = weightedPick(pool1);
-    picks.push(card1);
-    usedGenres.add((card1.genres[0]||'none').toLowerCase());
-    usedIds.add(card1.game.id);
+    // Card 1: strong match band (top scorers)
+    var pool1 = bandStrong.filter(function(s) { return !usedIds.has(s.game.id); }).slice(0, 12);
+    var card1 = weightedPick(pool1) || weightedPick(fresh.slice(0, 10));
+    if (card1) { picks.push(card1); usedIds.add(card1.game.id); usedGenres.add((card1.genres[0]||'none').toLowerCase()); }
 
-    // Card 2: weighted random from top candidates with a different primary genre
-    var pool2 = scored.filter(function(s) {
+    // Card 2: good match band — prefer different genre but fall back to same genre if needed
+    var pool2 = bandGood.filter(function(s) {
       return !usedIds.has(s.game.id) && !usedGenres.has((s.genres[0]||'none').toLowerCase());
-    }).slice(0, Math.min(8, scored.length));
-    var card2 = pool2.length ? weightedPick(pool2) : scored.find(function(s) { return !usedIds.has(s.game.id); });
-    if (card2) {
-      picks.push(card2);
-      usedGenres.add((card2.genres[0]||'none').toLowerCase());
-      usedIds.add(card2.game.id);
-    }
+    }).slice(0, 12);
+    // If no different-genre options exist, just pick the next best regardless of genre
+    if (!pool2.length) pool2 = fresh.filter(function(s) { return !usedIds.has(s.game.id); }).slice(0, 12);
+    var card2 = weightedPick(pool2);
+    if (card2) { picks.push(card2); usedIds.add(card2.game.id); usedGenres.add((card2.genres[0]||'none').toLowerCase()); }
 
-    // Card 3: wildcard — different genre, wider random pool for variety
-    var pool3 = scored.filter(function(s) {
+    // Card 3: wildcard band — prefer different genre but fall back freely
+    var pool3 = bandWild.filter(function(s) {
       return !usedIds.has(s.game.id) && !usedGenres.has((s.genres[0]||'none').toLowerCase());
-    }).slice(0, Math.min(12, scored.length));
-    var card3 = pool3.length ? weightedPick(pool3) : scored.find(function(s) { return !usedIds.has(s.game.id); });
+    }).slice(0, 20);
+    if (!pool3.length) pool3 = fresh.filter(function(s) { return !usedIds.has(s.game.id); }).slice(0, 20);
+    var card3 = weightedPick(pool3);
     if (card3) picks.push(card3);
+
+    // Record all shown games so rerolls skip them
+    picks.forEach(function(p) { if (p) pickerShownIds.add(p.game.id); });
 
     pickerResults = picks;
     pickerResultIndex = 0;
@@ -7448,6 +7709,10 @@ function runPickerAndShowResults() {
 function renderPickerResult() {
   var el = document.getElementById('helpMeDecideBody');
   if (!el || !pickerResults.length) return;
+
+  // Update title to reflect mode
+  var titleEl = document.querySelector('#helpMeDecideOverlay .modal-title');
+  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Help Me Decide';
 
   var entry  = pickerResults[pickerResultIndex];
   var g      = entry.game;
@@ -7532,21 +7797,35 @@ function renderPickerResult() {
     : '') +
 
     // Action buttons
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">' +
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px">' +
       '<button class="settings-btn" style="flex:1;font-size:12px;padding:9px 16px;background:var(--steam);color:#000;border-color:var(--steam);font-weight:800;justify-content:center" ' +
-        'onclick="closeHelpMeDecide();openGameDetailById(' + g.id + ')">▶ Play This</button>' +
+        'onclick="closeHelpMeDecide();openGameDetailById(' + g.id + ')">&#9658; Play This</button>' +
       (idx < total-1 ?
-        '<button class="settings-btn" style="font-size:12px;padding:9px 16px" onclick="pickerNextResult()">Next option →</button>'
-      : '<button class="settings-btn" style="font-size:12px;padding:9px 16px" onclick="openHelpMeDecide()">↺ Start over</button>') +
+        '<button class="settings-btn" style="font-size:12px;padding:9px 16px" onclick="pickerNextResult()">Next &#8594;</button>'
+      : '') +
     '</div>' +
 
-    // Prev/next dots nav
-    '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px">' +
+    // Not for me + Show me different row
+    '<div style="display:flex;gap:8px;margin-bottom:10px">' +
+      '<button class="settings-btn" style="flex:1;font-size:11px;padding:7px 12px;justify-content:center;color:var(--text3);border-color:var(--border)" ' +
+        'onclick="event.stopPropagation();pickerNotForMe(' + g.id + ')">&#10005; Not for me</button>' +
+      '<button class="settings-btn" style="flex:2;font-size:11px;padding:7px 12px;justify-content:center;color:var(--text3);border-color:var(--border)" ' +
+        'onclick="rerollHelpMeDecide()">&#10022; Show me different games</button>' +
+    '</div>' +
+
+    // Change answers button
+    '<div style="text-align:center;margin-bottom:12px">' +
+      '<button class="settings-btn" style="font-size:11px;padding:5px 16px;color:var(--text2);background:var(--surface2);border-color:var(--border)" ' +
+        'onclick="pickerReplayMode ? openReplayPicker() : openHelpMeDecide()">&#8634; Change answers</button>' +
+    '</div>' +
+
+    // Prev/next nav
+    '<div style="display:flex;justify-content:space-between;align-items:center">' +
       '<button class="settings-btn" style="font-size:11px;padding:4px 10px;opacity:' + (idx>0?'1':'0.3') + '" ' +
-        (idx>0 ? 'onclick="pickerPrevResult()"' : 'disabled') + '>← Prev</button>' +
+        (idx>0 ? 'onclick="pickerPrevResult()"' : 'disabled') + '>&#8592; Prev</button>' +
       '<span style="font-size:10px;color:var(--text3)">' + (idx+1) + ' of ' + total + '</span>' +
       '<button class="settings-btn" style="font-size:11px;padding:4px 10px;opacity:' + (idx<total-1?'1':'0.3') + '" ' +
-        (idx<total-1 ? 'onclick="pickerNextResult()"' : 'disabled') + '>Next →</button>' +
+        (idx<total-1 ? 'onclick="pickerNextResult()"' : 'disabled') + '>Next &#8594;</button>' +
     '</div>';
 }
 
@@ -7555,5 +7834,24 @@ window.pickerNextResult = function() {
 };
 window.pickerPrevResult = function() {
   if (pickerResultIndex > 0) { pickerResultIndex--; renderPickerResult(); }
+};
+
+
+window.rerollHelpMeDecide = function() {
+  runPickerAndShowResults();
+};
+
+window.pickerNotForMe = async function(gameId) {
+  var g = games.find(function(g) { return g.id === gameId; });
+  if (!g) return;
+  g.notForMeAt = new Date().toISOString();
+  await window.nexus.games.update(gameId, { notForMeAt: g.notForMeAt });
+  // Just move to the next card, or reroll if this was the last one
+  if (pickerResultIndex < pickerResults.length - 1) {
+    pickerResultIndex++;
+    renderPickerResult();
+  } else {
+    rerollHelpMeDecide();
+  }
 };
 

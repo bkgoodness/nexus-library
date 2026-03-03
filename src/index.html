@@ -321,8 +321,9 @@
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add Game
       </button>
+      <button class="settings-btn" id="helpMeDecideBtn" title="Help me decide what to play" style="padding:7px 12px;font-size:12px;height:32px">✦</button>
+      <button class="settings-btn" id="replayPickerBtn" title="Help me pick a game to replay" style="padding:7px 12px;font-size:12px;height:32px">↩</button>
       <button class="settings-btn" onclick="openRandomPicker()" title="What should I play?" style="padding:7px 12px;font-size:12px;height:32px" id="randomPickerBtn">🎲</button>
-      <button class="settings-btn" onclick="openHelpMeDecide()" title="Help me decide" style="padding:7px 12px;font-size:12px;height:32px;background:var(--steam-bg);border-color:rgba(91,163,245,0.25);color:var(--steam)" id="helpMeDecideBtn">✦ Help Me Decide</button>
     </div>
 
     <div class="filter-strip filter-strip-top">
@@ -702,9 +703,6 @@
             <button class="settings-btn" id="igdbSaveBtn">Save &amp; Fetch Art</button>
             <button class="settings-btn" id="igdbRefreshBtn" title="Re-run art search for all games still missing covers">🔄 Fetch Missing Art</button>
             <button class="settings-btn" id="igdbRefetchAllBtn" title="Re-fetch cover art for every game from scratch" style="border-color:rgba(251,146,60,0.4);color:#fb923c">🔃 Re-fetch All Art</button>
-            <button class="settings-btn" id="fillMetadataSteamBtn" title="Re-fetch genres and tags for Steam games using the Steam store API" style="border-color:rgba(74,222,128,0.35);color:#4ade80">✦ Fill Steam Metadata</button>
-            <button class="settings-btn" id="fillMetadataRawgBtn" title="Fill genres and tags for non-Steam games via RAWG (slow — 3s per game)" style="border-color:rgba(74,222,128,0.35);color:#4ade80">✦ Fill RAWG Metadata</button>
-            <button class="settings-btn" id="fillMetadataBtn" title="Fill metadata for all games missing genres or tags" style="border-color:rgba(74,222,128,0.2);color:var(--text3)">✦ Fill All Metadata</button>
           </div>
         </div>
         <div class="steam-dl-progress" id="igdbFuzzyProgress" style="display:none">
@@ -1108,41 +1106,25 @@
       <button class="modal-close" onclick="closeRandomPicker()">✕</button>
     </div>
     <div style="padding:20px">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">
-        <span style="font-size:11px;color:var(--text3)">I have</span>
-        <select id="pickerTimeFilter" class="sort-select" style="font-size:11px;width:auto">
-          <option value="0">any amount of time</option>
-          <option value="1">~1 hour</option>
-          <option value="2">~2 hours</option>
-          <option value="4">~4 hours</option>
-          <option value="8">a full evening (8h+)</option>
-        </select>
-        <span style="font-size:11px;color:var(--text3)">to play</span>
-        <button class="settings-btn" onclick="window.spinRandomGame()" style="font-size:11px;padding:5px 12px;margin-left:4px">🎲 Pick</button>
-      </div>
       <div id="randomPickerCard"></div>
     </div>
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     HELP ME DECIDE — QUIZ PICKER
-     ══════════════════════════════════════════════════ -->
 <div class="overlay" id="helpMeDecideOverlay" onclick="if(event.target===this)closeHelpMeDecide()">
-  <div class="modal" style="max-width:480px;width:92vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
-    <div class="modal-header" style="flex-shrink:0">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="modal-title">✦ Help Me Decide</div>
-      </div>
+  <div class="modal" style="max-width:420px;width:92vw">
+    <div class="modal-header">
+      <div class="modal-title">✦ Help Me Decide</div>
       <button class="modal-close" onclick="closeHelpMeDecide()">✕</button>
     </div>
-    <div style="flex:1;overflow-y:auto;padding:20px 24px 24px" id="helpMeDecideBody"></div>
+    <div id="helpMeDecideBody" style="padding:20px"></div>
   </div>
 </div>
 
-<!-- ONBOARDING WIZARD
+<!-- ══════════════════════════════════════════════════
+     ONBOARDING WIZARD
      ══════════════════════════════════════════════════ -->
-<div class="overlay" id="onboardingOverlay">
+<div class="overlay" id="onboardingOverlay" style="display:none;z-index:10000">
   <div class="modal" style="max-width:600px;width:92vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
     <div class="modal-header" style="flex-shrink:0">
       <div style="display:flex;align-items:center;gap:12px">
@@ -1173,29 +1155,27 @@
 <!-- ══════════════════════════════════════════════════
      FULL RESET CONFIRMATION
      ══════════════════════════════════════════════════ -->
-<div class="overlay" id="fullResetOverlay" onclick="if(event.target===this)closeFullResetDialog()">
+<div class="overlay" id="fullResetOverlay" style="display:none;z-index:10001" onclick="if(event.target===this)closeFullResetDialog()">
   <div class="modal" style="max-width:440px;width:92vw">
     <div class="modal-header">
       <div class="modal-title">☢ Full Reset</div>
       <button class="modal-close" onclick="closeFullResetDialog()">✕</button>
     </div>
     <div style="padding:20px 24px">
-      <div style="background:rgba(239,83,83,0.12);border:2px solid rgba(239,83,83,0.4);border-radius:10px;padding:14px 16px;margin-bottom:16px">
-        <div style="font-size:13px;font-weight:800;color:#f87171;margin-bottom:4px;letter-spacing:0.02em">⚠ THIS CANNOT BE UNDONE</div>
-        <div style="font-size:12px;color:#f87171;margin-bottom:10px;opacity:0.85">There is no way to recover your data after this action.</div>
-        <div style="font-size:12px;color:var(--text2);line-height:1.9">
-          ✕ Your entire game library &amp; wishlist<br>
+      <div style="background:rgba(239,83,83,0.08);border:1px solid rgba(239,83,83,0.25);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:#f87171;margin-bottom:8px">This will permanently delete:</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.8">
+          ✕ Your entire game library<br>
           ✕ All API keys &amp; credentials<br>
-          ✕ All cover art cache<br>
           ✕ All play sessions &amp; timers<br>
-          ✕ Goals, tags, ratings &amp; notes
+          ✕ Wishlist, goals &amp; settings
         </div>
       </div>
-      <div style="font-size:12px;color:var(--text3);margin-bottom:14px">Type <strong style="color:var(--text)">RESET</strong> to confirm. The app will restart the setup wizard.</div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Type <strong style="color:var(--text)">RESET</strong> to confirm:</div>
       <input type="text" id="resetConfirmInput" class="settings-input" placeholder="Type RESET here…" style="margin-bottom:16px;width:100%">
       <div style="display:flex;gap:10px;justify-content:flex-end">
         <button class="settings-btn" onclick="closeFullResetDialog()">Cancel</button>
-        <button class="settings-btn settings-btn-danger" id="resetConfirmBtn" disabled onclick="executeFullReset()">☢ Wipe Everything</button>
+        <button class="settings-btn settings-btn-danger" id="resetConfirmBtn" disabled onclick="executeFullReset()">☢ Reset Everything</button>
       </div>
     </div>
   </div>
