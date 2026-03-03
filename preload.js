@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('nexus', {
     bulkSetGenre:    (ids, genre)        => ipcRenderer.invoke('games:bulkSetGenre', { ids, genre }),
     fetchSteamGenres:(appIds)            => ipcRenderer.invoke('games:fetchSteamGenres', appIds),
     testSteamSpy:    (appId)             => ipcRenderer.invoke('games:testSteamSpy', appId),
+    steamSearchByName:(title)            => ipcRenderer.invoke('games:steamSearchByName', title),
   },
   steam: {
     importLibrary: (steamId, apiKey) => ipcRenderer.invoke('steam:importLibrary', { steamId, apiKey }),

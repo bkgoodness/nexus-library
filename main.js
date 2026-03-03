@@ -397,6 +397,77 @@ ipcMain.handle('games:fetchSteamGenres', async (_event, steamAppIds) => {
   return results;
 });
 
+// ── STEAM SEARCH BY NAME — resolves a title to a Steam appId using local cache ──
+// Uses the nameLower index built during GetAppList — no network call needed
+ipcMain.handle('games:steamSearchByName', async (_event, title) => {
+  const cache = loadSteamCacheFromDisk();
+  if (!cache || !cache.nameLower) {
+    console.warn('[SteamSearch] Cache not available');
+    return null;
+  }
+
+  // Strip platform/store suffixes and noise before matching
+  const stripSuffixes = s => s
+    .replace(/\s*[-–]\s*(amazon prime|amazon luna|epic games|xbox game pass|game pass|pc edition|windows edition|console edition)/gi, '')
+    .replace(/[™®©]/g, '')
+    .replace(/\s*(:\s*)?(definitive|complete|ultimate|enhanced|remastered|deluxe|gold|goty|game of the year|legendary|anniversary|classic)\s*(edition)?$/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const normalize  = s => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const needle     = stripSuffixes(title).toLowerCase().trim();
+  const needleNorm = normalize(needle);
+
+  if (!needleNorm) return null;
+
+  // 1. Exact match (case-insensitive, after suffix stripping)
+  if (cache.nameLower[needle]) {
+    const appId = cache.nameLower[needle];
+    console.log('[SteamSearch] Exact match "' + title + '" -> appId ' + appId);
+    return { appId: Number(appId), matchedName: needle, score: 1.0 };
+  }
+
+  // 2. Normalized exact match (ignore punctuation/spaces)
+  for (const [name, appId] of Object.entries(cache.nameLower)) {
+    const norm = normalize(stripSuffixes(name));
+    if (norm === needleNorm) {
+      console.log('[SteamSearch] Normalized match "' + title + '" -> "' + name + '" appId ' + appId);
+      return { appId: Number(appId), matchedName: name, score: 0.99 };
+    }
+  }
+
+  // 3. Fuzzy match — only scan names starting with same first letter
+  const firstChar = needleNorm[0];
+  let bestAppId = null, bestName = null, bestScore = 0;
+
+  for (const [name, appId] of Object.entries(cache.nameLower)) {
+    const norm = normalize(stripSuffixes(name));
+    if (!norm.startsWith(firstChar)) continue;
+
+    const longer  = Math.max(norm.length, needleNorm.length);
+    const shorter = Math.min(norm.length, needleNorm.length);
+    let common = 0;
+    for (let i = 0; i < shorter; i++) {
+      if (norm[i] === needleNorm[i]) common++; else break;
+    }
+    let score = common / longer;
+    if (norm.includes(needleNorm) || needleNorm.includes(norm)) {
+      score = Math.max(score, shorter / longer);
+    }
+
+    if (score > bestScore) { bestScore = score; bestAppId = appId; bestName = name; }
+  }
+
+  // Accept fuzzy matches above 75% similarity
+  if (bestScore >= 0.75 && bestAppId) {
+    console.log('[SteamSearch] Fuzzy match "' + title + '" -> "' + bestName + '" appId ' + bestAppId + ' score:' + bestScore.toFixed(2));
+    return { appId: Number(bestAppId), matchedName: bestName, score: bestScore };
+  }
+
+  console.log('[SteamSearch] No match for "' + title + '" (best: "' + bestName + '" score:' + bestScore.toFixed(2) + ')');
+  return null;
+});
+
 // ── STEAMSPY TEST — call from console: window.nexus.testSteamSpy(10) ──
 ipcMain.handle('games:testSteamSpy', async (_event, appId) => {
   console.log('[SteamSpy test] fetching appId:', appId);

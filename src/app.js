@@ -4496,7 +4496,7 @@ async function _fillMetadata(doSteam, doRawg) {
     return g.steamAppId; // always re-fetch — old tags may be wrong category-based ones
   }) : [];
   var rawgTargets = doRawg ? games.filter(function(g) {
-    return !g.steamAppId && (!g.genres || !g.genres.length || !g.tags || !g.tags.length);
+    return !g.steamAppId; // always re-process — tags may be missing or from old source
   }) : [];
 
   var total = steamTargets.length + rawgTargets.length;
@@ -4538,49 +4538,87 @@ async function _fillMetadata(doSteam, doRawg) {
       } catch(e) { console.warn('[FillMetadata] Failed for', sGame.title, ':', e.message); }
     }
   }
-  // Non-Steam games — use RAWG (slower, 1 per 3s to respect rate limit)
-  if (rawgTargets.length && rawgApiKey) {
+  // Non-Steam games — try Steam search first, fall back to RAWG
+  if (rawgTargets.length) {
     for (var j = 0; j < rawgTargets.length; j++) {
       var rGame = rawgTargets[j];
       var pct2 = doSteam
         ? Math.round(50 + (j / rawgTargets.length) * 50)
         : Math.round((j / rawgTargets.length) * 100);
-      showStatus('RAWG metadata: ' + (j + 1) + '/' + rawgTargets.length + ' — ' + rGame.title, pct2);
+      showStatus('Non-Steam metadata: ' + (j + 1) + '/' + rawgTargets.length + ' — ' + rGame.title, pct2);
+
+      var enriched = false;
+
+      // ── ATTEMPT 1: Steam search by name ──
       try {
-        var rResults = await window.nexus.rawg.search(rGame.title, rawgApiKey);
-        if (rResults && rResults.length) {
-          var rBest = rResults[0];
-          var rD = await window.nexus.rawg.game(rBest.id, rawgApiKey);
-          if (rD) {
-            var rFields = { rawgEnriched: true };
-            if (rD.genres && rD.genres.length) {
-              rFields.genres = rD.genres.map(function(g) { return g.name; });
-              if (!rGame.genre || rGame.genre === 'Other') rFields.genre = rD.genres[0].name;
+        var steamMatch = await window.nexus.games.steamSearchByName(rGame.title);
+        if (steamMatch && steamMatch.appId) {
+          // Found on Steam — fetch genres + SteamSpy tags
+          var nsResults = await window.nexus.games.fetchSteamGenres([steamMatch.appId]);
+          var nsResult  = nsResults[String(steamMatch.appId)];
+          if (nsResult && (nsResult.genres.length || nsResult.tags.length)) {
+            var nsFields = { lookedUpSteamAppId: steamMatch.appId };
+            if (nsResult.genres && nsResult.genres.length) {
+              var nsMapped = mapSteamGenres(nsResult.genres);
+              nsFields.genres = nsMapped;
+              if (!rGame.genre || rGame.genre === 'Other') nsFields.genre = nsMapped[0];
             }
-            if (rD.tags && rD.tags.length) {
-              var rTags = rD.tags.slice(0, 12).map(function(t) { return t.name.toLowerCase(); });
-              var rExisting = (rGame.tags || []).filter(function(t) { return t && typeof t === 'string'; });
-              rFields.tags = [...new Set([...rExisting, ...rTags])];
+            if (nsResult.tags && nsResult.tags.length) {
+              nsFields.tags = nsResult.tags
+                .filter(function(t) { return t && typeof t === 'string'; })
+                .map(function(t) { return t.toLowerCase(); });
             }
-            if (!rGame.description && rD.description_raw) rFields.description = rD.description_raw;
-            if (!rGame.metacriticScore && rD.metacritic) rFields.metacriticScore = rD.metacritic;
-            await window.nexus.games.update(rGame.id, rFields);
-            var rObj = games.find(function(g2) { return g2.id === rGame.id; });
-            if (rObj) Object.assign(rObj, rFields);
+            await window.nexus.games.update(rGame.id, nsFields);
+            var nsObj = games.find(function(g2) { return g2.id === rGame.id; });
+            if (nsObj) Object.assign(nsObj, nsFields);
+            enriched = true;
+            console.log('[FillMetadata] Steam match for "' + rGame.title + '" -> appId ' + steamMatch.appId + ' | tags:', nsResult.tags);
           }
         }
-      } catch(e) { console.warn('RAWG metadata failed for', rGame.title, ':', e.message); }
-      if (j < rawgTargets.length - 1) await new Promise(function(r) { setTimeout(r, 3000); });
-    }
-  } else if (doRawg && rawgTargets.length && !rawgApiKey) {
-    showStatus('⚠ Add a RAWG API key in Settings to fill metadata for non-Steam games', 100);
-    setTimeout(hideStatus, 4000);
-    return;
-  }
+      } catch(e) {
+        console.warn('[FillMetadata] Steam search failed for "' + rGame.title + '":', e.message);
+      }
 
-  updateGenreDropdown(); updateTagDropdown(); renderLibrary();
-  showStatus('✓ Metadata filled for ' + total + ' games', 100);
-  setTimeout(hideStatus, 3000);
+      // ── ATTEMPT 2: RAWG fallback ──
+      if (!enriched && rawgApiKey) {
+        try {
+          var rResults = await window.nexus.rawg.search(rGame.title, rawgApiKey);
+          if (rResults && rResults.length) {
+            var rBest = rResults[0];
+            var rD    = await window.nexus.rawg.game(rBest.id, rawgApiKey);
+            if (rD) {
+              var rFields = { rawgEnriched: true };
+              if (rD.genres && rD.genres.length) {
+                rFields.genres = rD.genres.map(function(g) { return g.name; });
+                if (!rGame.genre || rGame.genre === 'Other') rFields.genre = rD.genres[0].name;
+              }
+              if (rD.tags && rD.tags.length) {
+                rFields.tags = rD.tags.slice(0, 12).map(function(t) { return t.name.toLowerCase(); });
+              }
+              if (!rGame.description && rD.description_raw) rFields.description = rD.description_raw;
+              if (!rGame.metacriticScore && rD.metacritic)  rFields.metacriticScore = rD.metacritic;
+              await window.nexus.games.update(rGame.id, rFields);
+              var rObj = games.find(function(g2) { return g2.id === rGame.id; });
+              if (rObj) Object.assign(rObj, rFields);
+              enriched = true;
+              console.log('[FillMetadata] RAWG fallback for "' + rGame.title + '" | tags:', rFields.tags);
+            }
+          }
+        } catch(e) { console.warn('[FillMetadata] RAWG failed for "' + rGame.title + '":', e.message); }
+        // Throttle RAWG calls
+        if (j < rawgTargets.length - 1) await new Promise(function(r) { setTimeout(r, 3000); });
+      } else if (!enriched) {
+        // Steam search got no match and no RAWG key — throttle anyway for next Steam search
+        await new Promise(function(r) { setTimeout(r, 1500); });
+      }
+
+      if (!enriched) console.log('[FillMetadata] No source found for "' + rGame.title + '"');
+    }
+
+    if (!rawgApiKey && rawgTargets.length) {
+      console.log('[FillMetadata] Note: Add a RAWG API key in Settings for better coverage of titles not found on Steam');
+    }
+  }
 }
 async function removeOwnedFromWishlist() {
   var owned = wishlist.filter(function(w) {
