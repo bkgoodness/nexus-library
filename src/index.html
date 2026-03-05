@@ -193,29 +193,29 @@
       </div>
       <div class="sidebar-row-count" id="sb-count-hidden">0</div>
     </div>
-    <div class="sidebar-row" data-filter="status:playing">
+    <div class="sidebar-row" data-filter="status:exploring">
       <div class="sidebar-platform-icon" style="background:rgba(96,165,250,0.1)">▶</div>
       <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Playing</div>
+        <div class="sidebar-row-name">Exploring</div>
         <div class="sidebar-row-sub">Currently active</div>
       </div>
-      <div class="sidebar-row-count" id="sb-count-playing">0</div>
+      <div class="sidebar-row-count" id="sb-count-exploring">0</div>
     </div>
-    <div class="sidebar-row" data-filter="status:backlog">
+    <div class="sidebar-row" data-filter="unplayed">
       <div class="sidebar-platform-icon" style="background:rgba(251,146,60,0.1)">⏸</div>
       <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Backlog</div>
+        <div class="sidebar-row-name">Unplayed</div>
         <div class="sidebar-row-sub">Queued to play</div>
       </div>
-      <div class="sidebar-row-count" id="sb-count-backlog">0</div>
+      <div class="sidebar-row-count" id="sb-count-unplayed">0</div>
     </div>
-    <div class="sidebar-row" data-filter="status:completed">
+    <div class="sidebar-row" data-filter="status:finished">
       <div class="sidebar-platform-icon" style="background:rgba(74,222,128,0.1)">✓</div>
       <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Completed</div>
+        <div class="sidebar-row-name">Finished</div>
         <div class="sidebar-row-sub">Finished games</div>
       </div>
-      <div class="sidebar-row-count" id="sb-count-completed">0</div>
+      <div class="sidebar-row-count" id="sb-count-finished">0</div>
     </div>
 
   </div>
@@ -357,10 +357,14 @@
     </div>
     <div class="filter-strip filter-strip-bottom">
       <span class="filter-strip-label">Status</span>
-      <button class="filter-chip" data-p="status:playing"><span class="filter-dot" style="background:#60a5fa"></span>Playing <span class="filter-count" id="chip-playing">0</span></button>
-      <button class="filter-chip" data-p="status:completed"><span class="filter-dot" style="background:#4ade80"></span>Completed <span class="filter-count" id="chip-completed">0</span></button>
-      <button class="filter-chip" data-p="status:backlog"><span class="filter-dot" style="background:#fb923c"></span>Backlog <span class="filter-count" id="chip-backlog">0</span></button>
-      <button class="filter-chip" data-p="status:abandoned"><span class="filter-dot" style="background:#f87171"></span>Abandoned <span class="filter-count" id="chip-abandoned">0</span></button>
+      <button class="filter-chip" data-p="status:exploring"><span class="filter-dot" style="background:#60a5fa"></span>Exploring <span class="filter-count" id="chip-exploring">0</span></button>
+      <button class="filter-chip" data-p="status:finished"><span class="filter-dot" style="background:#4ade80"></span>Finished <span class="filter-count" id="chip-finished">0</span></button>
+      <button class="filter-chip" data-p="unplayed"><span class="filter-dot" style="background:#fb923c"></span>Unplayed <span class="filter-count" id="chip-unplayed">0</span></button>
+      <button class="filter-chip" data-p="status:not-for-me"><span class="filter-dot" style="background:#f87171"></span>Not for Me <span class="filter-count" id="chip-notforme">0</span></button>
+      <div class="filter-divider"></div>
+      <button class="filter-chip" data-p="intent:playnext"><span class="filter-dot" style="background:#4ade80"></span>▶ Play Next <span class="filter-count" id="chip-intent-playnext">0</span></button>
+      <button class="filter-chip" data-p="intent:priority"><span class="filter-dot" style="background:#f87171"></span>🔴 Priority <span class="filter-count" id="chip-intent-priority">0</span></button>
+      <button class="filter-chip" data-p="intent:queue"><span class="filter-dot" style="background:#60a5fa"></span>📋 Queue <span class="filter-count" id="chip-intent-queue">0</span></button>
     </div>
 
     <!-- Status bar: shows background operation progress -->
@@ -402,10 +406,9 @@
       <div style="flex:1"></div>
       <select id="bulkStatusSelect" class="sort-select" style="font-size:11px">
         <option value="">Set status…</option>
-        <option value="playing">▶ Playing</option>
-        <option value="completed">✓ Completed</option>
-        <option value="backlog">⏸ Backlog</option>
-        <option value="abandoned">✕ Abandoned</option>
+        <option value="exploring">▶ Exploring</option>
+        <option value="finished">✓ Finished</option>
+        <option value="not-for-me">✕ Not for Me</option>
       </select>
       <select id="bulkGenreSelect" class="sort-select" style="font-size:11px">
         <option value="">Set genre…</option>
@@ -990,10 +993,19 @@
           <!-- Status -->
           <div class="game-detail-section-label" style="margin-top:0">Status</div>
           <div class="game-detail-status-row" id="gameDetailStatusRow">
-            <button class="status-btn" data-status="playing">▶ Playing</button>
-            <button class="status-btn" data-status="completed">✓ Completed</button>
-            <button class="status-btn" data-status="backlog">⏸ Backlog</button>
-            <button class="status-btn" data-status="abandoned">✕ Abandoned</button>
+            <button class="status-btn" data-status="exploring">▶ Exploring</button>
+            <button class="status-btn" data-status="finished">✓ Finished</button>
+            <button class="status-btn" data-status="not-for-me">✕ Not for Me</button>
+          </div>
+
+          <!-- Intent -->
+          <div id="gameDetailIntentRow">
+            <div class="game-detail-section-label">Intent</div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="status-btn intent-btn" data-intent="playnext" style="font-size:11px;padding:5px 10px">▶ Play Next</button>
+              <button class="status-btn intent-btn" data-intent="priority" style="font-size:11px;padding:5px 10px">🔴 Priority</button>
+              <button class="status-btn intent-btn" data-intent="queue" style="font-size:11px;padding:5px 10px">📋 Queue</button>
+            </div>
           </div>
 
           <!-- Rating -->

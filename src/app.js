@@ -2,7 +2,44 @@
 // Communicates with main.js via window.nexus (defined in preload.js)
 
 const PLAT_COLOR  = { steam: '#4a9eed', gog: '#e8573e', epic: '#c8a84b', amazon: '#ff9900', xbox: '#107c10', gamepass: '#52b043' };
-const STATUS_COLOR = { playing: '#60a5fa', completed: '#4ade80', abandoned: '#f87171', backlog: '#fb923c' };
+const STATUS_COLOR = { exploring: '#60a5fa', finished: '#4ade80', 'not-for-me': '#f87171' };
+const STATUS_MIGRATE = { playing: 'exploring', completed: 'finished', abandoned: 'not-for-me', backlog: null, unplayed: null };
+
+// Intent system
+const INTENT_LABEL = { priority: '🔴 Priority', queue: '📋 Queue', playnext: '▶ Play Next' };
+const INTENT_COLOR = { priority: '#f87171', queue: '#60a5fa', playnext: '#4ade80' };
+const INTENT_ELIGIBLE = function(g) { return g.status !== 'finished' && g.status !== 'not-for-me'; };
+
+// One-time migration: rename old status values to new ones
+async function migrateStatusValues() {
+  var toMigrate = games.filter(function(g) { return g.status in STATUS_MIGRATE; });
+  if (!toMigrate.length) return;
+  for (var i = 0; i < toMigrate.length; i++) {
+    var g = toMigrate[i];
+    var newStatus = STATUS_MIGRATE[g.status]; // may be null
+    await window.nexus.games.update(g.id, { status: newStatus });
+    g.status = newStatus;
+  }
+  console.log('[Nexus] Migrated ' + toMigrate.length + ' game statuses to new values');
+}
+
+// Set intent on a game
+async function setGameIntent(gameId, intent) {
+  var g = games.find(function(g) { return g.id === gameId; });
+  if (!g || !INTENT_ELIGIBLE(g)) return;
+  var newIntent = (g.intent === intent) ? null : intent; // toggle off if same
+  await window.nexus.games.update(gameId, { intent: newIntent });
+  g.intent = newIntent;
+  if (currentDetailGame && currentDetailGame.id === gameId) currentDetailGame.intent = newIntent;
+  renderIntentButtons(newIntent);
+  renderLibrary();
+}
+
+function renderIntentButtons(activeIntent) {
+  document.querySelectorAll('.intent-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.intent === activeIntent);
+  });
+}
 const PLAT_LABEL = { steam: 'Steam', gog: 'GOG', epic: 'Epic', amazon: 'Amazon', xbox: 'Xbox', gamepass: 'Game Pass' };
 const COVER_PALETTES = [
   ['#1a1a2e','#16213e'], ['#0d1b2a','#1b2838'],
@@ -61,6 +98,7 @@ async function init() {
   initTheme();
   games = await window.nexus.games.getAll();
   wishlist = await window.nexus.wishlist.getAll();
+  await migrateStatusValues(); // one-time migration: old status values → new
   setupEventListeners();
   await loadSavedCredentials();
   updateSteamCacheStatusDisplay();
@@ -414,6 +452,9 @@ function setupEventListeners() {
   document.querySelectorAll('.status-btn').forEach(function(btn) {
     btn.addEventListener('click', function() { setGameStatus(btn.dataset.status); });
   });
+  document.querySelectorAll('.intent-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { setGameIntent(currentDetailGame && currentDetailGame.id, btn.dataset.intent); });
+  });
 
   // Cover art search modal
   wire('coverSearchClose', 'click', closeCoverSearch);
@@ -468,10 +509,12 @@ const FILTER_TITLES = {
   noart:            ['Missing Cover Art',  'Games without cover images'],
   hidden:           ['Hidden Games',       'Games hidden from your library — click 👁 to unhide'],
   recent:           ['Recently Added',     'Games added in the last 30 days'],
-  'status:playing':   ['Currently Playing', 'Games you are actively playing'],
-  'status:backlog':   ['Backlog',           'Games queued up to play'],
-  'status:completed': ['Completed',         'Games you have finished'],
-  'status:abandoned': ['Abandoned',         'Games you have stopped playing'],
+  'status:exploring':   ['Exploring',           'Games you are actively playing'],
+  'status:finished':    ['Finished',            'Games you have finished'],
+  'status:not-for-me': ['Not for Me',          'Games you have stopped playing'],
+  'intent:playnext':   ['Intent: Play Next',   'Games flagged to play next'],
+  'intent:priority':   ['Intent: Priority',    'Games marked as high priority'],
+  'intent:queue':      ['Intent: Queue',       'Games added to your queue'],
 };
 
 function setMultiPlatformFilter(platforms) {
@@ -1136,7 +1179,7 @@ function renderDiscovery() {
     var gGenres = (g.genres && g.genres.length ? g.genres : [g.genre || 'Other']);
     gGenres.forEach(function(gn) { if (topGenres.includes(gn)) score += 3; });
     (g.tags || []).forEach(function(t) { if (topTags.includes(t)) score += 1; });
-    if (g.status === 'backlog') score += 2;
+    if ((g.playtimeHours||0) === 0) score += 2;
     return { game: g, score: score };
   }).filter(function(s) { return s.score > 0; })
     .sort(function(a,b) { return b.score - a.score; })
@@ -1164,8 +1207,7 @@ function renderDiscovery() {
               : '<div style="width:100%;height:100%;background:linear-gradient(145deg,' + pal.join(',') + ');display:flex;align-items:flex-end;padding:6px;box-sizing:border-box">' +
                   '<div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.9);line-height:1.2">' + escHtml(g.title) + '</div>' +
                 '</div>') +
-            (g.status === 'backlog' ? '<div style="position:absolute;top:4px;left:4px;font-size:8px;background:#fb923c;color:#000;border-radius:3px;padding:1px 4px;font-weight:700">BACKLOG</div>' : '') +
-          '</div>' +
+            '</div>' +
           '<div style="padding:6px 4px">' +
             '<div style="font-size:10px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
             '<div style="font-size:9px;color:var(--text3);margin-top:1px">' + escHtml(gGenres) + '</div>' +
@@ -1219,6 +1261,7 @@ function gameMatchesToken(g, token) {
   if (!f || f === 'genre')   match = match || genres.some(function(gn) { return gn.includes(v); });
   if (!f || f === 'tag')     match = match || tags.some(function(t)  { return t.includes(v);  });
   if (!f || f === 'status')  match = match || !!(g.status      && g.status.toLowerCase().includes(v));
+  if (f === 'intent')        match = match || !!(g.intent       && g.intent.toLowerCase().includes(v));
   if (!f || f === 'dev')     match = match || !!(g.developer   && g.developer.toLowerCase().includes(v));
   if (!f || f === 'pub')     match = match || !!(g.publisher   && g.publisher.toLowerCase().includes(v));
   if (!f || f === 'plat')    match = match || (g.platforms||[]).some(function(p){ return p.toLowerCase().includes(v); });
@@ -1270,7 +1313,9 @@ function getFiltered() {
       } else if (currentFilter === 'dupes')  list = list.filter(g => g.platforms.length > 1);
       else if (currentFilter === 'noart')   list = list.filter(g => !coverCache[g.id] && !coverCache[String(g.id)]);
       else if (currentFilter === 'recent') { const cutoff = Date.now() - 30*24*60*60*1000; list = list.filter(g => g.addedAt && new Date(g.addedAt).getTime() > cutoff); }
+      else if (currentFilter === 'unplayed') { list = list.filter(g => (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog); }
       else if (currentFilter.startsWith('status:')) { var st = currentFilter.slice(7); list = list.filter(g => g.status === st); }
+      else if (currentFilter.startsWith('intent:')) { var it = currentFilter.slice(7); list = list.filter(g => g.intent === it); }
       else if (currentFilter !== 'all' && currentFilter !== 'multi-platform') list = list.filter(g => g.platforms.includes(currentFilter));
     }
   }
@@ -1486,18 +1531,21 @@ function updateCounts() {
   var recentCutoff = Date.now() - 30*24*60*60*1000;
   var recentCount  = games.filter(function(g) { return g.addedAt && new Date(g.addedAt).getTime() > recentCutoff; }).length;
   setText('chip-recent',     recentCount);
-  setText('chip-playing',    games.filter(function(g) { return g.status === 'playing'; }).length);
-  setText('chip-completed',  games.filter(function(g) { return g.status === 'completed'; }).length);
-  setText('chip-backlog',    games.filter(function(g) { return g.status === 'backlog'; }).length);
-  setText('chip-abandoned',  games.filter(function(g) { return g.status === 'abandoned'; }).length);
+  setText('chip-exploring',  games.filter(function(g) { return g.status === 'exploring'; }).length);
+  setText('chip-finished',   games.filter(function(g) { return g.status === 'finished'; }).length);
+  setText('chip-unplayed',   games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length);
+  setText('chip-notforme',   games.filter(function(g) { return g.status === 'not-for-me'; }).length);
+  setText('chip-intent-playnext', games.filter(function(g) { return g.intent === 'playnext'; }).length);
+  setText('chip-intent-priority', games.filter(function(g) { return g.intent === 'priority'; }).length);
+  setText('chip-intent-queue',    games.filter(function(g) { return g.intent === 'queue'; }).length);
   var pip = document.getElementById('navPip');
   if (pip) pip.style.display = dupes.length > 0 ? 'block' : 'none';
   setText('sb-count-dupes',     dupes.length);
   setText('sb-count-noart',     games.filter(function(g) { return !coverCache[g.id] && !coverCache[String(g.id)]; }).length);
   setText('sb-count-hidden',    games.filter(function(g) { return !!g.hidden; }).length);
-  setText('sb-count-playing',   games.filter(function(g) { return g.status === 'playing'; }).length);
-  setText('sb-count-backlog',   games.filter(function(g) { return g.status === 'backlog'; }).length);
-  setText('sb-count-completed', games.filter(function(g) { return g.status === 'completed'; }).length);
+  setText('sb-count-exploring', games.filter(function(g) { return g.status === 'exploring'; }).length);
+  setText('sb-count-unplayed',   games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length);
+  setText('sb-count-finished',   games.filter(function(g) { return g.status === 'finished'; }).length);
 }
 
 // ── LIBRARY RENDER ──
@@ -1542,6 +1590,7 @@ function renderLibrary() {
       var newBadge    = isNew    ? '<div class="new-badge">NEW</div>' : '';
       var hiddenBadge = isHidden ? '<div style="position:absolute;top:6px;right:6px;background:rgba(0,0,0,0.75);color:#fb923c;font-size:9px;font-weight:800;padding:2px 6px;border-radius:4px">HIDDEN</div>' : '';
       var gpBadge     = g.gpCatalog ? '<div class="gp-catalog-badge">GAME PASS</div>' : '';
+      var intentBadge = g.intent ? '<div style="position:absolute;bottom:6px;left:6px;font-size:8px;font-weight:800;padding:2px 6px;border-radius:4px;background:rgba(0,0,0,0.75);color:' + (INTENT_COLOR[g.intent]||'#fff') + '">' + (INTENT_LABEL[g.intent]||'') + '</div>' : '';
       var mcScore = g.metacriticScore ? g.metacriticScore : null;
       var mcColor = !mcScore ? null : mcScore >= 80 ? '#4ade80' : mcScore >= 60 ? '#facc15' : '#f87171';
       card.innerHTML =
@@ -1552,7 +1601,8 @@ function renderLibrary() {
           newBadge +
           hiddenBadge +
           gpBadge +
-          (mcScore ? '<div class="mc-badge" style="background:' + mcColor + ';">' + mcScore + '</div>' : '') +
+          intentBadge +
+          (mcScore ? '<div class="mc-badge" style="background:' + mcColor + ';left:auto;right:6px;">' + mcScore + '</div>' : '') +
         '</div>' +
         '<div class="game-card-body">' +
           '<div class="card-title">' + escHtml(g.title) + '</div>' +
@@ -1722,12 +1772,12 @@ function renderStats() {
 
 
   // Status breakdown
-  var statusCounts = { playing: 0, completed: 0, backlog: 0, abandoned: 0, none: 0 };
+  var statusCounts = { exploring: 0, finished: 0, 'not-for-me': 0, none: 0 };
   games.forEach(function(g) {
     if (g.status && statusCounts[g.status] !== undefined) statusCounts[g.status]++;
     else if (!g.status) statusCounts.none++;
   });
-  var completionRate = games.length ? Math.round((statusCounts.completed / games.length) * 100) : 0;
+  var completionRate = games.length ? Math.round((statusCounts.finished / games.length) * 100) : 0;
   var avgPlaytime = withTime.length ? Math.round(totalHours / withTime.length) : 0;
 
   // Tag cloud (top 20 tags)
@@ -1740,12 +1790,12 @@ function renderStats() {
   var topTags = Object.entries(tagCounts).sort(function(a,b) { return b[1]-a[1]; }).slice(0, 20);
 
   // Status breakdown data
-  var statusCounts = { playing: 0, completed: 0, backlog: 0, abandoned: 0, none: 0 };
+  var statusCounts = { exploring: 0, finished: 0, 'not-for-me': 0, none: 0 };
   games.forEach(function(g) {
     if (g.status && statusCounts[g.status] !== undefined) statusCounts[g.status]++;
     else statusCounts.none++;
   });
-  var completionRate = games.length ? Math.round((statusCounts.completed / games.length) * 100) : 0;
+  var completionRate = games.length ? Math.round((statusCounts.finished / games.length) * 100) : 0;
   var avgPlaytime    = withTime.length ? Math.round(totalHours / withTime.length) : 0;
 
   var donutSegments = topGenres.slice(0, 6).map(function(e, i) { return { label: e[0], count: e[1], color: genreColors[i] }; });
@@ -2709,6 +2759,13 @@ function openGameDetail(game) {
     btn.classList.toggle('active', btn.dataset.status === (game.status || ''));
   });
 
+  // Intent — show/hide based on eligibility, set active state
+  var intentRow = document.getElementById('gameDetailIntentRow');
+  if (intentRow) {
+    intentRow.style.display = INTENT_ELIGIBLE(game) ? '' : 'none';
+    renderIntentButtons(game.intent || null);
+  }
+
   // Tags
   renderDetailTags(game.tags || []);
 
@@ -2847,6 +2904,18 @@ async function setGameStatus(status) {
   document.querySelectorAll('.status-btn').forEach(function(btn) {
     btn.classList.toggle('active', btn.dataset.status === status);
   });
+  // Hide intent for finished/not-for-me, clear it if needed
+  var intentRow = document.getElementById('gameDetailIntentRow');
+  if (intentRow) {
+    var eligible = INTENT_ELIGIBLE(currentDetailGame);
+    intentRow.style.display = eligible ? '' : 'none';
+    if (!eligible && currentDetailGame.intent) {
+      await window.nexus.games.update(currentDetailGame.id, { intent: null });
+      currentDetailGame.intent = null;
+      if (g) g.intent = null;
+      renderIntentButtons(null);
+    }
+  }
   renderLibrary();
 }
 
@@ -3884,12 +3953,12 @@ function renderStatusPanel() {
   if (!el) return;
   el.innerHTML = ''; // clear before re-render
 
-  var statusCounts = { playing: 0, completed: 0, backlog: 0, abandoned: 0, none: 0 };
+  var statusCounts = { exploring: 0, finished: 0, 'not-for-me': 0, none: 0 };
   games.forEach(function(g) {
     if (g.status && statusCounts[g.status] !== undefined) statusCounts[g.status]++;
     else statusCounts.none++;
   });
-  var completionRate = games.length ? Math.round((statusCounts.completed / games.length) * 100) : 0;
+  var completionRate = games.length ? Math.round((statusCounts.finished / games.length) * 100) : 0;
   var avgPlaytime    = games.filter(function(g){return(g.playtimeHours||0)>0;}).length
     ? Math.round(games.reduce(function(s,g){return s+(g.playtimeHours||0);},0) / games.filter(function(g){return(g.playtimeHours||0)>0;}).length) : 0;
 
@@ -3900,10 +3969,9 @@ function renderStatusPanel() {
   var topTags = Object.entries(tagCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,20);
 
   var rows = [
-    ['▶ Playing',   'playing',   '#60a5fa', statusCounts.playing],
-    ['✓ Completed', 'completed', '#4ade80', statusCounts.completed],
-    ['⏸ Backlog',   'backlog',   '#fb923c', statusCounts.backlog],
-    ['✕ Abandoned', 'abandoned', '#f87171', statusCounts.abandoned],
+    ['▶ Exploring',   'exploring',   '#60a5fa', statusCounts.exploring],
+    ['✓ Finished',    'finished',    '#4ade80', statusCounts.finished],
+    ['✕ Not for Me',  'not-for-me',  '#f87171', statusCounts['not-for-me']],
     ['— Untracked', '',          '#555',    statusCounts.none],
   ];
 
@@ -5158,7 +5226,7 @@ async function renderWrappedPage() {
 
   // Games completed this year (status=completed and added/last played this year)
   var completedThisYear = games.filter(function(g) {
-    return g.status === 'completed' && g.lastPlayedAt &&
+    return g.status === 'finished' && g.lastPlayedAt &&
       new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd;
   });
 
@@ -5205,7 +5273,7 @@ async function renderWrappedPage() {
     .slice(0, 5);
 
   // Backlog stat
-  var backlogCount = games.filter(function(g) { return g.status === 'backlog'; }).length;
+  var backlogCount = games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length;
   var backlogHrsEst = backlogCount * 20; // rough 20hr estimate per game
 
   el.innerHTML =
@@ -5280,7 +5348,7 @@ async function exportLibraryCard() {
 
     // Collect data
     var added     = games.filter(function(g) { return g.addedAt && new Date(g.addedAt) >= yearStart && new Date(g.addedAt) < yearEnd; }).length;
-    var completed = games.filter(function(g) { return g.status === 'completed' && g.lastPlayedAt && new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd; }).length;
+    var completed = games.filter(function(g) { return g.status === 'finished' && g.lastPlayedAt && new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd; }).length;
     var topRated  = games.filter(function(g) { return g.userRating > 0 && g.lastPlayedAt && new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd; }).sort(function(a,b){return b.userRating-a.userRating;}).slice(0,3);
 
     // Sessions this year — bulk load
@@ -6175,7 +6243,7 @@ function showPriceHistory(wishItem) {
 
 // ── BACKLOG BURN-DOWN ──
 function burnDownSection(allSessions) {
-  var backlog = games.filter(function(g) { return g.status === 'backlog' || (!g.status && !g.playtimeHours); });
+  var backlog = games.filter(function(g) { return g.status === 'unplayed' || (!g.status && !g.playtimeHours); });
   if (!backlog.length) return '';
 
   // Average session length from history
@@ -6197,7 +6265,7 @@ function burnDownSection(allSessions) {
 
   // How many games completed per month recently
   var completedRecent = games.filter(function(g) {
-    return g.status === 'completed' && g.lastPlayedAt &&
+    return g.status === 'finished' && g.lastPlayedAt &&
       new Date(g.lastPlayedAt).getTime() > fourWeeksAgo;
   }).length;
   var completionsPerMonth = Math.round(completedRecent / 1);
@@ -6218,7 +6286,7 @@ function burnDownSection(allSessions) {
       'clearing your backlog would take <strong style="color:#fb923c">' +
       (weeksToFinish > 104 ? yearsToFinish + ' years' : weeksToFinish + ' weeks') +
       '</strong>.' +
-      (completionsPerMonth > 0 ? ' You completed <strong style="color:#4ade80">' + completionsPerMonth + ' game' + (completionsPerMonth !== 1 ? 's' : '') + '</strong> in the last month.' : '') +
+      (completionsPerMonth > 0 ? ' You finished <strong style="color:#4ade80">' + completionsPerMonth + ' game' + (completionsPerMonth !== 1 ? 's' : '') + '</strong> in the last month.' : '') +
     '</div>' : '<div style="font-size:11px;color:var(--text3)">Start logging sessions to see your burn-down estimate.</div>') +
     // Mini backlog list (top 5 by rating/genre match)
     '<div style="margin-top:12px;border-top:1px solid var(--border);padding-top:10px">' +
@@ -6257,8 +6325,8 @@ function showContextMenu(e, game) {
   var hasEpic    = game.platforms && game.platforms.includes('epic');
   var curStatus  = game.status || '';
 
-  var statusIcons = { playing: '▶', completed: '✓', backlog: '⏸', abandoned: '✕', '': '○' };
-  var statuses = ['playing','completed','backlog','abandoned'];
+  var statusIcons = { exploring: '▶', finished: '✓', 'not-for-me': '✕', '': '○' };
+  var statuses = ['exploring','finished','not-for-me'];
 
   menu.innerHTML =
     // Header — game title
@@ -6633,7 +6701,7 @@ function showSimilarGamesOverlay(src, scored) {
     var g = e.game;
     var cover = coverCache[g.id] || coverCache[String(g.id)];
     var pal   = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
-    var statusColor = { playing:'#4ade80', completed:'#7fc8f8', backlog:'#fb923c', abandoned:'#f87171' }[g.status] || 'var(--text3)';
+    var statusColor = { exploring:'#4ade80', finished:'#7fc8f8', 'not-for-me':'#f87171' }[g.status] || 'var(--text3)';
     var scorePct = Math.min(100, Math.round((e.score / scored[0].score) * 100));
 
     var row = document.createElement('div');
@@ -6761,7 +6829,7 @@ window.spinRandomGame = function() {
       return stems.some(function(s) { return t.indexOf(s.toLowerCase()) !== -1; });
     }
 
-    var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+    var candidates = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden && !g.gpCatalog; });
     if (!candidates.length) {
       el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">No unplayed games found!</div>';
       return;
@@ -7244,7 +7312,7 @@ function renderPlayNext() {
   var section = document.getElementById('playNextSection');
   if (!section) return;
 
-  var backlog = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+  var backlog = games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden && !g.gpCatalog; });
   if (backlog.length < 3) { section.innerHTML = ''; return; }
 
   var scored = scorePlayNext(backlog);
@@ -7272,6 +7340,14 @@ function renderPlayNext() {
   }
 
   picks.forEach(function(g) { playNextShownIds.add(g.id); });
+
+  // Auto-assign 'playnext' intent to stable top picks
+  picks.slice(0, 2).forEach(async function(g) {
+    if (!g.intent && INTENT_ELIGIBLE(g)) {
+      await window.nexus.games.update(g.id, { intent: 'playnext' });
+      g.intent = 'playnext';
+    }
+  });
 
   var count = picks.length;
   section.innerHTML =
@@ -7772,7 +7848,7 @@ function runPickerAndShowResults() {
     // Candidates — unplayed for normal mode, played for replay mode
     var candidates = pickerReplayMode
       ? games.filter(function(g) { return (g.playtimeHours||0) > 0 && !g.hidden; })
-      : games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden; });
+      : games.filter(function(g) { return (g.playtimeHours||0) === 0 && !g.hidden && !g.gpCatalog; });
 
     if (!candidates.length) {
       el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">' + (pickerReplayMode ? 'No played games found!' : 'No unplayed games found!') + '</div>';
