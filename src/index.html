@@ -8,6 +8,122 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
+<style>
+/* ── Discovery Page ── */
+.discovery-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 18px;
+  margin-bottom: 16px;
+}
+.discovery-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.discovery-section-title {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.discovery-section-sub {
+  font-size: 11px;
+  color: var(--text3);
+}
+.disc-game-card {
+  flex-shrink: 0;
+  width: 150px;
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+}
+.disc-game-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent);
+}
+.disc-game-card-cover {
+  width: 150px;
+  height: 110px;
+  overflow: hidden;
+  position: relative;
+}
+.disc-game-card-cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.disc-game-card-body {
+  padding: 8px 10px;
+}
+.disc-game-card-title {
+  font-size: 11px;
+  font-weight: 800;
+  line-height: 1.3;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.disc-game-card-meta {
+  font-size: 9px;
+  color: var(--text3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.disc-tool-card {
+  flex: 1;
+  min-width: 160px;
+  max-width: 220px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s;
+  user-select: none;
+}
+.disc-tool-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent);
+}
+.disc-tool-icon {
+  font-size: 22px;
+  margin-bottom: 8px;
+}
+.disc-tool-label {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.disc-tool-desc {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.4;
+}
+.disc-similar-result-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  border-bottom: 1px solid var(--border);
+}
+.disc-similar-result-card:last-child { border-bottom: none; }
+.disc-similar-result-card:hover { background: var(--surface2); }
+</style>
 </head>
 <body>
 
@@ -20,6 +136,13 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
     </div>
     <div class="nav-label">Library</div>
+  </div>
+
+  <div class="nav-item" title="Discovery" data-page="discovery">
+    <div class="nav-icon-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+    </div>
+    <div class="nav-label">Discover</div>
   </div>
 
   <div class="nav-item" title="Statistics" data-page="stats">
@@ -452,8 +575,99 @@
       </div>
     </div>
 
-    <div id="playNextSection" style="padding:0 20px;margin-bottom:4px"></div>
     <div class="game-area" id="gameArea"></div>
+  </div>
+
+  <!-- DISCOVERY PAGE -->
+  <div id="page-discovery" class="page">
+    <div class="topbar">
+      <div class="topbar-title">🧭 Discover</div>
+      <div class="topbar-subtitle">Explore, rediscover, and decide what to play</div>
+    </div>
+    <div style="padding:20px;overflow-y:auto;height:calc(100vh - 60px);box-sizing:border-box">
+
+      <!-- Play Next Shelf -->
+      <div class="discovery-section" id="disc-playnext">
+        <div class="discovery-section-header">
+          <div>
+            <div class="discovery-section-title">▶ Play Next</div>
+            <div class="discovery-section-sub">From your backlog, matched to your taste</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:12px">
+            <!-- Familiarity slider -->
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:10px;color:var(--text3)">Familiar</span>
+              <input type="range" id="discFamiliaritySlider" min="0" max="2" value="1" step="1"
+                style="width:80px;accent-color:var(--accent)"
+                oninput="renderDiscPlayNext()">
+              <span style="font-size:10px;color:var(--text3)">Adventurous</span>
+            </div>
+            <button class="settings-btn" style="font-size:10px;padding:4px 10px" onclick="renderDiscPlayNext()">↻ Refresh</button>
+          </div>
+        </div>
+        <div id="disc-playnext-cards" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin"></div>
+      </div>
+
+      <!-- Help Me Decide + Replay + Randomizer row -->
+      <div class="discovery-section">
+        <div class="discovery-section-header">
+          <div>
+            <div class="discovery-section-title">🎯 Decision Tools</div>
+            <div class="discovery-section-sub">Not sure what to play? Let us help</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap">
+          <div class="disc-tool-card" onclick="openHelpMeDecide()">
+            <div class="disc-tool-icon">✦</div>
+            <div class="disc-tool-label">Help Me Decide</div>
+            <div class="disc-tool-desc">3 questions, 3 picks from your backlog</div>
+          </div>
+          <div class="disc-tool-card" onclick="openReplayPicker()">
+            <div class="disc-tool-icon">↩</div>
+            <div class="disc-tool-label">Play Again</div>
+            <div class="disc-tool-desc">Revisit games you've already played</div>
+          </div>
+          <div class="disc-tool-card" onclick="openRandomPicker()">
+            <div class="disc-tool-icon">🎲</div>
+            <div class="disc-tool-label">Surprise Me</div>
+            <div class="disc-tool-desc">Spin the wheel, get one game</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hidden Gems -->
+      <div class="discovery-section" id="disc-gems">
+        <div class="discovery-section-header">
+          <div>
+            <div class="discovery-section-title">💎 Hidden Gems</div>
+            <div class="discovery-section-sub">High quality games you've barely touched</div>
+          </div>
+          <button class="settings-btn" style="font-size:10px;padding:4px 10px" onclick="renderDiscHiddenGems()">↻ Refresh</button>
+        </div>
+        <div id="disc-gems-cards" style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin"></div>
+      </div>
+
+      <!-- Find Similar -->
+      <div class="discovery-section" id="disc-similar">
+        <div class="discovery-section-header">
+          <div>
+            <div class="discovery-section-title">🔗 Find Similar</div>
+            <div class="discovery-section-sub">Games in your library that match a seed</div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <input id="discSimilarInput" placeholder="Search for a seed game…"
+            style="flex:1;min-width:200px;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);outline:none"
+            oninput="discSimilarSearch(this.value)">
+          <div id="discSimilarDropdown" style="position:relative"></div>
+          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discUseFavorite()">⭐ Use Favorite</button>
+          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discUseLastPlayed()">🕹 Last Played</button>
+        </div>
+        <div id="disc-similar-seed" style="margin-bottom:12px"></div>
+        <div id="disc-similar-cards"></div>
+      </div>
+
+    </div>
   </div>
 
   <!-- STATS PAGE -->

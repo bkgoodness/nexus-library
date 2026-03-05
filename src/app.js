@@ -483,9 +483,8 @@ function showPage(page) {
   document.getElementById('page-' + page).classList.add('active');
   const navEl = document.querySelector('.nav-item[data-page="' + page + '"]');
   if (navEl) navEl.classList.add('active');
-  var pnSection = document.getElementById('playNextSection');
-  if (pnSection) pnSection.style.display = (page === 'library') ? '' : 'none';
   if (page === 'stats')     renderStats();
+  if (page === 'discovery') renderDiscoveryPage();
   if (page === 'dupes') renderDupesPage();
   if (page === 'wishlist') { renderWishlist(); fetchWishlistCoversInBackground(); renderNotifHistory(); updateDealBadge(); }
   if (page === 'settings') { renderPlatformSyncHealth(); initAutoSessionTracking(); }
@@ -1147,76 +1146,6 @@ async function clearNotifHistory() {
 }
 
 // ── GAME DISCOVERY ──
-function renderDiscovery() {
-  var el = document.getElementById('discoveryArea');
-  if (!el) return;
-
-  var played = games.filter(function(g) { return (g.playtimeHours || 0) > 0; });
-  if (played.length < 3) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:12px 0">Play more games to unlock recommendations.</div>';
-    return;
-  }
-
-  var genreScore = {}, tagScore = {};
-  played.forEach(function(g) {
-    var hrs = Math.log(1 + (g.playtimeHours || 0));
-    (g.genres && g.genres.length ? g.genres : [g.genre || 'Other']).forEach(function(gn) {
-      if (gn) genreScore[gn] = (genreScore[gn] || 0) + hrs;
-    });
-    (g.tags || []).forEach(function(t) {
-      if (t) tagScore[t] = (tagScore[t] || 0) + hrs;
-    });
-  });
-  var topGenres = Object.entries(genreScore).sort(function(a,b){return b[1]-a[1];}).slice(0,5).map(function(e){return e[0];});
-  var topTags   = Object.entries(tagScore).sort(function(a,b){return b[1]-a[1];}).slice(0,10).map(function(e){return e[0];});
-
-  var candidates = games.filter(function(g) {
-    return (!g.playtimeHours || g.playtimeHours === 0) && g.status !== 'abandoned';
-  });
-
-  var scored = candidates.map(function(g) {
-    var score = 0;
-    var gGenres = (g.genres && g.genres.length ? g.genres : [g.genre || 'Other']);
-    gGenres.forEach(function(gn) { if (topGenres.includes(gn)) score += 3; });
-    (g.tags || []).forEach(function(t) { if (topTags.includes(t)) score += 1; });
-    if ((g.playtimeHours||0) === 0) score += 2;
-    return { game: g, score: score };
-  }).filter(function(s) { return s.score > 0; })
-    .sort(function(a,b) { return b.score - a.score; })
-    .slice(0, 12);
-
-  if (!scored.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:12px 0">No unplayed matches found. Try tagging your games.</div>';
-    return;
-  }
-
-  el.innerHTML =
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:12px">Based on your top genres: ' +
-      topGenres.slice(0,3).map(function(g){ return '<strong style="color:var(--text2)">' + escHtml(g) + '</strong>'; }).join(', ') +
-    '</div>' +
-    '<div class="discovery-grid">' +
-      scored.map(function(s) {
-        var g = s.game;
-        var coverUrl = coverCache[g.id] || coverCache[String(g.id)];
-        var pal = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
-        var gGenres = (g.genres && g.genres.length ? g.genres : [g.genre||'Other']).join(' · ');
-        return '<div class="discovery-card" onclick="openGameDetail(games.find(function(gm){return gm.id===' + g.id + '}))">' +
-          '<div class="discovery-cover">' +
-            (coverUrl
-              ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover">'
-              : '<div style="width:100%;height:100%;background:linear-gradient(145deg,' + pal.join(',') + ');display:flex;align-items:flex-end;padding:6px;box-sizing:border-box">' +
-                  '<div style="font-size:9px;font-weight:700;color:rgba(255,255,255,0.9);line-height:1.2">' + escHtml(g.title) + '</div>' +
-                '</div>') +
-            '</div>' +
-          '<div style="padding:6px 4px">' +
-            '<div style="font-size:10px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
-            '<div style="font-size:9px;color:var(--text3);margin-top:1px">' + escHtml(gGenres) + '</div>' +
-          '</div>' +
-        '</div>';
-      }).join('') +
-    '</div>';
-}
-
 
 // ── DATA HELPERS ──
 // ── SEARCH QUERY PARSER ──
@@ -1437,7 +1366,6 @@ function renderAll() {
   updateCounts();
   updateGenreDropdown(); updateTagDropdown();
   renderLibrary();
-  renderPlayNext();
   updateShowHiddenBtn();
 }
 
@@ -1901,13 +1829,20 @@ function renderStats() {
       '</div></div>' : '') +
 
     '<div id="statsExtraPanels"></div>' +
-    '<div class="stats-panel" id="discoveryPanel"><div class="stat-bar-title" style="margin-bottom:8px">🎮 Play Next — Personalized Picks</div><div id="discoveryArea"></div></div>' +
+    '<div class="stats-panel" id="discoveryPanel" style="cursor:pointer" onclick="showPage(\'discovery\')">' +
+      '<div style="display:flex;align-items:center;justify-content:space-between">' +
+        '<div class="stat-bar-title">🧭 Discover</div>' +
+        '<span style="font-size:11px;color:var(--accent)">Open →</span>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6">' +
+        'Get personalized picks, find hidden gems, and use decision tools — all in one place.' +
+      '</div>' +
+    '</div>' +
     '<div class="stats-panel" id="collectionValueArea"><div style="font-size:11px;color:var(--text3)">Loading…</div></div>';
 
   // Render deferred panels (need DOM to exist first)
   requestAnimationFrame(function() {
     renderStatusPanel();
-    renderDiscovery();
     renderCollectionValue();
   });
 
@@ -2914,6 +2849,12 @@ async function setGameStatus(status) {
       currentDetailGame.intent = null;
       if (g) g.intent = null;
       renderIntentButtons(null);
+    }
+    // Clear momentum boost on finished/not-for-me
+    if (!eligible && currentDetailGame.momentumAt) {
+      await window.nexus.games.update(currentDetailGame.id, { momentumAt: null });
+      currentDetailGame.momentumAt = null;
+      if (g) g.momentumAt = null;
     }
   }
   renderLibrary();
@@ -5544,6 +5485,8 @@ async function pollSteamPresence() {
     if (nowGameId && nowGameId !== steamActiveGameId) {
       // End any previous session first
       if (steamActiveGame) await finalizeSteamSession();
+      // Reset session-scoped dismissals for the new game
+      intentProgressionDismissed = new Set();
 
       // Find matching game in library
       var matchedGame = games.find(function(g) {
@@ -5557,6 +5500,16 @@ async function pollSteamPresence() {
         console.log('[SteamPresence] Detected:', matchedGame.title);
         showSteamPresencePip(matchedGame, result.gameName);
         startSteamSessionTicker();
+
+        // Intent Progression — suggest promoting queue/priority → playnext
+        triggerIntentProgression(matchedGame);
+
+        // Momentum boost — write timestamp for scoring engine
+        if (matchedGame.intent === 'queue' || matchedGame.intent === 'priority') {
+          var now = new Date().toISOString();
+          matchedGame.momentumAt = now;
+          window.nexus.games.update(matchedGame.id, { momentumAt: now }).catch(function(){});
+        }
 
         // If detail modal is open for this game, sync the manual timer display
         if (currentDetailGame && currentDetailGame.id === matchedGame.id) {
@@ -5917,6 +5870,102 @@ async function checkRecentlyPlayedDelta() {
     console.warn('[RecentlyPlayed] Delta check failed:', e.message);
   }
 }
+
+// ════════════════════════════════════════════════════════
+// INTENT PROGRESSION — Steam session → playnext promotion
+// ════════════════════════════════════════════════════════
+
+var intentProgressionDismissed = new Set(); // session-scoped — gameId → ignored
+
+function triggerIntentProgression(game) {
+  // Only fire for queue/priority games that aren't finished/not-for-me
+  if (!game.intent || (game.intent !== 'queue' && game.intent !== 'priority')) return;
+  if (game.status === 'finished' || game.status === 'not-for-me') return;
+  if (game.intent === 'playnext') return; // already promoted
+  if (intentProgressionDismissed.has(game.id)) return; // already dismissed this session
+
+  // Small delay so it doesn't fire instantly on app load
+  setTimeout(function() {
+    showIntentProgressionToast(game);
+  }, 3000);
+}
+
+function showIntentProgressionToast(game) {
+  // Remove any existing toast
+  var existing = document.getElementById('intentProgressionToast');
+  if (existing) existing.remove();
+
+  var cUrl = coverCache[game.id] || coverCache[String(game.id)];
+  var pal  = COVER_PALETTES[(game.pal||0) % COVER_PALETTES.length];
+
+  var toast = document.createElement('div');
+  toast.id = 'intentProgressionToast';
+  toast.style.cssText = [
+    'position:fixed',
+    'bottom:24px',
+    'right:24px',
+    'z-index:9999',
+    'background:var(--surface2)',
+    'border:1px solid var(--border2)',
+    'border-radius:12px',
+    'padding:14px 16px',
+    'width:280px',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.4)',
+    'animation:slideInToast 0.25s ease',
+    'display:flex',
+    'flex-direction:column',
+    'gap:10px'
+  ].join(';');
+
+  toast.innerHTML =
+    '<style>@keyframes slideInToast{from{transform:translateY(16px);opacity:0}to{transform:translateY(0);opacity:1}}</style>' +
+    '<div style="display:flex;align-items:center;gap:10px">' +
+      '<div style="width:36px;height:36px;border-radius:6px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,' + pal[0] + ',' + pal[1] + ')">' +
+        (cUrl ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+      '</div>' +
+      '<div style="flex:1;min-width:0">' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:2px">You\'re playing</div>' +
+        '<div style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(game.title) + '</div>' +
+      '</div>' +
+      '<button onclick="document.getElementById(\'intentProgressionToast\').remove()" ' +
+        'style="flex-shrink:0;background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0;line-height:1">×</button>' +
+    '</div>' +
+    '<div style="font-size:11px;color:var(--text2)">Promote to <strong style="color:#4ade80">▶ Play Next</strong>?</div>' +
+    '<div style="display:flex;gap:8px">' +
+      '<button onclick="intentProgressionPromote(' + game.id + ')" ' +
+        'style="flex:1;background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:7px 0;border-radius:7px;cursor:pointer">Promote</button>' +
+      '<button onclick="intentProgressionIgnore(' + game.id + ')" ' +
+        'style="flex:1;background:none;border:1px solid var(--border);color:var(--text3);font-size:11px;padding:7px 0;border-radius:7px;cursor:pointer">Ignore</button>' +
+    '</div>';
+
+  document.body.appendChild(toast);
+
+  // Auto-dismiss after 8 seconds
+  var autoDismiss = setTimeout(function() {
+    var t = document.getElementById('intentProgressionToast');
+    if (t) { t.style.opacity = '0'; t.style.transition = 'opacity 0.3s'; setTimeout(function() { if (t.parentNode) t.remove(); }, 300); }
+  }, 8000);
+  toast._autoDismiss = autoDismiss;
+}
+
+window.intentProgressionPromote = async function(gameId) {
+  var toast = document.getElementById('intentProgressionToast');
+  if (toast) { clearTimeout(toast._autoDismiss); toast.remove(); }
+
+  var g = games.find(function(g) { return g.id === gameId; });
+  if (!g) return;
+  g.intent = 'playnext';
+  await window.nexus.games.update(gameId, { intent: 'playnext' });
+  renderAll();
+  showStatus('▶ ' + g.title + ' promoted to Play Next', 100);
+  setTimeout(hideStatus, 2500);
+};
+
+window.intentProgressionIgnore = function(gameId) {
+  var toast = document.getElementById('intentProgressionToast');
+  if (toast) { clearTimeout(toast._autoDismiss); toast.remove(); }
+  intentProgressionDismissed.add(gameId);
+};
 
 // ════════════════════════════════════════════════════════
 // FREE GAMES TRACKER (Epic Games Store)
@@ -6354,6 +6403,10 @@ function showContextMenu(e, game) {
             (curStatus === s ? '<span class="ctx-sub">current</span>' : '') +
           '</div>';
         }).join('') +
+        (curStatus ? '<div class="ctx-item" onclick="ctxClearStatus();hideContextMenu()" style="opacity:0.6">' +
+          '<span class="ctx-icon">○</span>' +
+          '<span class="ctx-label">Clear Status</span>' +
+        '</div>' : '') +
       '</div>' +
     '</div>' +
 
@@ -6544,8 +6597,24 @@ async function ctxSetStatus(status) {
   if (idx === -1) return;
   games[idx].status = status;
   await window.nexus.games.update(ctxGame.id, { status: status });
+  // Clear intent + momentum if moving to finished/not-for-me
+  if (status === 'finished' || status === 'not-for-me') {
+    if (games[idx].intent)      { games[idx].intent = null;      await window.nexus.games.update(ctxGame.id, { intent: null }); }
+    if (games[idx].momentumAt)  { games[idx].momentumAt = null;  await window.nexus.games.update(ctxGame.id, { momentumAt: null }); }
+  }
   renderAll();
   showStatus('✓ "' + ctxGame.title + '" → ' + status, 100);
+  setTimeout(hideStatus, 2500);
+}
+
+async function ctxClearStatus() {
+  if (!ctxGame) return;
+  var idx = games.findIndex(function(g) { return g.id === ctxGame.id; });
+  if (idx === -1) return;
+  games[idx].status = null;
+  await window.nexus.games.update(ctxGame.id, { status: null });
+  renderAll();
+  showStatus('✓ "' + ctxGame.title + '" status cleared', 100);
   setTimeout(hideStatus, 2500);
 }
 
@@ -6737,6 +6806,261 @@ function showSimilarGamesOverlay(src, scored) {
   overlay.appendChild(modal);
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
+}
+
+// ══════════════════════════════════════════════════════
+// DISCOVERY PAGE
+// ══════════════════════════════════════════════════════
+
+var discShownIds = new Set(); // session exclusion for Play Next shelf
+
+function renderDiscoveryPage() {
+  renderDiscPlayNext();
+  renderDiscHiddenGems();
+  // Find Similar starts blank — user picks seed
+}
+
+// ── Play Next shelf with familiarity slider ──
+function renderDiscPlayNext() {
+  var el = document.getElementById('disc-playnext-cards');
+  if (!el) return;
+
+  var slider = document.getElementById('discFamiliaritySlider');
+  var familiarity = slider ? parseInt(slider.value) : 1; // 0=Familiar, 1=Balanced, 2=Adventurous
+
+  var backlog = games.filter(function(g) {
+    return (g.playtimeHours||0) === 0 && !g.hidden && !g.gpCatalog && g.status !== 'not-for-me';
+  });
+  if (!backlog.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px 0">No backlog games found.</div>';
+    return;
+  }
+
+  var scored = scorePlayNext(backlog);
+  if (!scored.length) { el.innerHTML = ''; return; }
+
+  var topScore = scored[0].score;
+
+  // Familiarity controls comfort/stretch split
+  // 0=Familiar: 5 comfort, 1 stretch
+  // 1=Balanced: 4 comfort, 2 stretch
+  // 2=Adventurous: 3 comfort, 3 stretch
+  var comfortCount = [5, 4, 3][familiarity];
+  var stretchCount = [1, 2, 3][familiarity];
+  var minSimilarity = topScore * 0.3; // stretch guardrail
+
+  // Comfort = top band (>75% of top score), jittered
+  var comfortPool = scored
+    .filter(function(s) { return s.score >= topScore * 0.75; })
+    .map(function(s) { return { game: s.game, score: s.score * (0.85 + Math.random() * 0.3) }; })
+    .sort(function(a,b) { return b.score - a.score; });
+
+  // Stretch = mid band (30–75%), jittered more aggressively
+  var stretchPool = scored
+    .filter(function(s) { return s.score < topScore * 0.75 && s.score >= minSimilarity && !discShownIds.has(s.game.id); })
+    .map(function(s) { return { game: s.game, score: s.score * (0.6 + Math.random() * 0.8) }; })
+    .sort(function(a,b) { return b.score - a.score; });
+
+  var picks = [];
+  var usedIds = new Set();
+
+  comfortPool.forEach(function(s) {
+    if (picks.length < comfortCount && !usedIds.has(s.game.id)) {
+      picks.push({ game: s.game, type: 'comfort' });
+      usedIds.add(s.game.id);
+    }
+  });
+  stretchPool.forEach(function(s) {
+    if (picks.length < comfortCount + stretchCount && !usedIds.has(s.game.id)) {
+      picks.push({ game: s.game, type: 'stretch' });
+      usedIds.add(s.game.id);
+    }
+  });
+  // Pad with comfort if stretch pool was thin
+  comfortPool.forEach(function(s) {
+    if (picks.length < 6 && !usedIds.has(s.game.id)) {
+      picks.push({ game: s.game, type: 'comfort' });
+      usedIds.add(s.game.id);
+    }
+  });
+
+  picks.forEach(function(p) { discShownIds.add(p.game.id); });
+
+  el.innerHTML = picks.map(function(p) {
+    return buildDiscGameCard(p.game, scored, p.type === 'stretch' ? '✨ Stretch pick' : null);
+  }).join('');
+}
+
+// ── Hidden Gems ──
+function renderDiscHiddenGems() {
+  var el = document.getElementById('disc-gems-cards');
+  if (!el) return;
+
+  var candidates = games.filter(function(g) {
+    return (g.playtimeHours||0) < 2
+      && g.status !== 'not-for-me'
+      && !g.hidden
+      && !g.gpCatalog
+      && (g.metacriticScore >= 75 || g.openCriticScore >= 75 || g.userRating >= 4);
+  });
+
+  if (!candidates.length) {
+    el.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:20px 0">No hidden gems found yet — try adding Metacritic scores in Settings.</div>';
+    return;
+  }
+
+  // Score by quality + how little you've played
+  var gems = candidates.map(function(g) {
+    var score = 0;
+    if (g.metacriticScore >= 90)      score += 5;
+    else if (g.metacriticScore >= 80) score += 3;
+    else if (g.metacriticScore >= 75) score += 2;
+    if (g.openCriticScore >= 90)      score += 4;
+    else if (g.openCriticScore >= 80) score += 2;
+    if (g.userRating >= 5)   score += 3;
+    else if (g.userRating >= 4) score += 1.5;
+    if ((g.playtimeHours||0) === 0) score += 1; // never touched gets small boost
+    score *= (0.75 + Math.random() * 0.5); // jitter for variety
+    return { game: g, score: score };
+  }).sort(function(a,b) { return b.score - a.score; }).slice(0, 8);
+
+  el.innerHTML = gems.map(function(s) {
+    return buildDiscGameCard(s.game, [], '💎 Hidden gem');
+  }).join('');
+}
+
+// ── Find Similar ──
+var discSimilarSeed = null;
+
+window.discSimilarSearch = function(query) {
+  var dropdown = document.getElementById('discSimilarDropdown');
+  if (!dropdown) return;
+  if (!query || query.length < 2) { dropdown.innerHTML = ''; return; }
+
+  var q = query.toLowerCase();
+  var matches = games
+    .filter(function(g) { return g.title.toLowerCase().includes(q); })
+    .slice(0, 8);
+
+  if (!matches.length) { dropdown.innerHTML = ''; return; }
+
+  dropdown.innerHTML =
+    '<div style="position:absolute;top:4px;left:0;z-index:200;background:var(--surface2);border:1px solid var(--border);border-radius:8px;min-width:280px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.3)">' +
+      matches.map(function(g) {
+        return '<div style="padding:8px 12px;cursor:pointer;font-size:12px;color:var(--text);border-bottom:1px solid var(--border)" ' +
+          'onmouseenter="this.style.background=\'var(--surface)\'" ' +
+          'onmouseleave="this.style.background=\'\'" ' +
+          'onclick="discSetSeed(' + g.id + ')">' +
+          escHtml(g.title) +
+          '<span style="font-size:10px;color:var(--text3);margin-left:6px">' + escHtml((g.genres||[g.genre||'']).slice(0,1).join('')) + '</span>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+};
+
+window.discSetSeed = function(gameId) {
+  var g = games.find(function(g) { return g.id === gameId; });
+  if (!g) return;
+  discSimilarSeed = g;
+  document.getElementById('discSimilarInput').value = g.title;
+  document.getElementById('discSimilarDropdown').innerHTML = '';
+  renderDiscSimilar(g);
+};
+
+window.discUseFavorite = function() {
+  var fav = games
+    .filter(function(g) { return g.userRating > 0; })
+    .sort(function(a,b) { return b.userRating - a.userRating; })[0];
+  if (fav) discSetSeed(fav.id);
+};
+
+window.discUseLastPlayed = function() {
+  var last = games
+    .filter(function(g) { return g.lastPlayedAt; })
+    .sort(function(a,b) { return new Date(b.lastPlayedAt) - new Date(a.lastPlayedAt); })[0];
+  if (last) discSetSeed(last.id);
+};
+
+function renderDiscSimilar(src) {
+  var seedEl  = document.getElementById('disc-similar-seed');
+  var cardsEl = document.getElementById('disc-similar-cards');
+  if (!seedEl || !cardsEl) return;
+
+  var srcCover = coverCache[src.id] || coverCache[String(src.id)];
+  var srcPal   = COVER_PALETTES[(src.pal||0) % COVER_PALETTES.length];
+  var srcGenres = (src.genres && src.genres.length ? src.genres : (src.genre ? [src.genre] : [])).map(function(g) { return g.toLowerCase(); });
+  var srcTags   = [...new Set([...(src.tags||[]),...(src.steamTags||[])].map(function(t){return t.toLowerCase();}))];
+
+  // Seed chip
+  seedEl.innerHTML =
+    '<div style="display:inline-flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--accent);border-radius:8px;padding:6px 10px;margin-bottom:4px">' +
+      '<div style="width:28px;height:28px;border-radius:4px;overflow:hidden;flex-shrink:0;background:linear-gradient(135deg,' + srcPal[0] + ',' + srcPal[1] + ')">' +
+        (srcCover ? '<img src="' + srcCover + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+      '</div>' +
+      '<span style="font-size:12px;font-weight:700;color:var(--text)">' + escHtml(src.title) + '</span>' +
+      '<span style="font-size:10px;color:var(--text3)">→ finding similar games</span>' +
+    '</div>';
+
+  // Score all other games by similarity
+  var scored = games
+    .filter(function(g) { return g.id !== src.id && !g.hidden; })
+    .map(function(g) {
+      var score = 0;
+      var gGenres = (g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : [])).map(function(x){return x.toLowerCase();});
+      var gTags   = [...new Set([...(g.tags||[]),...(g.steamTags||[])].map(function(t){return t.toLowerCase();}))];
+      gGenres.forEach(function(gn) { if (srcGenres.includes(gn)) score += 3; });
+      gTags.forEach(function(t)    { if (srcTags.includes(t))   score += 1; });
+      if (g.developer && src.developer && g.developer === src.developer) score += 2;
+      return { game: g, score: score };
+    })
+    .filter(function(s) { return s.score > 0; })
+    .sort(function(a,b) { return b.score - a.score; });
+
+  // Bucket: owned (played+unplayed) first, then indicate unowned
+  var owned   = scored.filter(function(s) { return !s.game.gpCatalog; }).slice(0, 12);
+  var catalog = scored.filter(function(s) { return s.game.gpCatalog; }).slice(0, 4);
+
+  if (!owned.length && !catalog.length) {
+    cardsEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:16px 0">No similar games found in your library.</div>';
+    return;
+  }
+
+  cardsEl.innerHTML =
+    (owned.length ? '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">In your library</div>' : '') +
+    '<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin;margin-bottom:' + (catalog.length ? '16px' : '0') + '">' +
+      owned.map(function(s) { return buildDiscGameCard(s.game, scored, null); }).join('') +
+    '</div>' +
+    (catalog.length ?
+      '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Also in Game Pass</div>' +
+      '<div style="display:flex;gap:12px;overflow-x:auto;padding-bottom:8px;scrollbar-width:thin">' +
+        catalog.map(function(s) { return buildDiscGameCard(s.game, scored, '🎮 Game Pass'); }).join('') +
+      '</div>'
+    : '');
+}
+
+// ── Shared card builder for Discovery ──
+function buildDiscGameCard(g, scored, badge) {
+  var cUrl  = coverCache[g.id] || coverCache[String(g.id)];
+  var pal   = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
+  var genres = (g.genres && g.genres.length ? g.genres : (g.genre ? [g.genre] : [])).slice(0,2).join(' · ');
+  var mc    = g.metacriticScore;
+  var mcColor = mc >= 80 ? '#4ade80' : mc >= 60 ? '#facc15' : '#f87171';
+  var hours = g.playtimeHours > 0 ? g.playtimeHours + 'h played' : '';
+  var intent = g.intent ? (INTENT_LABEL[g.intent] || '') : '';
+
+  return '<div class="disc-game-card" onclick="openGameDetailById(' + g.id + ')">' +
+    '<div class="disc-game-card-cover" style="background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')">' +
+      (cUrl ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">' : '') +
+      (mc ? '<span style="position:absolute;bottom:5px;right:5px;font-size:9px;font-weight:800;color:' + mcColor + ';background:rgba(0,0,0,0.75);padding:1px 5px;border-radius:3px">' + mc + '</span>' : '') +
+      (badge ? '<span style="position:absolute;top:5px;left:5px;font-size:8px;font-weight:700;background:rgba(0,0,0,0.75);color:#fff;padding:2px 6px;border-radius:3px">' + escHtml(badge) + '</span>' : '') +
+      (intent ? '<span style="position:absolute;bottom:5px;left:5px;font-size:8px;font-weight:700;background:rgba(0,0,0,0.75);color:' + (INTENT_COLOR[g.intent]||'#fff') + ';padding:2px 6px;border-radius:3px">' + escHtml(intent) + '</span>' : '') +
+    '</div>' +
+    '<div class="disc-game-card-body">' +
+      '<div class="disc-game-card-title" title="' + escHtml(g.title) + '">' + escHtml(g.title) + '</div>' +
+      (genres ? '<div class="disc-game-card-meta">' + escHtml(genres) + '</div>' : '') +
+      (hours  ? '<div class="disc-game-card-meta" style="color:var(--text2)">' + hours + '</div>' : '') +
+    '</div>' +
+  '</div>';
 }
 
 // ══════════════════════════════════════════════════════
@@ -7448,7 +7772,16 @@ function scorePlayNext(backlog) {
     else if (g.metacriticScore >= 70) score += 1;
     if (g.userRating > 0) score += g.userRating * 0.3;
 
-    // 6. Not for me decay penalty
+    // 6. Momentum boost — decaying boost from recent Steam session (max ~3)
+    if (g.momentumAt) {
+      var daysMom = (now - new Date(g.momentumAt).getTime()) / 86400000;
+      if (daysMom < 7) {
+        var boost = 3.0 * Math.pow(0.5, daysMom / 3.5);
+        score += boost;
+      }
+    }
+
+    // 7. Not for me decay penalty
     if (g.notForMeAt) {
       var daysNFM = (now - new Date(g.notForMeAt).getTime()) / 86400000;
       var pen = 8 * Math.pow(0.5, daysNFM / 7);
