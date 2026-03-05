@@ -2741,6 +2741,8 @@ function openGameDetail(game) {
   renderDetailEnrichedPanel(game);
   // Render personal rating stars
   renderStarRating(game.userRating || 0);
+  // Render existing feedback (reaction + short review)
+  renderDetailFeedback(game);
   // Render session timer
   renderSessionPanel(game);
 }
@@ -2858,6 +2860,12 @@ async function setGameStatus(status) {
     }
   }
   renderLibrary();
+
+  // Trigger feedback overlay when marking finished
+  if (status === 'finished') {
+    var gameForFeedback = Object.assign({}, currentDetailGame);
+    setTimeout(function() { openGameFeedback(gameForFeedback, false); }, 200);
+  }
 }
 
 async function addGameDetailTag() {
@@ -4712,6 +4720,26 @@ async function checkWishlistMatchesAfterImport() {
 // ════════════════════════════════════════════════════════
 const RATING_LABELS = ['','Terrible','Bad','Below Average','Average','Decent','Good','Great','Excellent','Outstanding','Perfect'];
 
+function renderDetailFeedback(game) {
+  var el    = document.getElementById('gameDetailFeedbackArea');
+  var addEl = document.getElementById('gameDetailAddFeedback');
+  if (!el) return;
+  var hasAny = game.reaction || game.shortReview;
+  if (!hasAny) {
+    el.style.display = 'none';
+    if (addEl) addEl.style.display = '';
+    return;
+  }
+
+  var reactionLabel = { loved: '😍 Loved it', liked: '👍 Pretty good', mixed: '😐 Mixed feelings', disappointed: '😞 Disappointed' };
+  el.style.display = '';
+  if (addEl) addEl.style.display = 'none';
+  el.innerHTML =
+    (game.reaction ? '<div style="margin-bottom:6px"><span style="font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:3px 10px;color:var(--text2)">' + (reactionLabel[game.reaction]||game.reaction) + '</span></div>' : '') +
+    (game.shortReview ? '<div style="font-size:11px;color:var(--text2);font-style:italic;line-height:1.5">"' + escHtml(game.shortReview) + '"</div>' : '') +
+    '<button onclick="openGameFeedback(currentDetailGame)" style="margin-top:8px;background:none;border:none;color:var(--accent);font-size:10px;cursor:pointer;padding:0">Edit feedback ✎</button>';
+}
+
 function renderStarRating(rating) {
   var stars = document.querySelectorAll('.star-btn');
   var label = document.getElementById('ratingLabel');
@@ -5601,6 +5629,11 @@ async function finalizeSteamSession() {
   showStatus('🎮 Steam session saved — ' + timeStr + ' logged for ' + game.title, 100);
   setTimeout(hideStatus, 5000);
   renderAll();
+
+  // Offer intent completion path if session was substantial (10+ min)
+  if (elapsed >= 600) {
+    setTimeout(function() { showSessionEndToast(game); }, 1500);
+  }
 }
 
 function showSteamPresencePip(game, steamName) {
@@ -6605,6 +6638,12 @@ async function ctxSetStatus(status) {
   renderAll();
   showStatus('✓ "' + ctxGame.title + '" → ' + status, 100);
   setTimeout(hideStatus, 2500);
+
+  // Trigger feedback when marking finished via context menu
+  if (status === 'finished') {
+    var gameForFeedback = Object.assign({}, games[idx]);
+    setTimeout(function() { openGameFeedback(gameForFeedback, false); }, 300);
+  }
 }
 
 async function ctxClearStatus() {
@@ -6807,6 +6846,170 @@ function showSimilarGamesOverlay(src, scored) {
   overlay.addEventListener('click', function(e) { if (e.target === overlay) overlay.remove(); });
   document.body.appendChild(overlay);
 }
+
+// ══════════════════════════════════════════════════════
+// GAME FEEDBACK
+// ══════════════════════════════════════════════════════
+
+var feedbackGame = null;        // game being rated
+var feedbackRating = 0;         // 1–10
+var feedbackReaction = null;    // 'loved' | 'liked' | 'mixed' | 'disappointed'
+var feedbackChainFinish = false;// true when opened from session-end "Mark Finished" flow
+
+function openGameFeedback(game, chainFinish) {
+  feedbackGame        = game;
+  feedbackRating      = game.userRating || 0;
+  feedbackReaction    = game.reaction   || null;
+  feedbackChainFinish = !!chainFinish;
+
+  // Populate cover
+  var cUrl = coverCache[game.id] || coverCache[String(game.id)];
+  var pal  = COVER_PALETTES[(game.pal||0) % COVER_PALETTES.length];
+  var coverEl = document.getElementById('feedbackCover');
+  if (coverEl) coverEl.innerHTML = cUrl
+    ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">'
+    : '<div style="width:100%;height:100%;background:linear-gradient(135deg,' + pal[0] + ',' + pal[1] + ')"></div>';
+
+  // Title + meta
+  var genres = (game.genres && game.genres.length ? game.genres : (game.genre ? [game.genre] : [])).slice(0,2).join(' · ');
+  var hours  = game.playtimeHours > 0 ? game.playtimeHours + 'h played' : '';
+  setText('feedbackGameTitle', game.title);
+  setText('feedbackGameMeta', [genres, hours].filter(Boolean).join(' · '));
+
+  // Stars
+  renderFeedbackStars(feedbackRating);
+
+  // Reactions
+  renderFeedbackReactions(feedbackReaction);
+
+  // Review — pre-fill if exists, clear otherwise
+  var input = document.getElementById('feedbackReviewInput');
+  if (input) input.value = game.shortReview || '';
+
+  document.getElementById('gameFeedbackOverlay').classList.add('open');
+}
+
+function closeGameFeedback() {
+  document.getElementById('gameFeedbackOverlay').classList.remove('open');
+  feedbackGame = null;
+}
+
+function renderFeedbackStars(active) {
+  var el = document.getElementById('feedbackStars');
+  if (!el) return;
+  // Show 5 stars, each worth 2 points (maps to 1–10 scale)
+  el.innerHTML = [1,2,3,4,5].map(function(i) {
+    var val = i * 2;
+    var filled = active >= val;
+    var half   = !filled && active >= val - 1;
+    return '<span data-val="' + val + '" onclick="setFeedbackRating(' + val + ')" ' +
+      'style="font-size:28px;cursor:pointer;color:' + (filled || half ? '#facc15' : 'var(--border2)') + ';transition:color 0.1s" ' +
+      'onmouseenter="renderFeedbackStarsHover(' + val + ')" ' +
+      'onmouseleave="renderFeedbackStars(' + feedbackRating + ')">' +
+      (filled ? '★' : half ? '⯨' : '☆') +
+    '</span>';
+  }).join('');
+}
+
+window.renderFeedbackStarsHover = function(val) { renderFeedbackStars(val); };
+
+window.setFeedbackRating = function(val) {
+  feedbackRating = (feedbackRating === val) ? 0 : val; // toggle off
+  renderFeedbackStars(feedbackRating);
+};
+
+function renderFeedbackReactions(active) {
+  document.querySelectorAll('.feedback-reaction-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.dataset.reaction === active);
+    btn.onclick = function() {
+      feedbackReaction = (feedbackReaction === btn.dataset.reaction) ? null : btn.dataset.reaction;
+      renderFeedbackReactions(feedbackReaction);
+    };
+  });
+}
+
+window.saveGameFeedback = async function() {
+  if (!feedbackGame) return;
+  var review = (document.getElementById('feedbackReviewInput').value || '').trim();
+  var updates = {
+    userRating:  feedbackRating  || null,
+    reaction:    feedbackReaction || null,
+    shortReview: review           || null,
+  };
+  var idx = games.findIndex(function(g) { return g.id === feedbackGame.id; });
+  if (idx !== -1) Object.assign(games[idx], updates);
+  if (currentDetailGame && currentDetailGame.id === feedbackGame.id) Object.assign(currentDetailGame, updates);
+  await window.nexus.games.update(feedbackGame.id, updates);
+
+  // Refresh star display in detail modal if open
+  if (currentDetailGame && currentDetailGame.id === feedbackGame.id) {
+    renderStarRating(feedbackRating || 0);
+  }
+
+  closeGameFeedback();
+  renderAll();
+  showStatus('✓ Feedback saved for ' + feedbackGame.title, 100);
+  setTimeout(hideStatus, 2500);
+};
+
+// ── Session-end toast (intent completion path) ──
+
+var sessionEndGame    = null;
+var sessionEndTimeout = null;
+
+function showSessionEndToast(game) {
+  // Only prompt for games with playnext intent or no specific intent — not for casual plays
+  if (game.status === 'finished' || game.status === 'not-for-me') return;
+  // Only show if they've played a reasonable amount (30+ min this session doesn't mean finished,
+  // but we ask anyway — they can dismiss)
+  sessionEndGame = game;
+
+  var toast  = document.getElementById('sessionEndToast');
+  var cUrl   = coverCache[game.id] || coverCache[String(game.id)];
+  var pal    = COVER_PALETTES[(game.pal||0) % COVER_PALETTES.length];
+  var coverEl = document.getElementById('sessionEndCover');
+  if (coverEl) coverEl.innerHTML = cUrl
+    ? '<img src="' + cUrl + '" style="width:100%;height:100%;object-fit:cover">'
+    : '<div style="width:100%;height:100%;background:linear-gradient(135deg,' + pal[0] + ',' + pal[1] + ')"></div>';
+
+  setText('sessionEndTitle', game.title);
+  if (toast) {
+    toast.style.display = 'block';
+    toast.style.animation = 'slideInToast 0.25s ease';
+  }
+
+  // Auto-dismiss after 10 seconds
+  if (sessionEndTimeout) clearTimeout(sessionEndTimeout);
+  sessionEndTimeout = setTimeout(dismissSessionEndToast, 10000);
+}
+
+window.dismissSessionEndToast = function() {
+  var toast = document.getElementById('sessionEndToast');
+  if (toast) toast.style.display = 'none';
+  if (sessionEndTimeout) { clearTimeout(sessionEndTimeout); sessionEndTimeout = null; }
+  sessionEndGame = null;
+};
+
+window.sessionEndMarkFinished = async function() {
+  var game = sessionEndGame;
+  window.dismissSessionEndToast();
+  if (!game) return;
+
+  // Update status to finished
+  var idx = games.findIndex(function(g) { return g.id === game.id; });
+  var updates = { status: 'finished', intent: null, momentumAt: null };
+  if (idx !== -1) Object.assign(games[idx], updates);
+  if (currentDetailGame && currentDetailGame.id === game.id) Object.assign(currentDetailGame, updates);
+  await window.nexus.games.update(game.id, updates);
+  renderAll();
+
+  // Chain into feedback overlay
+  setTimeout(function() { openGameFeedback(game, true); }, 300);
+};
+
+window.sessionEndKeepPlaying = function() {
+  window.dismissSessionEndToast();
+};
 
 // ══════════════════════════════════════════════════════
 // DISCOVERY PAGE

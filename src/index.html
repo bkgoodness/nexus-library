@@ -123,6 +123,25 @@
 }
 .disc-similar-result-card:last-child { border-bottom: none; }
 .disc-similar-result-card:hover { background: var(--surface2); }
+
+/* Feedback overlay */
+.feedback-reaction-btn {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  color: var(--text2);
+  font-size: 11px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.feedback-reaction-btn:hover { border-color: var(--accent); }
+.feedback-reaction-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 700;
+}
 </style>
 </head>
 <body>
@@ -1241,6 +1260,14 @@
             <button id="clearRatingBtn" style="display:none;margin-left:auto;font-size:10px;color:var(--text3);background:none;border:none;cursor:pointer;padding:2px 6px">clear</button>
           </div>
 
+          <!-- Feedback (reaction + short review) -->
+          <div id="gameDetailFeedbackArea" style="display:none;margin-top:8px;padding:10px;background:var(--surface2);border-radius:8px;border:1px solid var(--border)"></div>
+
+          <!-- Add feedback button (shown when no feedback yet) -->
+          <div id="gameDetailAddFeedback" style="margin-top:6px">
+            <button onclick="openGameFeedback(currentDetailGame)" style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0">+ Add feedback</button>
+          </div>
+
           <!-- Steam / enriched data (shown when available) -->
           <div id="gameDetailEnriched" style="display:none"></div>
           <div id="steamStoreResult" style="display:none"></div>
@@ -1405,6 +1432,72 @@
         <button class="settings-btn settings-btn-danger" id="resetConfirmBtn" disabled onclick="executeFullReset()">☢ Reset Everything</button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- GAME FEEDBACK OVERLAY -->
+<div class="overlay" id="gameFeedbackOverlay" onclick="if(event.target===this)closeGameFeedback()">
+  <div class="modal" style="max-width:400px">
+    <div class="modal-header">
+      <div class="modal-title" id="feedbackModalTitle">How was it?</div>
+      <button class="modal-close" onclick="closeGameFeedback()">✕</button>
+    </div>
+    <div style="padding:20px">
+      <!-- Cover + title -->
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px">
+        <div id="feedbackCover" style="width:48px;height:48px;border-radius:8px;overflow:hidden;flex-shrink:0"></div>
+        <div>
+          <div id="feedbackGameTitle" style="font-size:14px;font-weight:800;color:var(--text)"></div>
+          <div id="feedbackGameMeta" style="font-size:11px;color:var(--text3);margin-top:2px"></div>
+        </div>
+      </div>
+
+      <!-- Star rating -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Rating</div>
+        <div id="feedbackStars" style="display:flex;gap:4px"></div>
+      </div>
+
+      <!-- Reaction chips -->
+      <div style="margin-bottom:16px">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Reaction</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap" id="feedbackReactions">
+          <button class="feedback-reaction-btn" data-reaction="loved">😍 Loved it</button>
+          <button class="feedback-reaction-btn" data-reaction="liked">👍 Pretty good</button>
+          <button class="feedback-reaction-btn" data-reaction="mixed">😐 Mixed feelings</button>
+          <button class="feedback-reaction-btn" data-reaction="disappointed">😞 Disappointed</button>
+        </div>
+      </div>
+
+      <!-- Short review -->
+      <div style="margin-bottom:20px">
+        <div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Quick thought <span style="font-weight:400;text-transform:none">(optional)</span></div>
+        <textarea id="feedbackReviewInput" placeholder="A sentence or two about the experience…"
+          style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--text);resize:vertical;min-height:72px;outline:none;font-family:inherit"></textarea>
+      </div>
+
+      <div style="display:flex;gap:8px">
+        <button onclick="saveGameFeedback()" style="flex:1;background:var(--accent);border:none;color:#fff;font-size:12px;font-weight:700;padding:10px 0;border-radius:8px;cursor:pointer">Save Feedback</button>
+        <button onclick="closeGameFeedback()" style="background:none;border:1px solid var(--border);color:var(--text3);font-size:12px;padding:10px 16px;border-radius:8px;cursor:pointer">Skip</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SESSION END TOAST (intent completion) -->
+<div id="sessionEndToast" style="display:none;position:fixed;bottom:24px;right:24px;z-index:9998;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;width:280px;box-shadow:0 8px 32px rgba(0,0,0,0.4)">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+    <div id="sessionEndCover" style="width:36px;height:36px;border-radius:6px;overflow:hidden;flex-shrink:0"></div>
+    <div style="flex:1;min-width:0">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:2px">Session ended</div>
+      <div id="sessionEndTitle" style="font-size:13px;font-weight:800;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
+    </div>
+    <button onclick="dismissSessionEndToast()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0;flex-shrink:0">×</button>
+  </div>
+  <div style="font-size:11px;color:var(--text2);margin-bottom:10px">Mark as <strong style="color:#4ade80">Finished</strong>?</div>
+  <div style="display:flex;gap:8px">
+    <button onclick="sessionEndMarkFinished()" style="flex:1;background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:7px 0;border-radius:7px;cursor:pointer">Mark Finished</button>
+    <button onclick="sessionEndKeepPlaying()" style="flex:1;background:none;border:1px solid var(--border);color:var(--text3);font-size:11px;padding:7px 0;border-radius:7px;cursor:pointer">Keep Playing</button>
   </div>
 </div>
 
