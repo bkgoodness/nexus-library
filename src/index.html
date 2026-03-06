@@ -688,18 +688,31 @@
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap">
-          <input id="discSimilarInput" placeholder="Search for a seed game…"
-            style="flex:1;min-width:200px;max-width:340px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--text);outline:none"
-            oninput="discSimilarSearch(this.value)">
+          <div style="position:relative;flex:1;min-width:200px;max-width:340px">
+            <input id="discSimilarInput" placeholder="Search for a seed game…"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 36px 8px 12px;font-size:12px;color:var(--text);outline:none;box-sizing:border-box"
+              oninput="discSimilarSearch(this.value)">
+            <button id="discSimilarClear" onclick="discClearSeed()" title="Clear"
+              style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:2px 4px">✕</button>
+          </div>
           <div id="discSimilarDropdown" style="position:relative"></div>
-          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discUseFavorite()">⭐ Use Top Rated</button>
+          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discOpenTopRatedPicker()">⭐ Top Rated</button>
           <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discUseLastPlayed()">🕹 Last Played</button>
         </div>
         <div id="disc-similar-seed" style="margin-bottom:12px"></div>
         <div id="disc-similar-cards"></div>
       </div>
 
-    </div>
+      <!-- Top Rated Picker Modal -->
+      <div id="topRatedPickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)discCloseTopRatedPicker()">
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:420px;max-height:560px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
+            <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--text)">⭐ Pick a Rated Game</div>
+            <button onclick="discCloseTopRatedPicker()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
+          </div>
+          <div id="topRatedPickerList" style="overflow-y:auto;flex:1;padding:8px 0"></div>
+        </div>
+      </div>
   </div>
 
   <!-- STATS PAGE -->

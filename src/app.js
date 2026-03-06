@@ -7602,6 +7602,8 @@ function renderDiscHiddenGems() {
 var discSimilarSeed = null;
 
 window.discSimilarSearch = function(query) {
+  var clearBtn = document.getElementById('discSimilarClear');
+  if (clearBtn) clearBtn.style.display = query.length > 0 ? 'block' : 'none';
   var dropdown = document.getElementById('discSimilarDropdown');
   if (!dropdown) return;
   if (!query || query.length < 2) { dropdown.innerHTML = ''; return; }
@@ -7631,16 +7633,77 @@ window.discSetSeed = function(gameId) {
   var g = games.find(function(g) { return g.id === gameId; });
   if (!g) return;
   discSimilarSeed = g;
-  document.getElementById('discSimilarInput').value = g.title;
+  var input    = document.getElementById('discSimilarInput');
+  var clearBtn = document.getElementById('discSimilarClear');
+  if (input)    input.value = g.title;
+  if (clearBtn) clearBtn.style.display = 'block';
   document.getElementById('discSimilarDropdown').innerHTML = '';
   renderDiscSimilar(g);
 };
 
+window.discClearSeed = function() {
+  discSimilarSeed = null;
+  var input = document.getElementById('discSimilarInput');
+  var clearBtn = document.getElementById('discSimilarClear');
+  var seedEl = document.getElementById('disc-similar-seed');
+  var cardsEl = document.getElementById('disc-similar-cards');
+  if (input) input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (seedEl) seedEl.innerHTML = '';
+  if (cardsEl) cardsEl.innerHTML = '';
+};
+
+window.discOpenTopRatedPicker = function() {
+  var overlay = document.getElementById('topRatedPickerOverlay');
+  var list    = document.getElementById('topRatedPickerList');
+  if (!overlay || !list) return;
+
+  var rated = games
+    .filter(function(g) { return g.userRating > 0 && !g.gpCatalog; })
+    .sort(function(a,b) { return b.userRating - a.userRating || a.title.localeCompare(b.title); });
+
+  if (!rated.length) {
+    list.innerHTML = '<div style="padding:20px;font-size:12px;color:var(--text3);text-align:center">No rated games yet.<br>Rate games from their detail panel.</div>';
+  } else {
+    list.innerHTML = rated.map(function(g) {
+      var cover  = coverCache[g.id] || coverCache[String(g.id)];
+      var pal    = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
+      var stars  = Math.round(g.userRating / 2);
+      var genres = (g.genres && g.genres.length ? g.genres[0] : g.genre) || '';
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;border-bottom:1px solid var(--border)" ' +
+        'onmouseenter="this.style.background=\'var(--surface2)\'" ' +
+        'onmouseleave="this.style.background=\'\'" ' +
+        'onclick="discPickTopRated(' + g.id + ')">' +
+        (cover
+          ? '<img src="' + cover + '" style="width:32px;height:42px;border-radius:4px;object-fit:cover;flex-shrink:0">'
+          : '<div style="width:32px;height:42px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
+        '<div style="flex:1;min-width:0">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + (genres ? escHtml(genres) + ' · ' : '') + (g.playtimeHours||0) + 'h</div>' +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">' +
+          '<span style="color:#facc15;font-size:12px;letter-spacing:-1px">' + '★'.repeat(stars) + '<span style="opacity:0.2">' + '★'.repeat(5-stars) + '</span></span>' +
+          '<span style="font-family:\'Syne\',sans-serif;font-size:11px;font-weight:800;color:#facc15">' + g.userRating + '/10</span>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  overlay.style.display = 'flex';
+};
+
+window.discPickTopRated = function(gameId) {
+  discCloseTopRatedPicker();
+  discSetSeed(gameId);
+};
+
+window.discCloseTopRatedPicker = function() {
+  var overlay = document.getElementById('topRatedPickerOverlay');
+  if (overlay) overlay.style.display = 'none';
+};
+
 window.discUseFavorite = function() {
-  var fav = games
-    .filter(function(g) { return g.userRating > 0; })
-    .sort(function(a,b) { return b.userRating - a.userRating; })[0];
-  if (fav) discSetSeed(fav.id);
+  discOpenTopRatedPicker();
 };
 
 window.discUseLastPlayed = function() {
