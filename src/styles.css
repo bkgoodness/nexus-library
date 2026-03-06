@@ -1214,7 +1214,8 @@ body::before {
 
 /* ── PERSONAL RATING ── */
 .star-btn { font-size:18px; cursor:pointer; color:var(--text3); transition:color 0.1s, transform 0.1s; user-select:none; line-height:1; }
-.star-btn:hover, .star-btn.filled { color:#facc15; }
+.star-btn.active { color:#facc15; }
+.star-btn:hover, .star-btn.hovered { color:#facc15; }
 .star-btn:hover { transform:scale(1.2); }
 
 /* ── SESSION TIMER ── */

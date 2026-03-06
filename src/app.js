@@ -1074,10 +1074,8 @@ function renderGoals() {
   }
 
   el.innerHTML = html;
+  renderHallOfFame();
 }
-
-
-// ── COLLECTION VALUE ──
 function renderCollectionValue() {
   var el = document.getElementById('collectionValueArea');
   if (!el) return;
@@ -5526,6 +5524,92 @@ async function renderHabitsPage() {
     burnDownSection(allSessions) +
     cphHtml;
 }
+
+
+function renderHallOfFame() {
+  var el = document.getElementById('goalsHallOfFame');
+  if (!el) return;
+
+  // Completed goals — detected live same as goals page does
+  var completedGoals = goals.map(function(goal) {
+    var game = games.find(function(g) { return g.id === goal.gameId; });
+    if (!game) return null;
+    var done = (game.playtimeHours || 0) >= goal.targetHours;
+    return done ? { goal: goal, game: game } : null;
+  }).filter(Boolean);
+
+  // Also grab finished games as mini-achievements
+  var finishedGames = games
+    .filter(function(g) { return g.status === 'finished' && !g.gpCatalog; })
+    .sort(function(a,b) { return new Date(b.lastPlayedAt||0) - new Date(a.lastPlayedAt||0); });
+
+  var goalSection = '';
+  if (completedGoals.length) {
+    goalSection =
+      '<div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin-bottom:10px">🏆 Goals Reached</div>' +
+      completedGoals.map(function(entry) {
+        var g = entry.game;
+        var goal = entry.goal;
+        var cover = coverCache[g.id] || coverCache[String(g.id)];
+        var pal   = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
+        return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;position:relative;overflow:hidden">' +
+          '<div style="position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,#facc15,#4ade80)"></div>' +
+          '<div style="display:flex;gap:10px;align-items:center">' +
+            (cover
+              ? '<img src="' + cover + '" style="width:40px;height:53px;border-radius:5px;object-fit:cover;flex-shrink:0">'
+              : '<div style="width:40px;height:53px;border-radius:5px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
+            '<div style="flex:1;min-width:0">' +
+              '<div style="font-size:11px;font-weight:700;color:#facc15;margin-bottom:2px">🏆 ' + escHtml(goal.label) + '</div>' +
+              '<div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
+              '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + (g.playtimeHours||0) + 'h played · target ' + goal.targetHours + 'h</div>' +
+            '</div>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+  }
+
+  var finishedSection = '';
+  if (finishedGames.length) {
+    finishedSection =
+      '<div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin:' + (completedGoals.length ? '20px' : '0') + ' 0 10px">✓ Finished Games</div>' +
+      finishedGames.slice(0, 20).map(function(g) {
+        var cover = coverCache[g.id] || coverCache[String(g.id)];
+        var pal   = COVER_PALETTES[(g.pal||0) % COVER_PALETTES.length];
+        var stars = g.userRating > 0 ? '<span style="color:#facc15;font-size:10px;letter-spacing:-1px">' + '★'.repeat(Math.round(g.userRating/2)) + '</span>' : '';
+        var when  = g.lastPlayedAt ? (function(){
+          var d = Math.floor((Date.now() - new Date(g.lastPlayedAt)) / (1000*60*60*24));
+          return d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 30 ? d + 'd ago' : Math.floor(d/30) + 'mo ago';
+        })() : '';
+        return '<div style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)">' +
+          (cover
+            ? '<img src="' + cover + '" style="width:28px;height:37px;border-radius:3px;object-fit:cover;flex-shrink:0">'
+            : '<div style="width:28px;height:37px;border-radius:3px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
+          '<div style="flex:1;min-width:0">' +
+            '<div style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
+            '<div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:4px">' +
+              (g.playtimeHours ? g.playtimeHours + 'h' : '') +
+              (stars ? ' · ' + stars : '') +
+            '</div>' +
+          '</div>' +
+          (when ? '<div style="font-size:9px;color:var(--text3);flex-shrink:0">' + when + '</div>' : '') +
+        '</div>';
+      }).join('');
+  }
+
+  var empty = !completedGoals.length && !finishedGames.length;
+
+  el.innerHTML =
+    '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 18px">' +
+      '<div style="font-family:\'Syne\',sans-serif;font-size:13px;font-weight:800;color:var(--text);margin-bottom:16px;display:flex;align-items:center;gap:8px">' +
+        '<span>Hall of Fame</span>' +
+        '<span style="font-size:10px;font-weight:400;color:var(--text3);background:var(--surface2);padding:2px 8px;border-radius:20px">' + (completedGoals.length + finishedGames.length) + '</span>' +
+      '</div>' +
+      (empty
+        ? '<div style="font-size:11px;color:var(--text3);line-height:1.7">Complete a goal or mark a game as Finished to see it here.</div>'
+        : goalSection + finishedSection) +
+    '</div>';
+}
+
 
 
 function habitStat(val, label, color) {
