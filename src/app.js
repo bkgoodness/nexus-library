@@ -10,6 +10,23 @@ const INTENT_LABEL = { priority: '🔴 Priority', queue: '📋 Queue', playnext:
 const INTENT_COLOR = { priority: '#f87171', queue: '#60a5fa', playnext: '#4ade80' };
 const INTENT_ELIGIBLE = function(g) { return g.status !== 'finished' && g.status !== 'not-for-me'; };
 
+// One-time fix: clear igdbNoArt flags that were incorrectly set because titles had " - Amazon Prime" etc. appended
+var _igdbNoArtCleared = false;
+async function clearWrongIgdbNoArt() {
+  if (_igdbNoArtCleared) return;
+  _igdbNoArtCleared = true;
+  // Clear ALL igdbNoArt flags — the flag was set during sessions with buggy title cleaning
+  // (platform suffixes not stripped, 429 failures mis-tagged as no-art). Can't trust any of them.
+  // The flag will be re-set correctly going forward with the fixed cleaner.
+  var toClear = games.filter(function(g) { return g.igdbNoArt; });
+  if (!toClear.length) return;
+  for (var i = 0; i < toClear.length; i++) {
+    await window.nexus.games.update(toClear[i].id, { igdbNoArt: false });
+    toClear[i].igdbNoArt = false;
+  }
+  console.log('[Nexus] Cleared igdbNoArt on', toClear.length, 'games — will retry cover fetch with fixed title cleaner');
+}
+
 // One-time migration: rename old status values to new ones
 async function migrateStatusValues() {
   var toMigrate = games.filter(function(g) { return g.status in STATUS_MIGRATE; });
@@ -99,6 +116,7 @@ async function init() {
   games = await window.nexus.games.getAll();
   wishlist = await window.nexus.wishlist.getAll();
   await migrateStatusValues(); // one-time migration: old status values → new
+  await clearWrongIgdbNoArt(); // one-time fix: clear igdbNoArt on games that had platform suffixes in title
   setupEventListeners();
   await loadSavedCredentials();
   updateSteamCacheStatusDisplay();
@@ -317,9 +335,6 @@ function setupEventListeners() {
     if (!confirm('Re-fetch All Art will re-download cover images for every game in your library. This can take several minutes and will use your IGDB API quota.\n\nContinue?')) return;
     bulkFetchMissingArt(true);
   });
-  wire('fillMetadataBtn',      'click', fillMissingMetadata);
-  wire('fillMetadataSteamBtn', 'click', fillMissingMetadataSteam);
-  wire('fillMetadataRawgBtn',  'click', fillMissingMetadataRawg);
   wire('helpMeDecideBtn', 'click', openHelpMeDecide);
   wire('replayPickerBtn',  'click', openReplayPicker);
   wire('fullResetBtn',   'click', openFullResetDialog);
@@ -502,7 +517,16 @@ function showPage(page) {
   if (page === 'discovery') renderDiscoveryPage();
   if (page === 'dupes') renderDupesPage();
   if (page === 'wishlist') { renderWishlist(); fetchWishlistCoversInBackground(); renderNotifHistory(); updateDealBadge(); }
-  if (page === 'settings') { renderPlatformSyncHealth(); initAutoSessionTracking(); }
+  if (page === 'settings') {
+    renderPlatformSyncHealth();
+    initAutoSessionTracking();
+    // Wire settings-only buttons on first visit (they don't exist in DOM at startup)
+    if (!window._settingsWired) {
+      window._settingsWired = true;
+      var wire2 = function(id, ev, fn) { var el = document.getElementById(id); if (el) el.addEventListener(ev, fn); };
+      wire2('fillMetadataBtn', 'click', fillMissingMetadata);
+    }
+  }
   if (page === 'goals')   { populateGoalGameSelect(); loadGoals(); }
   if (page === 'habits')  { renderHabitsPage(); }
   if (page === 'wrapped') { renderWrappedPage(); }
@@ -1256,6 +1280,8 @@ function getFiltered() {
         list = list.filter(g => g.platforms.some(p => activePlatformSet.has(p)));
       } else if (currentFilter === 'dupes')  list = list.filter(g => g.platforms.length > 1);
       else if (currentFilter === 'noart')   list = list.filter(g => !coverCache[g.id] && !coverCache[String(g.id)]);
+      else if (currentFilter === 'nometa')  list = list.filter(g => (!g.genres || !g.genres.length) && (!g.tags || !g.tags.length) && !g.description);
+      else if (currentFilter === 'notags')  list = list.filter(g => !g.tags || !g.tags.length);
       else if (currentFilter === 'recent') { const cutoff = Date.now() - 30*24*60*60*1000; list = list.filter(g => g.addedAt && new Date(g.addedAt).getTime() > cutoff); }
       else if (currentFilter === 'unplayed') { list = list.filter(g => (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog); }
       else if (currentFilter.startsWith('status:')) { var st = currentFilter.slice(7); list = list.filter(g => g.status === st); }
@@ -1748,10 +1774,11 @@ function renderStats() {
     // ── Row 1: headline numbers ──
     '<div class="stats-grid">' +
       statCard(games.length, 'Total Games', 'var(--text)', 'all') +
+      statCard(games.filter(function(g){ return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length, 'Unplayed Backlog', '#fb923c', 'unplayed') +
+      statCard(withTime.length, 'Games Played', '#7fc8f8', 'playtime') +
       statCard(totalHours >= 1000 ? (totalHours/1000).toFixed(1) + 'k' : totalHours, 'Hours Played', 'var(--steam)') +
-      statCard(withTime.length, 'Games Played', '#7fc8f8', 'playtime') +      statCard(dupes.length, 'Duplicates', 'var(--dupe)', 'dupes') +
-      statCard(games.length - dupes.length, 'Unique Titles', 'var(--text3)') +
-      statCard(wishlist.length, 'Wishlisted', 'var(--epic)') +
+      statCard(statusCounts.finished, 'Games Finished', '#4ade80', 'status:finished') +
+      statCard(dupes.length, 'Duplicates', 'var(--dupe)', 'dupes') +
     '</div>' +
 
     // ── Row 2: three-column layout ──
@@ -1844,15 +1871,6 @@ function renderStats() {
       '</div></div>' : '') +
 
     '<div id="statsExtraPanels"></div>' +
-    '<div class="stats-panel" id="discoveryPanel" style="cursor:pointer" onclick="showPage(\'discovery\')">' +
-      '<div style="display:flex;align-items:center;justify-content:space-between">' +
-        '<div class="stat-bar-title">🧭 Discover</div>' +
-        '<span style="font-size:11px;color:var(--accent)">Open →</span>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--text3);margin-top:6px;line-height:1.6">' +
-        'Get personalized picks, find hidden gems, and use decision tools — all in one place.' +
-      '</div>' +
-    '</div>' +
     '<div class="stats-panel" id="collectionValueArea"><div style="font-size:11px;color:var(--text3)">Loading…</div></div>';
 
   // Render deferred panels (need DOM to exist first)
@@ -2055,6 +2073,8 @@ async function addGame() {
   games = await window.nexus.games.getAll();
   closeAddModal();
   renderAll();
+  // Kick off background enrichment for the newly added game
+  setTimeout(enrichRawgGamesInBackground, 2000);
 }
 
 // ── DELETE ──
@@ -2279,6 +2299,8 @@ async function importGOG() {
     document.getElementById('gogLastSyncLabel').textContent = 'Last synced: ' + syncTime;
     var gogSub = document.getElementById('gog-sync-status');
     if (gogSub) gogSub.textContent = 'Synced today';
+    // Auto-enrich new games in background
+    if (result.added > 0) setTimeout(enrichRawgGamesInBackground, 3000);
   } catch (err) {
     feedback.textContent = 'Error: ' + err.message;
     feedback.className = 'settings-feedback err';
@@ -2385,6 +2407,9 @@ async function importEpicHeroic() {
       amazonSub.textContent = 'Synced today';
       await window.nexus.store.set('amazonLastSync', new Date().toISOString());
     }
+    // Auto-enrich new games in background
+    var heroicAdded = (result.epic.added || 0) + (result.amazon.added || 0);
+    if (heroicAdded > 0) setTimeout(enrichRawgGamesInBackground, 3000);
   } catch (err) {
     feedback.textContent = 'Error: ' + err.message;
     feedback.className = 'settings-feedback err';
@@ -2556,10 +2581,12 @@ async function fetchCoversInBackground() {
   try { manualOverrides = await window.nexus.store.get('coverOverrides') || {}; } catch(e) {}
 
   // Only fetch art for games that don't already have a cover (cached or manually set)
+  // Also skip games IGDB has confirmed have no cover art (igdbNoArt flag)
   var needsArt = games.filter(function(g) {
     var sid = String(g.id);
     return !manualOverrides[sid] && !manualOverrides[g.id] &&
-           !coverCache[g.id]     && !coverCache[sid];
+           !coverCache[g.id]     && !coverCache[sid] &&
+           !g.igdbNoArt;
   });
 
   if (!needsArt.length) {
@@ -3063,6 +3090,11 @@ async function fetchSteamGenresForOtherGames() {
           var steamTags    = result.tags.filter(function(t) { return t && typeof t === 'string'; }).map(function(t) { return t.toLowerCase(); });
           fields.tags = [...new Set([...existingTags, ...steamTags])];
         }
+        if (result.metacriticScore && !game.metacriticScore) fields.metacriticScore = result.metacriticScore;
+        if (result.description    && !game.description)    fields.description    = result.description;
+        if (result.releaseDate    && !game.releaseDate)    fields.releaseDate    = result.releaseDate;
+        if (result.developer      && !game.developer)      fields.developer      = result.developer;
+        if (result.publisher      && !game.publisher)      fields.publisher      = result.publisher;
         if (Object.keys(fields).length) {
           await window.nexus.games.update(game.id, fields);
           Object.assign(game, fields);
@@ -3114,8 +3146,9 @@ var coverSearchFromDetail = false;
 function cleanTitleForSearch(title) {
   if (!title) return title;
   return title
-    // Strip trademark/copyright symbols, replacing with a space to avoid joining words
-    .replace(/\s*[\u2122\u00ae\u00a9]\s*/g, ' ')
+    // Strip trademark/copyright symbols (replace with space to avoid joining words)
+    // Also catch @ used as ersatz ® (e.g. "Diablo@ IV")
+    .replace(/\s*[\u2122\u00ae\u00a9@]\s*/g, ' ')
     // Strip Amazon/Epic/GOG/Prime service suffixes
     .replace(/\s*[-–]\s*Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\s*$/i, '')
     .replace(/\s*\(Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\)\s*$/i, '')
@@ -3123,16 +3156,25 @@ function cleanTitleForSearch(title) {
     .replace(/\s*\(Prime\s*(Gaming|Giveaway)?\)\s*$/i, '')
     .replace(/\s*[-–]\s*Epic\s*Games?\s*$/i, '')
     .replace(/\s*[-–]\s*GOG\.?CO?M?\s*$/i, '')
-    // Strip Xbox platform suffixes — covers dash, space, or "for" variants,
-    // and mangled separators: X|S, X/S, XIS, "X S"
+    // Strip Xbox platform suffixes
     .replace(/\s+for\s+Xbox\b.*$/i, '')
     .replace(/\s*[-–]\s*Xbox\b.*$/i, '')
     .replace(/\s+Xbox\s+Series\s+X[\|\/\s]?I?S?\s*$/i, '')
     .replace(/\s+Xbox\s+(One|360|Series\s*X?\s*S?)?\s*$/i, '')
-    // Strip platform/OS suffixes
+    // Additional platform suffixes seen in imports
+    .replace(/\s*[-–]\s*(Xbox Game Pass|PC Game Pass|Game Pass|Ubisoft Connect|Battle\.net|Heroic|Steam)\s*$/i, '')
+    // Strip platform/OS suffixes — including bare trailing "PC", "(WIN)", "Windows Edition"
     .replace(/\s*[-–]\s*Windows\s*(Edition|Version|10|11)?\s*$/i, '')
+    .replace(/\s+Windows\s+Edition\s*$/i, '')
+    .replace(/\s*[:\-–]\s*Windows\s*Edition\s*$/i, '')
+    .replace(/\s*\(Windows\s*Edition\)\s*$/i, '')
     .replace(/\s*\((WIN|Windows|PC)\)\s*$/i, '')
     .replace(/\s*\[(WIN|Windows|PC)\]\s*$/i, '')
+    .replace(/\s+PC\s*$/i, '')
+    // Strip (Game Preview) and similar early-access labels
+    .replace(/\s*\(Game\s*Preview\)\s*$/i, '')
+    .replace(/\s*\(Early\s*Access\)\s*$/i, '')
+    .replace(/\s*\(Beta\)\s*$/i, '')
     // Strip collector's/special edition shorthands
     .replace(/\s*[-–]\s*(CE|SE|GE|VE)\s*$/i, '')
     // Strip edition/version noise
@@ -3141,9 +3183,11 @@ function cleanTitleForSearch(title) {
     .replace(/\s*\(GOTY\)\s*$/i, '')
     .replace(/\s+(Edition|Version)\s*$/i, '')
     .replace(/^ARCADE GAME SERIES:\s*/i, '')
-    .replace(/\s*\((PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
-    .replace(/\s*\[(PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
+    // Strip parenthesised or bracketed platform tags
+    .replace(/\s*\((PC|Windows|Win|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
+    .replace(/\s*\[(PC|Windows|Win|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
     .replace(/\s{2,}/g, ' ')
+    .replace(/[:\-–,;]+\s*$/, '')
     .trim();
 }
 
@@ -4016,16 +4060,20 @@ async function saveGgdealsKey() {
 function renderStatusPanel() {
   var el = document.getElementById('statsExtraPanels');
   if (!el) return;
-  el.innerHTML = ''; // clear before re-render
+  el.innerHTML = '';
 
   var statusCounts = { exploring: 0, finished: 0, 'not-for-me': 0, none: 0 };
   games.forEach(function(g) {
     if (g.status && statusCounts[g.status] !== undefined) statusCounts[g.status]++;
     else statusCounts.none++;
   });
+
+  var playedCount    = games.filter(function(g){ return (g.playtimeHours||0) > 0; }).length;
+  var backlogCount   = games.filter(function(g){ return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length;
+  var totalHrs       = games.reduce(function(s,g){ return s+(g.playtimeHours||0); }, 0);
+  var avgPlaytime    = playedCount ? Math.round(totalHrs / playedCount) : 0;
   var completionRate = games.length ? Math.round((statusCounts.finished / games.length) * 100) : 0;
-  var avgPlaytime    = games.filter(function(g){return(g.playtimeHours||0)>0;}).length
-    ? Math.round(games.reduce(function(s,g){return s+(g.playtimeHours||0);},0) / games.filter(function(g){return(g.playtimeHours||0)>0;}).length) : 0;
+  var backlogRate    = games.length ? Math.round((backlogCount / games.length) * 100) : 0;
 
   var tagCounts = {};
   games.forEach(function(g) {
@@ -4033,11 +4081,11 @@ function renderStatusPanel() {
   });
   var topTags = Object.entries(tagCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,20);
 
-  var rows = [
-    ['▶ Exploring',   'exploring',   '#60a5fa', statusCounts.exploring],
-    ['✓ Finished',    'finished',    '#4ade80', statusCounts.finished],
-    ['✕ Not for Me',  'not-for-me',  '#f87171', statusCounts['not-for-me']],
-    ['— Untracked', '',          '#555',    statusCounts.none],
+  var statusRows = [
+    ['▶ Exploring',  'exploring',  '#60a5fa', statusCounts.exploring],
+    ['✓ Finished',   'finished',   '#4ade80', statusCounts.finished],
+    ['✕ Not for Me', 'not-for-me', '#f87171', statusCounts['not-for-me']],
+    ['— Untracked',  '',           '#555',    statusCounts.none],
   ];
 
   // Status panel
@@ -4051,7 +4099,8 @@ function renderStatusPanel() {
   var barsEl = document.createElement('div');
   barsEl.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-top:10px';
 
-  rows.forEach(function(row) {
+  // Status rows
+  statusRows.forEach(function(row) {
     var pct = games.length ? Math.round((row[3]/games.length)*100) : 0;
     var bar = document.createElement('div');
     bar.style.cursor = 'pointer';
@@ -4067,12 +4116,55 @@ function renderStatusPanel() {
     barsEl.appendChild(bar);
   });
 
-  var footer = document.createElement('div');
-  footer.style.cssText = 'font-size:10px;color:var(--text3);margin-top:8px;border-top:1px solid var(--border);padding-top:6px';
-  footer.innerHTML = 'Completion rate: <strong style="color:#4ade80">' + completionRate + '%</strong> · Avg playtime: <strong style="color:var(--steam)">' + avgPlaytime + 'h</strong>';
+  // Divider before progress bars
+  var divider = document.createElement('div');
+  divider.style.cssText = 'border-top:1px solid var(--border);margin:10px 0 8px';
+  barsEl.appendChild(divider);
+
+  // Completion Rate bar
+  var compBar = document.createElement('div');
+  compBar.style.cursor = 'pointer';
+  compBar.onclick = function() { setFilter('status:finished'); showPage('library'); };
+  compBar.innerHTML =
+    '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
+      '<span style="color:#4ade80;font-weight:600">Completion Rate</span>' +
+      '<span style="color:var(--text3)">' + completionRate + '%</span>' +
+    '</div>' +
+    '<div style="height:6px;background:var(--surface2);border-radius:3px">' +
+      '<div style="height:6px;width:' + completionRate + '%;background:linear-gradient(90deg,#4ade80,#a3e635);border-radius:3px;transition:width 0.4s"></div>' +
+    '</div>';
+  barsEl.appendChild(compBar);
+
+  // Avg Playtime bar (capped at 100h for visual)
+  var ptPct = Math.min(100, Math.round((avgPlaytime / 100) * 100));
+  var avgBar = document.createElement('div');
+  avgBar.style.marginTop = '8px';
+  avgBar.innerHTML =
+    '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
+      '<span style="color:var(--steam);font-weight:600">Avg Playtime</span>' +
+      '<span style="color:var(--text3)">' + avgPlaytime + 'h per game</span>' +
+    '</div>' +
+    '<div style="height:6px;background:var(--surface2);border-radius:3px">' +
+      '<div style="height:6px;width:' + ptPct + '%;background:linear-gradient(90deg,var(--steam),#7fc8f8);border-radius:3px;transition:width 0.4s"></div>' +
+    '</div>';
+  barsEl.appendChild(avgBar);
+
+  // Backlog bar — counts DOWN to zero (red when high, green when cleared)
+  var bzColor = backlogRate <= 10 ? '#4ade80' : backlogRate <= 40 ? '#facc15' : '#f87171';
+  var bzBar = document.createElement('div');
+  bzBar.style.cssText = 'margin-top:8px;cursor:pointer';
+  bzBar.onclick = function() { setFilter('unplayed'); showPage('library'); };
+  bzBar.innerHTML =
+    '<div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px">' +
+      '<span style="color:' + bzColor + ';font-weight:600">Backlog</span>' +
+      '<span style="color:var(--text3)">' + backlogRate + '% of library · ' + backlogCount + ' unplayed</span>' +
+    '</div>' +
+    '<div style="height:6px;background:var(--surface2);border-radius:3px">' +
+      '<div style="height:6px;width:' + backlogRate + '%;background:linear-gradient(90deg,' + bzColor + ',#fbbf24);border-radius:3px;transition:width 0.4s"></div>' +
+    '</div>';
+  barsEl.appendChild(bzBar);
 
   leftPanel.appendChild(barsEl);
-  leftPanel.appendChild(footer);
 
   // Tag cloud panel
   var rightPanel = document.createElement('div');
@@ -4106,21 +4198,20 @@ function renderStatusPanel() {
   var healthPanel = document.createElement('div');
   healthPanel.className = 'stats-panel';
 
-  var noArtGames   = games.filter(function(g) { return !coverCache[g.id] && !coverCache[String(g.id)]; });
-  var noGenreGames = games.filter(function(g) { return !g.genre || g.genre === 'Other'; });
-  var noTagGames   = games.filter(function(g) { return !g.tags || !g.tags.length; });
-  var noStatusGames= games.filter(function(g) { return !g.status; });
-  var noPlatGames  = games.filter(function(g) { return !g.platforms || !g.platforms.length; });
-  var dupeGames    = getDupes ? getDupes() : [];
-  var noTimeGames  = games.filter(function(g) { return !g.playtimeHours && g.platforms.includes('steam'); });
-  var totalIssues  = noArtGames.length + noGenreGames.length + noTagGames.length + noStatusGames.length;
-  var healthScore  = games.length ? Math.max(0, Math.round(100 - (totalIssues / (games.length * 4)) * 100)) : 0;
-  var scoreColor   = healthScore >= 80 ? '#4ade80' : healthScore >= 60 ? '#facc15' : '#f87171';
+  var noArtGames    = games.filter(function(g) { return !g.gpCatalog && !coverCache[g.id] && !coverCache[String(g.id)]; });
+  var noMetaGames   = games.filter(function(g) { return !g.gpCatalog && (!g.genres || !g.genres.length) && (!g.tags || !g.tags.length) && !g.description; });
+  var noTagGames    = games.filter(function(g) { return !g.gpCatalog && (!g.tags || !g.tags.length); });
+  var noStatusGames = games.filter(function(g) { return !g.gpCatalog && !g.status; });
+  var dupeGames     = getDupes ? getDupes() : [];
+  var noTimeGames   = games.filter(function(g) { return !g.gpCatalog && !g.playtimeHours && g.platforms.includes('steam'); });
+  var totalIssues   = noArtGames.length + noMetaGames.length + noTagGames.length + noStatusGames.length;
+  var healthScore   = games.length ? Math.max(0, Math.round(100 - (totalIssues / (games.length * 4)) * 100)) : 0;
+  var scoreColor    = healthScore >= 80 ? '#4ade80' : healthScore >= 60 ? '#facc15' : '#f87171';
 
   var healthRows = [
     { label: '🖼 Missing Cover Art',  count: noArtGames.length,    filter: 'noart',  action: noArtGames.length > 0 ? '<button onclick="fetchCoversInBackground();this.textContent=\'Fetching…\';this.disabled=true" style="font-size:9px;padding:1px 7px;border-radius:4px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;margin-left:auto">Auto Fetch</button>' : '' },
-    { label: '🏷 Genre is "Other"',   count: noGenreGames.length,  filter: 'all',    action: '' },
-    { label: '🔖 No Tags',            count: noTagGames.length,    filter: 'all',    action: '' },
+    { label: '📋 Missing Metadata',   count: noMetaGames.length,   filter: 'nometa', action: '' },
+    { label: '🔖 No Tags',            count: noTagGames.length,    filter: 'notags', action: '' },
     { label: '📊 No Play Status',     count: noStatusGames.length, filter: 'all',    action: '' },
     { label: '⚠️ Duplicates',         count: dupeGames.length,     filter: 'dupes',  action: '' },
     { label: '⏱ No Playtime (Steam)', count: noTimeGames.length,   filter: 'steam',  action: '' },
@@ -4268,10 +4359,15 @@ async function lookupSteamStore() {
       return;
     }
 
-    // Review summary
+    // Review summary — use verdict text if available, fall back to count
     var reviewText = '';
-    if (d.recommendations && d.recommendations.total)
+    if (d.reviews && d.reviews.review_score_desc) {
+      reviewText = d.reviews.review_score_desc;
+      if (d.recommendations && d.recommendations.total)
+        reviewText += ' (' + d.recommendations.total.toLocaleString() + ' reviews)';
+    } else if (d.recommendations && d.recommendations.total) {
       reviewText = d.recommendations.total.toLocaleString() + ' reviews';
+    }
 
     var updates = {
       steamEnriched:      true,
@@ -4284,8 +4380,28 @@ async function lookupSteamStore() {
       steamReviewSummary: reviewText,
       steamTags:          (d.categories || []).slice(0, 8).map(function(c) { return c.description; }),
     };
-    if (currentDetailGame.genre === 'Other' && d.genres && d.genres.length)
-      updates.genre = d.genres[0].description;
+    // Always save full genres array; only overwrite primary genre if currently unset/generic
+    if (d.genres && d.genres.length) {
+      var fullGenres = d.genres.map(function(g) { return g.description; }).filter(Boolean);
+      var mappedFull = mapSteamGenres(fullGenres);
+      updates.genres = mappedFull;
+      if (!currentDetailGame.genre || currentDetailGame.genre === 'Other') updates.genre = mappedFull[0];
+    }
+    // Populate tags field from categories (for picker scoring) — merge with existing
+    if (d.categories && d.categories.length) {
+      var skipCats = new Set([
+        'Steam Achievements', 'Steam Cloud', 'Steam Leaderboards',
+        'Steam Trading Cards', 'Steam Workshop', 'Full controller support',
+        'Partial Controller Support', 'SteamVR Collectibles', 'Stats',
+        'In-App Purchases', 'Includes level editor', 'Downloadable Content',
+      ]);
+      var catTags = d.categories
+        .map(function(c) { return c.description; })
+        .filter(function(c) { return c && !skipCats.has(c); })
+        .map(function(t) { return t.toLowerCase(); });
+      var existingTags = (currentDetailGame.tags || []).filter(function(t) { return t && typeof t === 'string'; });
+      updates.tags = [...new Set([...existingTags, ...catTags])];
+    }
 
     var idx = games.findIndex(function(g) { return g.id === currentDetailGame.id; });
     if (idx !== -1) {
@@ -4624,11 +4740,15 @@ async function enrichRawgGamesInBackground() {
 }
 
 // ── FILL MISSING METADATA (on-demand, for picker quality) ──
-async function fillMissingMetadata()      { await _fillMetadata(true, true);  }
-async function fillMissingMetadataSteam() { await _fillMetadata(true, false); }
-async function fillMissingMetadataRawg()  { await _fillMetadata(false, true); }
+async function fillMissingMetadata()      { await _fillMetadata(true,  true,  'fillMetadataBtn'); }
+async function fillMissingMetadataSteam() { await _fillMetadata(true,  false, 'fillMetadataSteamBtn'); }
+async function fillMissingMetadataRawg()  { await _fillMetadata(false, true,  'fillMetadataRawgBtn'); }
 
-async function _fillMetadata(doSteam, doRawg) {
+async function _fillMetadata(doSteam, doRawg, btnId) {
+  var btn = btnId ? document.getElementById(btnId) : null;
+  var fb  = document.getElementById('fillMetadataFeedback');
+  if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
+
   var steamTargets = doSteam ? games.filter(function(g) {
     return g.steamAppId; // always re-fetch — old tags may be wrong category-based ones
   }) : [];
@@ -4654,19 +4774,24 @@ async function _fillMetadata(doSteam, doRawg) {
       try {
         var sResults = await window.nexus.games.fetchSteamGenres([sGame.steamAppId]);
         var sResult = sResults[String(sGame.steamAppId)];
-        if (!sResult) { console.warn('[FillMetadata] No result for', sGame.title, sGame.steamAppId); continue; }
+        if (!sResult) { console.log('[FillMetadata] Steam Store returned no data for', sGame.title, '(appId ' + sGame.steamAppId + ') — may be DLC, removed, or region-locked'); continue; }
         console.log('[FillMetadata]', sGame.title, '| tags:', sResult.tags);
         var fields = {};
         if (sResult.genres && sResult.genres.length) {
           var mapped = mapSteamGenres(sResult.genres);
           fields.genres = mapped;
-          if (!sGame.genre || sGame.genre === 'Other') fields.genre = mapped[0];
+          fields.genre  = mapped[0]; // always update primary from Steam — most reliable source
         }
         if (sResult.tags && sResult.tags.length) {
           fields.tags = sResult.tags
             .filter(function(t) { return t && typeof t === 'string'; })
             .map(function(t) { return t.toLowerCase(); });
         }
+        if (sResult.metacriticScore) fields.metacriticScore = sResult.metacriticScore;
+        if (sResult.description)     fields.description     = sResult.description;
+        if (sResult.releaseDate && !sGame.releaseDate) fields.releaseDate = sResult.releaseDate;
+        if (sResult.developer   && !sGame.developer)   fields.developer   = sResult.developer;
+        if (sResult.publisher   && !sGame.publisher)   fields.publisher   = sResult.publisher;
         if (Object.keys(fields).length) {
           await window.nexus.games.update(sGame.id, fields);
           var gObj = games.find(function(g2) { return g2.id === sGame.id; });
@@ -4705,6 +4830,11 @@ async function _fillMetadata(doSteam, doRawg) {
                 .filter(function(t) { return t && typeof t === 'string'; })
                 .map(function(t) { return t.toLowerCase(); });
             }
+            if (nsResult.metacriticScore) nsFields.metacriticScore = nsResult.metacriticScore;
+            if (nsResult.description && !rGame.description) nsFields.description = nsResult.description;
+            if (nsResult.releaseDate  && !rGame.releaseDate) nsFields.releaseDate  = nsResult.releaseDate;
+            if (nsResult.developer    && !rGame.developer)   nsFields.developer    = nsResult.developer;
+            if (nsResult.publisher    && !rGame.publisher)   nsFields.publisher    = nsResult.publisher;
             await window.nexus.games.update(rGame.id, nsFields);
             var nsObj = games.find(function(g2) { return g2.id === rGame.id; });
             if (nsObj) Object.assign(nsObj, nsFields);
@@ -4756,6 +4886,16 @@ async function _fillMetadata(doSteam, doRawg) {
       console.log('[FillMetadata] Note: Add a RAWG API key in Settings for better coverage of titles not found on Steam');
     }
   }
+
+  // Restore button and show completion
+  if (btn) {
+    btn.disabled = false;
+    btn.textContent = '✦ Fill Missing Metadata';
+  }
+  var total2 = steamTargets.length + rawgTargets.length;
+  showStatus('✓ Metadata updated for ' + total2 + ' game' + (total2 !== 1 ? 's' : '') + '.', 100, {type:'success'});
+  setTimeout(hideStatus, 4000);
+  renderAll();
 }
 async function removeOwnedFromWishlist() {
   var owned = wishlist.filter(function(w) {
@@ -5035,7 +5175,7 @@ async function renderHabitsPage() {
   if (!el) return;
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3)">Loading habits…</div>';
 
-  // Load all sessions in one call
+  // ── Load sessions ──
   var allSessionData = {};
   try { allSessionData = await window.nexus.store.getByPrefix('sessions:') || {}; } catch(e) {}
 
@@ -5049,116 +5189,161 @@ async function renderHabitsPage() {
   });
   allSessions.sort(function(a,b) { return b.date - a.date; });
 
-  // Recently played (by lastPlayedAt)
-  var recentlyPlayed = games
-    .filter(function(g) { return g.lastPlayedAt; })
-    .sort(function(a,b) { return new Date(b.lastPlayedAt) - new Date(a.lastPlayedAt); })
-    .slice(0, 10);
+  // ── Time windows — 30-day rolling comparison ──
+  var now           = Date.now();
+  var thirtyAgo     = now - 30 * 24*60*60*1000;
+  var sixtyAgo      = now - 60 * 24*60*60*1000;
+  var fourWeeksAgo  = now - 28 * 24*60*60*1000;
 
-  // Day-of-week data — both totals AND per-day top game
-  var dayTotals  = [0,0,0,0,0,0,0];
-  var dayGames   = [[],[],[],[],[],[],[]]; // sessions per day
-  var dayLabels  = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  var thisMonthSessions = allSessions.filter(function(s) { return s.date.getTime() > thirtyAgo; });
+  var lastMonthSessions = allSessions.filter(function(s) { return s.date.getTime() > sixtyAgo && s.date.getTime() <= thirtyAgo; });
+
+  var thisMonthSecs = thisMonthSessions.reduce(function(t,s) { return t+s.seconds; }, 0);
+  var lastMonthSecs = lastMonthSessions.reduce(function(t,s) { return t+s.seconds; }, 0);
+
+  // ── Overall session stats ──
+  var totalSessionSecs = allSessions.reduce(function(t,s) { return t+s.seconds; }, 0);
+  var totalSessionHrs  = (totalSessionSecs/3600).toFixed(1);
+  var avgSessionMins   = allSessions.length ? Math.round(totalSessionSecs/allSessions.length/60) : 0;
+  var longestSession   = allSessions.reduce(function(max,s) { return s.seconds > max.seconds ? s : max; }, {seconds:0,title:''});
+
+  // ── Trend helpers ──
+  function trend(current, previous, unit) {
+    if (!previous && !current) return '';
+    var diff = current - previous;
+    if (diff === 0) return '<div style="font-size:9px;color:var(--text3);margin-top:3px">same as last month</div>';
+    var arrow = diff > 0 ? '▲' : '▼';
+    var color = diff > 0 ? '#4ade80' : '#f87171';
+    return '<div style="font-size:9px;color:' + color + ';margin-top:3px">' + arrow + ' ' + Math.abs(diff) + (unit||'') + ' vs last month</div>';
+  }
+  function trendHrs(currentSecs, previousSecs) {
+    var diff = ((currentSecs - previousSecs)/3600).toFixed(1);
+    if (parseFloat(diff) === 0) return '<div style="font-size:9px;color:var(--text3);margin-top:3px">same as last month</div>';
+    var arrow = parseFloat(diff) > 0 ? '▲' : '▼';
+    var color = parseFloat(diff) > 0 ? '#4ade80' : '#f87171';
+    return '<div style="font-size:9px;color:' + color + ';margin-top:3px">' + arrow + ' ' + Math.abs(diff) + 'h vs last month</div>';
+  }
+
+  // ── Day-of-week data ──
+  var dayTotals = [0,0,0,0,0,0,0];
+  var dayGames  = [[],[],[],[],[],[],[]];
+  var dayLabels = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   allSessions.forEach(function(s) {
     var d = s.date.getDay();
     dayTotals[d] += s.seconds;
     dayGames[d].push(s);
   });
   var maxDay = Math.max.apply(null, dayTotals) || 1;
+  var peakDayIdx = dayTotals.indexOf(maxDay);
 
-  // Top game per day of week
   var dayTopGame = dayGames.map(function(sessions) {
     var byGame = {};
-    sessions.forEach(function(s) { byGame[s.title] = (byGame[s.title]||0) + s.seconds; });
+    sessions.forEach(function(s) { byGame[s.title] = (byGame[s.title]||0)+s.seconds; });
     var top = Object.entries(byGame).sort(function(a,b){return b[1]-a[1];})[0];
     return top ? { title: top[0], hrs: (top[1]/3600).toFixed(1) } : null;
   });
 
-  // Session stats
-  var totalSessionSecs = allSessions.reduce(function(t,s) { return t + s.seconds; }, 0);
-  var totalSessionHrs  = (totalSessionSecs / 3600).toFixed(1);
-  var avgSessionMins   = allSessions.length ? Math.round(totalSessionSecs / allSessions.length / 60) : 0;
-  var longestSession   = allSessions.reduce(function(max, s) { return s.seconds > max.seconds ? s : max; }, { seconds: 0, title: '' });
+  // Evening = sessions between 6pm-midnight
+  var eveningSessions = allSessions.filter(function(s) {
+    var h = s.date.getHours(); return h >= 18;
+  });
+  var isNightOwl = allSessions.length > 5 && (eveningSessions.length / allSessions.length) > 0.5;
 
-  // Rated games
-  var ratedGames = games.filter(function(g) { return g.userRating > 0; })
-    .sort(function(a,b) { return b.userRating - a.userRating; });
-  var avgRating = ratedGames.length
-    ? (ratedGames.reduce(function(t,g) { return t + g.userRating; }, 0) / ratedGames.length).toFixed(1) : null;
+  // ── Play Style analysis ──
+  // Genre by time played vs by library count
+  var genreByTime  = {};
+  var genreByCount = {};
+  games.filter(function(g){ return !g.gpCatalog; }).forEach(function(g) {
+    var gList = (g.genres && g.genres.length) ? g.genres : (g.genre ? [g.genre] : []);
+    gList.forEach(function(genre) {
+      genreByCount[genre] = (genreByCount[genre]||0) + 1;
+      genreByTime[genre]  = (genreByTime[genre]||0)  + (g.playtimeHours||0);
+    });
+  });
+  var topByTime  = Object.entries(genreByTime).sort(function(a,b){return b[1]-a[1];})[0];
+  var topByCount = Object.entries(genreByCount).sort(function(a,b){return b[1]-a[1];})[0];
+  var genreMismatch = topByTime && topByCount && topByTime[0] !== topByCount[0];
 
-  // vs Metacritic
-  var bothRated  = ratedGames.filter(function(g) { return g.metacriticScore; });
-  var ratingDiff = bothRated.map(function(g) {
-    return { title: g.title, yours: g.userRating * 10, meta: g.metacriticScore, diff: (g.userRating * 10) - g.metacriticScore };
-  }).sort(function(a,b) { return Math.abs(b.diff) - Math.abs(a.diff); }).slice(0,5);
+  // Session style
+  var isShortBurst  = avgSessionMins > 0 && avgSessionMins < 20;
+  var isMarathoner  = avgSessionMins >= 60;
+  var isMidSession  = avgSessionMins >= 20 && avgSessionMins < 60;
 
-  // Cost per hour
-  var costGames = games.filter(function(g) {
-    var w = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
-    return g.playtimeHours > 0 && w && w.retailPrice;
-  }).map(function(g) {
-    var w = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
-    return { title: g.title, cph: (w.retailPrice / g.playtimeHours).toFixed(2), hrs: g.playtimeHours, price: w.retailPrice };
-  }).sort(function(a,b) { return a.cph - b.cph; }).slice(0, 8);
+  // Build insight sentences
+  var insights = [];
+  if (isShortBurst)     insights.push('You play in short bursts — quick sessions under 20 minutes.');
+  else if (isMarathoner) insights.push('You are a marathoner — your sessions run over an hour on average.');
+  else if (isMidSession) insights.push('You tend toward focused sessions, usually 20–60 minutes.');
 
-  // ── BUILD HTML ──
-  function panel(titleText, content) {
-    return '<div class="habits-panel">' +
-      '<div class="habits-panel-title">' + titleText + '</div>' +
-      content +
-    '</div>';
-  }
+  if (isNightOwl) insights.push('Most of your sessions happen in the evening.');
+  else if (allSessions.length > 5) insights.push('You play throughout the day, not just in the evening.');
 
-  // Summary row
-  var longestLabel = longestSession.seconds > 0
-    ? Math.round(longestSession.seconds/60) + 'm'
-    : '—';
-  var summaryHtml =
-    '<div class="habits-stat-row">' +
-      habitStat(allSessions.length || '—', 'Sessions Logged', '#4a9eed') +
-      habitStat(totalSessionHrs + 'h', 'Total Session Time', '#4ade80') +
-      habitStat(avgSessionMins > 0 ? avgSessionMins + 'm' : '—', 'Avg Session', '#fb923c') +
-      habitStat(longestLabel, 'Longest Session', '#a78bfa') +
-    '</div>';
+  if (dayTotals[peakDayIdx] > 0) insights.push(dayLabels[peakDayIdx] + ' is your most active gaming day.');
 
-  // Day of week chart — proper proportional bars with tooltip showing top game
-  var dowHtml = '';
-  if (allSessions.length) {
-    dowHtml = '<div class="habits-dow-grid">' +
-      dayLabels.map(function(d, i) {
-        var pct = dayTotals[i] / maxDay;
-        var hrs = (dayTotals[i] / 3600).toFixed(1);
-        var barH = Math.max(3, Math.round(pct * 80)); // max 80px, min 3px
-        var opacity = dayTotals[i] > 0 ? (0.3 + pct * 0.7) : 0.12;
-        var topGame = dayTopGame[i];
-        var tooltipContent = dayTotals[i] > 0
-          ? hrs + 'h total' + (topGame ? ' · ' + topGame.title.slice(0,18) + (topGame.title.length > 18 ? '…' : '') + ' (' + topGame.hrs + 'h)' : '')
-          : 'No sessions';
-        return '<div class="habits-dow-col">' +
-          '<div class="habits-dow-bar-wrap">' +
-            '<div class="habits-dow-tooltip">' + escHtml(tooltipContent) + '</div>' +
-            '<div class="habits-dow-bar" style="height:' + barH + 'px;background:var(--steam);opacity:' + opacity.toFixed(2) + '"></div>' +
-          '</div>' +
-          '<div class="habits-dow-label">' + d + '</div>' +
-          '<div class="habits-dow-hrs">' + (dayTotals[i] > 0 ? hrs + 'h' : '') + '</div>' +
+  if (genreMismatch) insights.push('You own a lot of ' + topByCount[0] + ' games but spend most time in ' + topByTime[0] + '.');
+  else if (topByTime) insights.push(topByTime[0] + ' gets the most of your time.');
+
+  var playStyleHtml = insights.length
+    ? insights.map(function(s) {
+        return '<div style="font-size:12px;color:var(--text2);line-height:1.7;display:flex;gap:8px;align-items:flex-start">' +
+          '<span style="color:var(--accent);flex-shrink:0">→</span>' + s +
         '</div>';
-      }).join('') +
-    '</div>';
-  }
+      }).join('')
+    : '<div style="font-size:12px;color:var(--text3)">Log more sessions to see your play style insights.</div>';
 
-  // Recently played rows
+  // ── Gaming DNA ──
+  var dnaGenres = Object.keys(genreByTime).filter(function(g){ return genreByTime[g] > 0 || genreByCount[g] > 0; });
+  var topDnaGenres = dnaGenres.sort(function(a,b){
+    return (genreByTime[b]||0) - (genreByTime[a]||0);
+  }).slice(0, 6);
+
+  var maxTime  = Math.max.apply(null, topDnaGenres.map(function(g){ return genreByTime[g]||0; })) || 1;
+  var maxCount = Math.max.apply(null, topDnaGenres.map(function(g){ return genreByCount[g]||0; })) || 1;
+  var dnaColors = ['#7fc8f8','#a78bfa','#f472b6','#fb923c','#4ade80','#facc15'];
+
+  var dnaHtml = topDnaGenres.length ? topDnaGenres.map(function(genre, i) {
+    var timePct  = Math.round(((genreByTime[genre]||0) / maxTime)  * 100);
+    var countPct = Math.round(((genreByCount[genre]||0) / maxCount) * 100);
+    var timeHrs  = (genreByTime[genre]||0).toFixed(0);
+    var col = dnaColors[i % dnaColors.length];
+    return '<div style="margin-bottom:12px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">' +
+        '<span style="font-size:12px;font-weight:600;color:var(--text)">' + escHtml(genre) + '</span>' +
+        '<span style="font-size:10px;color:var(--text3)">' + timeHrs + 'h played · ' + (genreByCount[genre]||0) + ' owned</span>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:3px">' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<div style="font-size:9px;color:var(--text3);width:36px;text-align:right">played</div>' +
+          '<div style="flex:1;height:5px;background:var(--surface2);border-radius:3px">' +
+            '<div style="height:5px;width:' + timePct + '%;background:' + col + ';border-radius:3px;transition:width 0.4s"></div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px">' +
+          '<div style="font-size:9px;color:var(--text3);width:36px;text-align:right">owned</div>' +
+          '<div style="flex:1;height:5px;background:var(--surface2);border-radius:3px">' +
+            '<div style="height:5px;width:' + countPct + '%;background:' + col + ';opacity:0.35;border-radius:3px;transition:width 0.4s"></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('') : '<div style="font-size:11px;color:var(--text3)">Play more games to see your DNA.</div>';
+
+  // ── Recently played ──
+  var recentlyPlayed = games
+    .filter(function(g) { return g.lastPlayedAt; })
+    .sort(function(a,b) { return new Date(b.lastPlayedAt) - new Date(a.lastPlayedAt); })
+    .slice(0, 10);
+
   var recentHtml = recentlyPlayed.length
     ? recentlyPlayed.map(function(g) {
         var cover = coverCache[g.id] || coverCache[String(g.id)];
-        var d = new Date(g.lastPlayedAt);
-        var diff = Math.floor((Date.now() - d) / (1000*60*60*24));
-        var when = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
+        var diff  = Math.floor((now - new Date(g.lastPlayedAt)) / (1000*60*60*24));
+        var when  = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
         var stars = g.userRating > 0 ? '<span style="color:#facc15;letter-spacing:-1px">' + '★'.repeat(Math.round(g.userRating/2)) + '</span>' : '';
-        var pal = COVER_PALETTES[(g.pal||0)%COVER_PALETTES.length];
+        var pal   = COVER_PALETTES[(g.pal||0)%COVER_PALETTES.length];
         return '<div class="session-history-row">' +
-          (cover
-            ? '<img src="' + cover + '" style="width:34px;height:45px;border-radius:4px;object-fit:cover;flex-shrink:0">'
-            : '<div style="width:34px;height:45px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
+          (cover ? '<img src="' + cover + '" style="width:34px;height:45px;border-radius:4px;object-fit:cover;flex-shrink:0">'
+                 : '<div style="width:34px;height:45px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
             '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + (g.playtimeHours||0) + 'h total' + (stars ? ' · ' + stars : '') + '</div>' +
@@ -5166,58 +5351,61 @@ async function renderHabitsPage() {
           '<div style="font-size:11px;color:var(--text3);flex-shrink:0">' + when + '</div>' +
         '</div>';
       }).join('')
-    : '<div style="font-size:12px;color:var(--text3);padding:8px 0">No play history yet. Start a session from any game\'s detail view.</div>';
+    : '<div style="font-size:12px;color:var(--text3);padding:8px 0">No play history yet.</div>';
 
-  // Recent sessions log (last 20)
+  // ── Session log ──
   var sessionLogHtml = allSessions.slice(0, 20).map(function(s) {
-    var d = s.date;
-    var diff = Math.floor((Date.now() - d) / (1000*60*60*24));
-    var when = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
-    var dur = s.seconds >= 3600
-      ? (s.seconds/3600).toFixed(1) + 'h'
-      : Math.round(s.seconds/60) + 'm';
+    var diff  = Math.floor((now - s.date) / (1000*60*60*24));
+    var when  = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
+    var dur   = s.seconds >= 3600 ? (s.seconds/3600).toFixed(1)+'h' : Math.round(s.seconds/60)+'m';
     var cover = s.game ? (coverCache[s.game.id] || coverCache[String(s.game.id)]) : null;
-    var pal = s.game ? COVER_PALETTES[(s.game.pal||0)%COVER_PALETTES.length] : COVER_PALETTES[0];
+    var pal   = s.game ? COVER_PALETTES[(s.game.pal||0)%COVER_PALETTES.length] : COVER_PALETTES[0];
     return '<div class="session-history-row">' +
-      (cover
-        ? '<img src="' + cover + '" style="width:28px;height:37px;border-radius:3px;object-fit:cover;flex-shrink:0">'
-        : '<div style="width:28px;height:37px;border-radius:3px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
+      (cover ? '<img src="' + cover + '" style="width:28px;height:37px;border-radius:3px;object-fit:cover;flex-shrink:0">'
+             : '<div style="width:28px;height:37px;border-radius:3px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
       '<div style="flex:1;min-width:0">' +
         '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(s.title) + '</div>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + d.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '</div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:1px">' + s.date.toLocaleDateString('en-US',{month:'short',day:'numeric'}) + '</div>' +
       '</div>' +
       '<div style="font-size:12px;font-weight:700;color:var(--steam);flex-shrink:0">' + dur + '</div>' +
     '</div>';
   }).join('') || '<div style="font-size:12px;color:var(--text3)">No sessions logged yet.</div>';
 
-  // Ratings section
-  var ratingsHtml = '';
-  if (ratedGames.length) {
-    var topRatedHtml = ratedGames.slice(0, 6).map(function(g) {
-      var stars = Math.round(g.userRating / 2);
-      return '<div class="session-history-row">' +
-        '<div style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
-          '<span style="color:#facc15;font-size:11px;letter-spacing:-1px">' + '★'.repeat(stars) + '<span style="opacity:0.25">' + '★'.repeat(5-stars) + '</span></span>' +
-          '<span style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:#facc15">' + g.userRating + '</span>' +
-        '</div>' +
-      '</div>';
-    }).join('');
+  // ── Ratings ──
+  var ratedGames = games.filter(function(g) { return g.userRating > 0; })
+    .sort(function(a,b) { return b.userRating - a.userRating; });
+  var avgRating = ratedGames.length
+    ? (ratedGames.reduce(function(t,g){ return t+g.userRating; },0)/ratedGames.length).toFixed(1) : null;
+  var bothRated  = ratedGames.filter(function(g) { return g.metacriticScore; });
+  var ratingDiff = bothRated.map(function(g) {
+    return { title:g.title, yours:g.userRating*10, meta:g.metacriticScore, diff:(g.userRating*10)-g.metacriticScore };
+  }).sort(function(a,b){ return Math.abs(b.diff)-Math.abs(a.diff); }).slice(0,5);
 
-    var vsMetaHtml = bothRated.length
-      ? ratingDiff.map(function(r) {
-          var color = r.diff > 15 ? '#4ade80' : r.diff < -15 ? '#f87171' : 'var(--text3)';
-          var arrow = r.diff > 0 ? '▲' : r.diff < 0 ? '▼' : '=';
-          return '<div class="session-history-row">' +
-            '<div style="flex:1;font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(r.title) + '</div>' +
-            '<div style="font-size:10px;color:var(--text3);flex-shrink:0;margin-right:6px">' + r.yours + ' vs ' + r.meta + '</div>' +
-            '<div style="font-size:11px;font-weight:700;color:' + color + ';flex-shrink:0">' + arrow + Math.abs(r.diff) + '</div>' +
-          '</div>';
-        }).join('')
-      : '<div style="font-size:11px;color:var(--text3);padding:6px 0">Rate games that have Metacritic scores to see comparisons.</div>';
+  var topRatedHtml = ratedGames.slice(0,6).map(function(g) {
+    var stars = Math.round(g.userRating/2);
+    return '<div class="session-history-row">' +
+      '<div style="flex:1;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;flex-shrink:0">' +
+        '<span style="color:#facc15;font-size:11px;letter-spacing:-1px">' + '★'.repeat(stars) + '<span style="opacity:0.25">' + '★'.repeat(5-stars) + '</span></span>' +
+        '<span style="font-family:\'Syne\',sans-serif;font-size:12px;font-weight:800;color:#facc15">' + g.userRating + '</span>' +
+      '</div>' +
+    '</div>';
+  }).join('');
 
-    ratingsHtml =
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
+  var vsMetaHtml = bothRated.length
+    ? ratingDiff.map(function(r) {
+        var color = r.diff > 15 ? '#4ade80' : r.diff < -15 ? '#f87171' : 'var(--text3)';
+        var arrow = r.diff > 0 ? '▲' : r.diff < 0 ? '▼' : '=';
+        return '<div class="session-history-row">' +
+          '<div style="flex:1;font-size:11px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(r.title) + '</div>' +
+          '<div style="font-size:10px;color:var(--text3);flex-shrink:0;margin-right:6px">' + r.yours + ' vs ' + r.meta + '</div>' +
+          '<div style="font-size:11px;font-weight:700;color:' + color + ';flex-shrink:0">' + arrow + Math.abs(r.diff) + '</div>' +
+        '</div>';
+      }).join('')
+    : '<div style="font-size:11px;color:var(--text3);padding:6px 0">Rate games with Metacritic scores to see comparisons.</div>';
+
+  var ratingsHtml = ratedGames.length
+    ? '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
         '<div class="habits-panel">' +
           '<div class="habits-panel-title">⭐ Your Top Rated</div>' +
           topRatedHtml +
@@ -5227,17 +5415,26 @@ async function renderHabitsPage() {
           '<div class="habits-panel-title">📊 You vs Metacritic</div>' +
           vsMetaHtml +
         '</div>' +
-      '</div>';
-  }
+      '</div>'
+    : '';
 
-  // Cost per hour
+  // ── Cost per hour ──
+  var costGames = games.filter(function(g) {
+    var w = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
+    return g.playtimeHours > 0 && w && w.retailPrice;
+  }).map(function(g) {
+    var w = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
+    return { title:g.title, cph:(w.retailPrice/g.playtimeHours).toFixed(2), hrs:g.playtimeHours, price:w.retailPrice };
+  }).sort(function(a,b){ return a.cph-b.cph; }).slice(0,8);
+
   var cphHtml = '';
   if (costGames.length) {
     var maxCphInverse = 1 / Math.max(0.01, parseFloat(costGames[0].cph));
-    cphHtml = panel('💰 Best Value — Cost per Hour',
+    cphHtml = '<div class="habits-panel">' +
+      '<div class="habits-panel-title">💰 Best Value — Cost per Hour</div>' +
       '<div style="font-size:10px;color:var(--text3);margin-bottom:10px">Retail price ÷ hours played · lower is better</div>' +
       costGames.map(function(g) {
-        var bar = Math.min(100, Math.round((1 / Math.max(0.01, parseFloat(g.cph))) / maxCphInverse * 100));
+        var bar = Math.min(100, Math.round((1/Math.max(0.01,parseFloat(g.cph)))/maxCphInverse*100));
         return '<div style="margin-bottom:9px">' +
           '<div style="display:flex;justify-content:space-between;margin-bottom:3px">' +
             '<span style="font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:70%">' + escHtml(g.title) + '</span>' +
@@ -5247,34 +5444,102 @@ async function renderHabitsPage() {
             '<div style="height:100%;width:' + bar + '%;background:linear-gradient(90deg,#4ade80,#7fc8f8);border-radius:2px"></div>' +
           '</div>' +
         '</div>';
-      }).join('')
-    );
+      }).join('') +
+    '</div>';
   }
 
+  // ── Day of week chart ──
+  var dowHtml = '';
+  if (allSessions.length) {
+    dowHtml = '<div class="habits-dow-grid">' +
+      dayLabels.map(function(d,i) {
+        var pct     = dayTotals[i]/maxDay;
+        var hrs     = (dayTotals[i]/3600).toFixed(1);
+        var barH    = Math.max(3, Math.round(pct*80));
+        var opacity = dayTotals[i] > 0 ? (0.3+pct*0.7) : 0.12;
+        var topGame = dayTopGame[i];
+        var tooltip = dayTotals[i] > 0
+          ? hrs + 'h total' + (topGame ? ' · ' + topGame.title.slice(0,18)+(topGame.title.length>18?'…':'') + ' (' + topGame.hrs + 'h)' : '')
+          : 'No sessions';
+        return '<div class="habits-dow-col">' +
+          '<div class="habits-dow-bar-wrap">' +
+            '<div class="habits-dow-tooltip">' + escHtml(tooltip) + '</div>' +
+            '<div class="habits-dow-bar" style="height:' + barH + 'px;background:var(--steam);opacity:' + opacity.toFixed(2) + '"></div>' +
+          '</div>' +
+          '<div class="habits-dow-label">' + d + '</div>' +
+          '<div class="habits-dow-hrs">' + (dayTotals[i] > 0 ? hrs+'h' : '') + '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }
+
+  // ── SECTION DIVIDER helper ──
+  function sectionLabel(text) {
+    return '<div style="font-size:9px;font-weight:800;color:var(--text3);text-transform:uppercase;letter-spacing:2px;margin:20px 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border)">' + text + '</div>';
+  }
+
+  // ── BUILD PAGE ──
   el.innerHTML =
-    panel('📊 Overview', summaryHtml) +
-    (allSessions.length
-      ? panel('📅 Play Activity by Day of Week', dowHtml)
-      : '') +
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
-      '<div class="habits-panel">' +
-        '<div class="habits-panel-title">🕹 Recently Played</div>' +
-        recentHtml +
-      '</div>' +
-      '<div class="habits-panel">' +
-        '<div class="habits-panel-title">📝 Session Log</div>' +
-        sessionLogHtml +
-      '</div>' +
+
+    // ════ TIER 1: HERO ════
+    sectionLabel('Overview') +
+
+    // Stat cards with trend indicators
+    '<div class="habits-stat-row" style="margin-bottom:12px">' +
+      habitStatTrend(allSessions.length || '—', 'Sessions Logged', '#4a9eed',
+        trend(thisMonthSessions.length, lastMonthSessions.length, '')) +
+      habitStatTrend(totalSessionHrs+'h', 'Total Session Time', '#4ade80',
+        trendHrs(thisMonthSecs, lastMonthSecs)) +
+      habitStatTrend(avgSessionMins > 0 ? avgSessionMins+'m' : '—', 'Avg Session', '#fb923c', '') +
+      habitStatTrend(longestSession.seconds > 0 ? Math.round(longestSession.seconds/60)+'m' : '—', 'Longest Session', '#a78bfa', '') +
     '</div>' +
+
+    // Play Style card
+    '<div class="habits-panel" style="margin-bottom:12px">' +
+      '<div class="habits-panel-title">🎮 Your Play Style</div>' +
+      playStyleHtml +
+    '</div>' +
+
+    // ════ TIER 2: BEHAVIOR ════
+    sectionLabel('Behavior Patterns') +
+
+    (allSessions.length
+      ? '<div class="habits-panel" style="margin-bottom:12px"><div class="habits-panel-title">📅 Play Activity by Day of Week</div>' + dowHtml + '</div>'
+      : '') +
+
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
+      '<div class="habits-panel"><div class="habits-panel-title">🕹 Recently Played</div>' + recentHtml + '</div>' +
+      '<div class="habits-panel"><div class="habits-panel-title">📝 Session Log</div>' + sessionLogHtml + '</div>' +
+    '</div>' +
+
+    // ════ TIER 3: INSIGHTS ════
+    sectionLabel('Insights') +
+
+    // Gaming DNA
+    '<div class="habits-panel" style="margin-bottom:12px">' +
+      '<div class="habits-panel-title">🧬 Gaming DNA — What You Play vs What You Own</div>' +
+      '<div style="font-size:10px;color:var(--text3);margin-bottom:14px">Solid bar = time played · faded bar = games owned · both scaled to their own max</div>' +
+      dnaHtml +
+    '</div>' +
+
     ratingsHtml +
     burnDownSection(allSessions) +
     cphHtml;
 }
 
+
 function habitStat(val, label, color) {
   return '<div class="habits-stat-card">' +
     '<div class="habits-stat-val" style="color:' + color + '">' + val + '</div>' +
     '<div class="habits-stat-label">' + label + '</div>' +
+  '</div>';
+}
+
+function habitStatTrend(val, label, color, trendHtml) {
+  return '<div class="habits-stat-card">' +
+    '<div class="habits-stat-val" style="color:' + color + '">' + val + '</div>' +
+    '<div class="habits-stat-label">' + label + '</div>' +
+    (trendHtml || '') +
   '</div>';
 }
 
@@ -6441,7 +6706,7 @@ function showPriceHistory(wishItem) {
 
 // ── BACKLOG BURN-DOWN ──
 function burnDownSection(allSessions) {
-  var backlog = games.filter(function(g) { return g.status === 'unplayed' || (!g.status && !g.playtimeHours); });
+  var backlog = games.filter(function(g) { return !g.gpCatalog && !(g.playtimeHours > 0) && g.status !== 'not-for-me' && g.status !== 'finished'; });
   if (!backlog.length) return '';
 
   // Average session length from history
@@ -6457,6 +6722,7 @@ function burnDownSection(allSessions) {
   // Estimate hours to clear backlog (rough: 15h avg per game)
   var avgHrsPerGame   = 15;
   var totalBacklogHrs = backlog.length * avgHrsPerGame;
+  console.log('[BurnDown] backlog.length:', backlog.length, 'totalBacklogHrs:', totalBacklogHrs, 'sample playtimes:', backlog.slice(0,5).map(function(g){ return g.title + ':' + g.playtimeHours; }));
   var hrsPerWeek      = (sessionsPerWeek * avgSessionSecs) / 3600;
   var weeksToFinish   = hrsPerWeek > 0 ? Math.round(totalBacklogHrs / hrsPerWeek) : null;
   var yearsToFinish   = weeksToFinish ? (weeksToFinish / 52).toFixed(1) : null;
@@ -6475,7 +6741,7 @@ function burnDownSection(allSessions) {
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">' +
       statMini(backlog.length, 'In Backlog', '#fb923c') +
-      statMini('~' + Math.round(totalBacklogHrs) + 'h', 'Est. Total', '#fb923c') +
+      statMini('~' + Math.abs(Math.round(totalBacklogHrs)).toLocaleString() + 'h', 'Est. Total', '#fb923c') +
       statMini(weeksToFinish ? (weeksToFinish > 104 ? yearsToFinish + ' yrs' : weeksToFinish + ' wks') : '?', 'At Your Pace', '#f87171') +
     '</div>' +
     (weeksToFinish ? '<div style="font-size:11px;color:var(--text3);line-height:1.6">' +
