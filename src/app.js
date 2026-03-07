@@ -551,8 +551,10 @@ const FILTER_TITLES = {
   xbox:             ['Xbox Library',       'Games from your Xbox achievement history'],
   gamepass:         ['PC Game Pass',       'Available on PC Game Pass — catalog view, not owned'],
   dupes:            ['Duplicate Games',    'Owned on multiple platforms — check before buying!'],
-  noart:            ['Missing Cover Art',  'Games without cover images'],
-  hidden:           ['Hidden Games',       'Games hidden from your library — click 👁 to unhide'],
+  noart:            ['Missing Cover Art',  'Games without a cover image — fetch via Fetch Game Info'],
+  nometa:           ['Missing Metadata',   'Games without genre, tags or description — fetch via Fetch Game Info'],
+  norating:         ['Not Rated',          'Games you have played but not yet given a personal rating'],
+  hidden:           ['Hidden Games',       'Games excluded from library view — click 👁 to unhide'],
   recent:           ['Recently Added',     'Games added in the last 30 days'],
   'status:exploring':   ['Exploring',           'Games you are actively playing'],
   'status:finished':    ['Finished',            'Games you have finished'],
@@ -1389,6 +1391,7 @@ function getFiltered() {
       } else if (currentFilter === 'dupes')  list = list.filter(g => g.platforms.length > 1);
       else if (currentFilter === 'noart')   list = list.filter(g => !coverCache[g.id] && !coverCache[String(g.id)]);
       else if (currentFilter === 'nometa')  list = list.filter(g => (!g.genres || !g.genres.length) && (!g.tags || !g.tags.length) && !g.description);
+      else if (currentFilter === 'norating') list = list.filter(g => !g.userRating && g.status !== 'not-for-me' && !g.gpCatalog);
       else if (currentFilter === 'notags')  list = list.filter(g => !g.tags || !g.tags.length);
       else if (currentFilter === 'recent') { const cutoff = Date.now() - 30*24*60*60*1000; list = list.filter(g => g.addedAt && new Date(g.addedAt).getTime() > cutoff); }
       else if (currentFilter === 'unplayed') { list = list.filter(g => (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog); }
@@ -1619,10 +1622,9 @@ function updateCounts() {
   if (pip) pip.style.display = dupes.length > 0 ? 'block' : 'none';
   setText('sb-count-dupes',     dupes.length);
   setText('sb-count-noart',     games.filter(function(g) { return !coverCache[g.id] && !coverCache[String(g.id)]; }).length);
+  setText('sb-count-nometa',    games.filter(function(g) { return !g.gpCatalog && (!g.genres || !g.genres.length) && (!g.tags || !g.tags.length) && !g.description; }).length);
+  setText('sb-count-norating',  games.filter(function(g) { return !g.userRating && g.status !== 'not-for-me' && !g.gpCatalog; }).length);
   setText('sb-count-hidden',    games.filter(function(g) { return !!g.hidden; }).length);
-  setText('sb-count-exploring', games.filter(function(g) { return g.status === 'exploring'; }).length);
-  setText('sb-count-unplayed',   games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length);
-  setText('sb-count-finished',   games.filter(function(g) { return g.status === 'finished'; }).length);
 }
 
 // ── LIBRARY RENDER ──
@@ -2084,52 +2086,120 @@ function renderDupesPage() {
 }
 
 async function mergeGameRecords(canonical, duplicates) {
-  if (!confirm('Merge ' + duplicates.length + ' record(s) into "' + canonical.title + '"?\n\nThis will combine platforms, keep the best playtime, and delete the duplicate records.')) return;
+  var dupTitles = duplicates.map(function(d) { return '"' + d.title + '"'; }).join(', ');
+  if (!confirm(
+    'Merge ' + dupTitles + ' into "' + canonical.title + '"?\n\n' +
+    '✓ Platforms will be combined\n' +
+    '✓ Play sessions will be transferred\n' +
+    '✓ Best playtime & rating kept\n' +
+    '✓ Cover art transferred if needed\n\n' +
+    'The duplicate entry will be removed. Your total game count will decrease by ' +
+    duplicates.length + ' — this is expected, as these are the same game.'
+  )) return;
 
-  // Build merged fields
+  // ── Build merged fields ──────────────────────────────────────────
   var allPlatforms = [...canonical.platforms];
-  var bestPlaytime = canonical.playtimeHours || 0;
+  var bestPlaytime = Math.max(0, canonical.playtimeHours || 0);
   var mergedTags   = [...(canonical.tags || [])];
   var mergedGenres = [...(canonical.genres || (canonical.genre ? [canonical.genre] : []))];
+  var bestRating   = canonical.userRating || 0;
+  var bestStatus   = canonical.status;
+  var bestNotes    = canonical.notes || '';
+  // Keep earliest addedAt, latest lastPlayedAt
+  var earliestAdded  = canonical.addedAt ? new Date(canonical.addedAt).getTime() : Date.now();
+  var latestPlayed   = canonical.lastPlayedAt ? new Date(canonical.lastPlayedAt).getTime() : 0;
+
+  // Status priority: finished > playing > playnext > want > unplayed
+  var statusPriority = { 'finished': 5, 'playing': 4, 'playnext': 3, 'want': 2, 'unplayed': 1, 'not-for-me': 0 };
 
   duplicates.forEach(function(d) {
-    d.platforms.forEach(function(p) { if (!allPlatforms.includes(p)) allPlatforms.push(p); });
-    if ((d.playtimeHours || 0) > bestPlaytime) bestPlaytime = d.playtimeHours;
+    // Platforms
+    (d.platforms || []).forEach(function(p) { if (!allPlatforms.includes(p)) allPlatforms.push(p); });
+    // Playtime — take the highest (Steam sometimes double-counts, so max is safest)
+    bestPlaytime = Math.max(bestPlaytime, Math.max(0, d.playtimeHours || 0));
+    // Tags & genres
     (d.tags || []).forEach(function(t) { if (!mergedTags.includes(t)) mergedTags.push(t); });
     (d.genres || (d.genre ? [d.genre] : [])).forEach(function(g) { if (!mergedGenres.includes(g)) mergedGenres.push(g); });
+    // Rating — keep highest
+    if ((d.userRating || 0) > bestRating) bestRating = d.userRating;
+    // Status — keep highest priority
+    if ((statusPriority[d.status] || 0) > (statusPriority[bestStatus] || 0)) bestStatus = d.status;
+    // Notes — append if different
+    if (d.notes && d.notes !== bestNotes) bestNotes = bestNotes ? bestNotes + '\n' + d.notes : d.notes;
+    // Dates
+    if (d.addedAt && new Date(d.addedAt).getTime() < earliestAdded) earliestAdded = new Date(d.addedAt).getTime();
+    if (d.lastPlayedAt && new Date(d.lastPlayedAt).getTime() > latestPlayed) latestPlayed = new Date(d.lastPlayedAt).getTime();
   });
 
-  // Update canonical record
+  // ── Update canonical record ──────────────────────────────────────
+  var existingAliases = canonical.mergedTitles || [];
+  var newAliases = duplicates.map(function(d) { return d.title; });
+  // Also carry forward any aliases the duplicates themselves had
+  duplicates.forEach(function(d) {
+    (d.mergedTitles || []).forEach(function(a) { if (!newAliases.includes(a)) newAliases.push(a); });
+  });
+  var allAliases = existingAliases.concat(newAliases.filter(function(a) { return !existingAliases.includes(a); }));
+
   var fields = {
-    platforms: allPlatforms,
+    platforms:     allPlatforms,
     playtimeHours: bestPlaytime,
-    tags: mergedTags,
-    genres: mergedGenres,
-    genre: mergedGenres[0] || canonical.genre || 'Other',
-    steamAppId: canonical.steamAppId || duplicates.find(function(d) { return d.steamAppId; })?.steamAppId,
+    tags:          mergedTags,
+    genres:        mergedGenres,
+    genre:         mergedGenres[0] || canonical.genre || 'Other',
+    userRating:    bestRating || canonical.userRating,
+    status:        bestStatus || canonical.status,
+    notes:         bestNotes || canonical.notes,
+    addedAt:       new Date(earliestAdded).toISOString(),
+    lastPlayedAt:  latestPlayed > 0 ? new Date(latestPlayed).toISOString() : canonical.lastPlayedAt,
+    steamAppId:    canonical.steamAppId || duplicates.find(function(d) { return d.steamAppId; })?.steamAppId,
+    mergedTitles:  allAliases,
   };
   await window.nexus.games.update(canonical.id, fields);
 
-  // Transfer cover if canonical has none but duplicate does
+  // ── Transfer cover art ───────────────────────────────────────────
   var canonicalHasCover = coverCache[canonical.id] || coverCache[String(canonical.id)];
   if (!canonicalHasCover) {
     for (var i = 0; i < duplicates.length; i++) {
       var dupCover = coverCache[duplicates[i].id] || coverCache[String(duplicates[i].id)];
-      if (dupCover) { coverCache[canonical.id] = dupCover; break; }
+      if (dupCover) {
+        coverCache[canonical.id] = dupCover;
+        coverCache[String(canonical.id)] = dupCover;
+        break;
+      }
     }
   }
 
-  // Delete duplicate records
-  for (var j = 0; j < duplicates.length; j++) {
-    await window.nexus.games.delete(duplicates[j].id);
+  // ── Transfer sessions from duplicates to canonical ───────────────
+  try {
+    var canonicalSessions = await window.nexus.store.get('sessions:' + canonical.id) || [];
+    for (var j = 0; j < duplicates.length; j++) {
+      var dupSessions = await window.nexus.store.get('sessions:' + duplicates[j].id) || [];
+      if (dupSessions.length) {
+        // Tag transferred sessions so we know their origin
+        var tagged = dupSessions.map(function(s) {
+          return Object.assign({}, s, { mergedFrom: duplicates[j].title });
+        });
+        canonicalSessions = canonicalSessions.concat(tagged);
+        // Delete duplicate's session store
+        await window.nexus.store.delete('sessions:' + duplicates[j].id);
+      }
+    }
+    if (canonicalSessions.length) {
+      await window.nexus.store.set('sessions:' + canonical.id, canonicalSessions);
+    }
+  } catch(e) { console.warn('Session merge failed:', e); }
+
+  // ── Delete duplicate records ─────────────────────────────────────
+  for (var k = 0; k < duplicates.length; k++) {
+    await window.nexus.games.delete(duplicates[k].id);
   }
 
-  // Refresh local state
+  // ── Refresh ──────────────────────────────────────────────────────
   games = await window.nexus.games.getAll();
   renderAll();
   if (currentPage === 'dupes') renderDupesPage();
-  showStatus('\u2713 Merged "' + canonical.title + '"', 100);
-  setTimeout(hideStatus, 3000);
+  showStatus('✓ Merged "' + canonical.title + '" — platforms: ' + allPlatforms.join(', '), 100);
+  setTimeout(hideStatus, 4000);
 }
 
 // ── ADD GAME MODAL ──
@@ -2984,6 +3054,25 @@ function openGameDetail(game) {
   // Notes
   document.getElementById('gameDetailNotes').value = game.notes || '';
   document.getElementById('gameDetailSavedLabel').textContent = '';
+
+  // Also Known As — merged titles
+  var aliasSection = document.getElementById('gameDetailAliasesSection');
+  var aliasContainer = document.getElementById('gameDetailAliases');
+  if (aliasSection && aliasContainer) {
+    var aliases = game.mergedTitles || [];
+    if (aliases.length) {
+      aliasSection.style.display = '';
+      aliasContainer.innerHTML = aliases.map(function(a, idx) {
+        return '<div style="display:flex;align-items:center;gap:4px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:3px 8px 3px 10px;font-size:11px;color:var(--text2)">' +
+          '<span>' + escHtml(a) + '</span>' +
+          '<button onclick="removeGameAlias(' + idx + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 0 0 4px;line-height:1" title="Remove alias">✕</button>' +
+        '</div>';
+      }).join('');
+    } else {
+      aliasSection.style.display = 'none';
+      aliasContainer.innerHTML = '';
+    }
+  }
   updateHideBtnLabel(game);
   // Update Open in Store button label to show the right platform
   var storeBtn = document.getElementById('gameDetailOpenStore');
@@ -3078,6 +3167,31 @@ async function addDetailGenre(genre) {
   if (g) g.genres = genres;
   renderDetailGenres(genres);
   updateGenreDropdown(); updateTagDropdown(); renderLibrary();
+}
+
+async function removeGameAlias(idx) {
+  if (!currentGame) return;
+  var aliases = (currentGame.mergedTitles || []).filter(function(_, i) { return i !== idx; });
+  await window.nexus.games.update(currentGame.id, { mergedTitles: aliases });
+  currentGame.mergedTitles = aliases;
+  var game = games.find(function(g) { return g.id === currentGame.id; });
+  if (game) game.mergedTitles = aliases;
+  // Re-render just the alias section
+  var aliasSection = document.getElementById('gameDetailAliasesSection');
+  var aliasContainer = document.getElementById('gameDetailAliases');
+  if (aliasSection && aliasContainer) {
+    if (aliases.length) {
+      aliasContainer.innerHTML = aliases.map(function(a, i) {
+        return '<div style="display:flex;align-items:center;gap:4px;background:var(--surface3);border:1px solid var(--border2);border-radius:6px;padding:3px 8px 3px 10px;font-size:11px;color:var(--text2)">' +
+          '<span>' + escHtml(a) + '</span>' +
+          '<button onclick="removeGameAlias(' + i + ')" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:11px;padding:0 0 0 4px;line-height:1" title="Remove alias">✕</button>' +
+        '</div>';
+      }).join('');
+    } else {
+      aliasSection.style.display = 'none';
+      aliasContainer.innerHTML = '';
+    }
+  }
 }
 
 function renderDetailTags(tags) {  var container = document.getElementById('gameDetailTags');
@@ -6471,6 +6585,16 @@ async function initAutoSessionTracking() {
       }
     });
   }
+
+  // Tooltip hover
+  var helpBtn = document.getElementById('autoSessionHelpBtn');
+  var tooltip = document.getElementById('autoSessionTooltip');
+  if (helpBtn && tooltip) {
+    helpBtn.addEventListener('mouseenter', function() { tooltip.style.display = 'block'; });
+    helpBtn.addEventListener('mouseleave', function() { tooltip.style.display = 'none'; });
+    tooltip.addEventListener('mouseenter', function() { tooltip.style.display = 'block'; });
+    tooltip.addEventListener('mouseleave', function() { tooltip.style.display = 'none'; });
+  }
   if (autoSessionEnabled) {
     setTimeout(startPresencePoller, 10000); // start 10s after init
   }
@@ -7386,7 +7510,7 @@ function showMergeOverlay(targetGame) {
           '<div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + escHtml(g.title) + '</div>' +
           '<div style="font-size:10px;color:var(--text3)">' + g.platforms.join(', ') + (g.playtimeHours ? ' · ' + g.playtimeHours + 'h' : '') + '</div>' +
         '</div>' +
-        '<button style="font-size:11px;padding:5px 12px;background:rgba(248,113,113,0.15);border:1px solid rgba(248,113,113,0.4);border-radius:6px;color:#f87171;cursor:pointer;flex-shrink:0">Merge & Delete</button>';
+        '<button style="font-size:11px;padding:5px 12px;background:rgba(74,158,237,0.15);border:1px solid rgba(74,158,237,0.4);border-radius:6px;color:#7fc8f8;cursor:pointer;flex-shrink:0">Merge Into This</button>';
       row.querySelector('button').addEventListener('click', async function() {
         overlay.remove();
         await mergeGameRecords(targetGame, [g]);

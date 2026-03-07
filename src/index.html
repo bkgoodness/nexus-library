@@ -313,7 +313,7 @@
       <div class="sidebar-row-count" id="sb-count-gamepass" style="color:#52b043">0</div>
     </div>
 
-    <div class="sidebar-section-label" style="margin-top:8px">Filters</div>
+    <div class="sidebar-section-label" style="margin-top:8px">Library Health</div>
     <div class="sidebar-row dupe-row" data-filter="dupes">
       <div class="sidebar-platform-icon" style="background:var(--dupe-bg)">⚠️</div>
       <div class="sidebar-row-info">
@@ -325,42 +325,34 @@
     <div class="sidebar-row" data-filter="noart">
       <div class="sidebar-platform-icon" style="background:rgba(136,136,136,0.1)">🖼</div>
       <div class="sidebar-row-info">
-        <div class="sidebar-row-name">No Art</div>
-        <div class="sidebar-row-sub">Missing cover image</div>
+        <div class="sidebar-row-name">Missing Cover</div>
+        <div class="sidebar-row-sub">No cover art found</div>
       </div>
       <div class="sidebar-row-count" id="sb-count-noart">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="nometa">
+      <div class="sidebar-platform-icon" style="background:rgba(96,165,250,0.1)">📋</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Missing Metadata</div>
+        <div class="sidebar-row-sub">No genre, tags or description</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-nometa">0</div>
+    </div>
+    <div class="sidebar-row" data-filter="norating">
+      <div class="sidebar-platform-icon" style="background:rgba(250,204,21,0.1)">⭐</div>
+      <div class="sidebar-row-info">
+        <div class="sidebar-row-name">Not Rated</div>
+        <div class="sidebar-row-sub">No personal rating set</div>
+      </div>
+      <div class="sidebar-row-count" id="sb-count-norating">0</div>
     </div>
     <div class="sidebar-row" id="sidebarHiddenRow" data-filter="hidden">
       <div class="sidebar-platform-icon" style="background:rgba(251,146,60,0.1)">👁</div>
       <div class="sidebar-row-info">
         <div class="sidebar-row-name">Hidden</div>
-        <div class="sidebar-row-sub">Games hidden from view</div>
+        <div class="sidebar-row-sub">Excluded from library view</div>
       </div>
       <div class="sidebar-row-count" id="sb-count-hidden">0</div>
-    </div>
-    <div class="sidebar-row" data-filter="status:exploring">
-      <div class="sidebar-platform-icon" style="background:rgba(96,165,250,0.1)">▶</div>
-      <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Exploring</div>
-        <div class="sidebar-row-sub">Currently active</div>
-      </div>
-      <div class="sidebar-row-count" id="sb-count-exploring">0</div>
-    </div>
-    <div class="sidebar-row" data-filter="unplayed">
-      <div class="sidebar-platform-icon" style="background:rgba(251,146,60,0.1)">⏸</div>
-      <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Unplayed</div>
-        <div class="sidebar-row-sub">Queued to play</div>
-      </div>
-      <div class="sidebar-row-count" id="sb-count-unplayed">0</div>
-    </div>
-    <div class="sidebar-row" data-filter="status:finished">
-      <div class="sidebar-platform-icon" style="background:rgba(74,222,128,0.1)">✓</div>
-      <div class="sidebar-row-info">
-        <div class="sidebar-row-name">Finished</div>
-        <div class="sidebar-row-sub">Finished games</div>
-      </div>
-      <div class="sidebar-row-count" id="sb-count-finished">0</div>
     </div>
 
   </div>
@@ -877,19 +869,6 @@
           <button class="settings-btn" id="steamResyncBtn" style="opacity:0.6" disabled>↻ Re-sync Steam Library</button>
           <span style="font-size:11px;color:var(--text3);margin-left:10px" id="steamLastSyncLabel"></span>
         </div>
-        <div style="display:flex;align-items:center;gap:10px;margin-top:12px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">
-          <div style="flex:1">
-            <div style="font-size:12px;font-weight:600;color:var(--text)">Auto Session Tracking</div>
-            <div style="font-size:11px;color:var(--text3);margin-top:2px">Detect when you launch a Steam game and automatically log play sessions. Requires public Game Details on your Steam profile.</div>
-          </div>
-          <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
-            <input type="checkbox" id="autoSessionToggle" style="opacity:0;width:0;height:0">
-            <span id="autoSessionSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:20px;transition:0.2s">
-              <span style="position:absolute;content:'';height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;display:block" id="autoSessionThumb"></span>
-            </span>
-          </label>
-          <div id="steamPresenceStatus" style="font-size:10px;color:var(--text3);min-width:60px;text-align:right">Off</div>
-        </div>
       </div>
 
       <div class="settings-section">
@@ -1033,20 +1012,6 @@
         </div>
 
         <!-- Auto Session Tracking -->
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-          <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Auto Session Tracking</div>
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-            <div>
-              <div style="font-size:13px;font-weight:600;color:var(--text)">Detect games via Steam presence</div>
-              <div style="font-size:11px;color:var(--text3);margin-top:2px">Polls Steam every 60s to auto-start/stop session timers. Requires public Game Details on your Steam profile.</div>
-            </div>
-            <label style="position:relative;display:inline-block;width:40px;height:22px;flex-shrink:0;margin-left:16px">
-              <input type="checkbox" id="steamAutoTrackToggle" style="opacity:0;width:0;height:0">
-              <span id="steamAutoTrackSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:22px;transition:0.3s"></span>
-            </label>
-          </div>
-          <div id="steamAutoTrackStatus" style="font-size:11px;color:var(--text3)">Not polling</div>
-        </div>
       </div>
 
       <div class="settings-section">
@@ -1082,8 +1047,44 @@
   <!-- HABITS PAGE -->
   <div id="page-habits" class="page">
     <div class="stats-header" style="margin-bottom:20px">
-      <div class="stats-title">Gaming Habits</div>
-      <div class="stats-subtitle" id="habitsSubtitle">Your session history and play patterns</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+        <div>
+          <div class="stats-title">Gaming Habits</div>
+          <div class="stats-subtitle" id="habitsSubtitle">Your session history and play patterns</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;flex-shrink:0">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px">🎮</span>
+            <span style="font-size:12px;font-weight:700;color:var(--text)">Auto Session Tracking</span>
+            <!-- Tooltip -->
+            <div style="position:relative;display:inline-block">
+              <span id="autoSessionHelpBtn" style="width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--text3);font-size:10px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1">?</span>
+              <div id="autoSessionTooltip" style="display:none;position:absolute;top:calc(100% + 8px);right:-8px;width:280px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:var(--text2);line-height:1.6;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+                <div style="font-weight:800;color:var(--text);margin-bottom:6px">Auto Session Tracking</div>
+                Polls your Steam profile every 60 seconds to detect when you launch or close a game, then automatically starts and stops a session timer for you.
+                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+                  <div style="font-weight:700;color:var(--text);margin-bottom:6px">How to enable on Steam</div>
+                  <div style="display:flex;flex-direction:column;gap:4px;color:var(--text3)">
+                    <div>1. Open <strong style="color:var(--text2)">Steam</strong> and click your username</div>
+                    <div>2. Go to <strong style="color:var(--text2)">Profile → Edit Profile</strong></div>
+                    <div>3. Click <strong style="color:var(--text2)">Privacy Settings</strong></div>
+                    <div>4. Set <strong style="color:var(--text2)">My Profile</strong> to <strong style="color:#4ade80">Public</strong></div>
+                    <div>5. Set <strong style="color:var(--text2)">Game Details</strong> to <strong style="color:#4ade80">Public</strong></div>
+                  </div>
+                </div>
+                <div style="position:absolute;top:-5px;right:14px;width:8px;height:8px;background:var(--surface2);border-left:1px solid var(--border2);border-top:1px solid var(--border2);transform:rotate(45deg)"></div>
+              </div>
+            </div>
+          </div>
+          <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
+            <input type="checkbox" id="autoSessionToggle" style="opacity:0;width:0;height:0">
+            <span id="autoSessionSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:20px;transition:0.2s">
+              <span style="position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;display:block" id="autoSessionThumb"></span>
+            </span>
+          </label>
+          <div id="steamPresenceStatus" style="font-size:10px;color:var(--text3);min-width:36px;text-align:right">Off</div>
+        </div>
+      </div>
     </div>
     <div class="page-scroll" id="habitsContent"></div>
   </div>
@@ -1343,6 +1344,12 @@
           <div class="game-detail-tag-input-row">
             <input type="text" id="gameDetailTagInput" placeholder="Add a tag…" maxlength="24">
             <button class="game-detail-tag-add" id="gameDetailTagAdd">+</button>
+          </div>
+
+          <!-- Also Known As (merged titles) -->
+          <div id="gameDetailAliasesSection" style="display:none;margin-bottom:8px">
+            <div class="game-detail-section-label">Also Known As</div>
+            <div id="gameDetailAliases" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px"></div>
           </div>
 
           <!-- Date Acquired -->
