@@ -1066,7 +1066,7 @@ function renderGoals() {
               (cUrl ? '<img src="' + cUrl + '" style="width:28px;height:37px;border-radius:4px;object-fit:cover;flex-shrink:0">' : '<div style="width:28px;height:37px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
               '<div style="flex:1;min-width:0">' +
                 '<div style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(s.game.title) + '</div>' +
-                '<div style="font-size:10px;color:var(--text3);margin-top:1px">Reach ' + s.milestone + 'h · currently ' + (s.game.playtimeHours||0) + 'h</div>' +
+                '<div style="font-size:10px;color:var(--text3);margin-top:1px">Reach ' + s.milestone + 'h · currently ' + fmtHrs(s.game.playtimeHours) + 'h</div>' +
               '</div>' +
               '<div style="font-size:10px;font-weight:700;color:var(--steam);flex-shrink:0">Click to set →</div>' +
             '</div>';
@@ -1112,7 +1112,7 @@ function renderGoals() {
         (cUrl ? '<img src="' + cUrl + '" style="width:28px;height:37px;border-radius:4px;object-fit:cover;flex-shrink:0">' : '<div style="width:28px;height:37px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(s.game.title) + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:1px">Next milestone: ' + s.milestone + 'h · currently ' + (s.game.playtimeHours||0) + 'h</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:1px">Next milestone: ' + s.milestone + 'h · currently ' + fmtHrs(s.game.playtimeHours) + 'h</div>' +
         '</div>' +
         '<div style="font-size:10px;font-weight:700;color:var(--steam);flex-shrink:0">Click to set →</div>' +
       '</div>';
@@ -1126,48 +1126,112 @@ function renderCollectionValue() {
   var el = document.getElementById('collectionValueArea');
   if (!el) return;
 
-  var valued = [];
-  games.forEach(function(g) {
+  // ── Price estimation tiers ─────────────────────────────────────────────────
+  // Priority: real wishlist price → metacritic-tier estimate → platform-tier estimate
+  function estimatePrice(g) {
+    // Real price from wishlist first
     var wEntry = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
     if (wEntry && wEntry.bestPrice !== null && wEntry.bestPrice !== undefined) {
-      valued.push({ title: g.title, price: wEntry.bestPrice });
+      return { price: wEntry.bestPrice, source: 'tracked' };
     }
+    // Estimate by metacritic score (AAA vs mid-tier vs indie)
+    var mc = g.metacriticScore || 0;
+    if (mc >= 85)       return { price: 59.99, source: 'estimate' };
+    if (mc >= 70)       return { price: 39.99, source: 'estimate' };
+    if (mc >= 50)       return { price: 19.99, source: 'estimate' };
+    if (mc > 0)         return { price:  9.99, source: 'estimate' };
+    // No metacritic — guess by platform
+    var plats = g.platforms || [];
+    if (plats.includes('steam'))   return { price: 14.99, source: 'estimate' };
+    if (plats.includes('epic'))    return { price: 29.99, source: 'estimate' };
+    if (plats.includes('gog'))     return { price: 14.99, source: 'estimate' };
+    if (plats.includes('amazon'))  return { price: 14.99, source: 'estimate' };
+    if (plats.includes('xbox'))    return { price: 39.99, source: 'estimate' };
+    return { price: 9.99, source: 'estimate' };
+  }
+
+  var ownedGames    = games.filter(function(g) { return !g.gpCatalog; });
+  var valued        = ownedGames.map(function(g) {
+    var est = estimatePrice(g);
+    return { title: g.title, price: est.price, source: est.source, mc: g.metacriticScore, platforms: g.platforms };
   });
 
-  var totalValue     = valued.reduce(function(s, v) { return s + v.price; }, 0);
-  var trackedCount   = valued.length;
-  var untrackedCount = games.length - trackedCount;
-  var coveragePct    = games.length ? Math.round(trackedCount / games.length * 100) : 0;
-  var avgPrice       = trackedCount ? (totalValue / trackedCount).toFixed(2) : null;
+  var trackedGames  = valued.filter(function(v) { return v.source === 'tracked'; });
+  var estimatedGames = valued.filter(function(v) { return v.source === 'estimate'; });
 
-  var rows = valued.slice().sort(function(a,b) { return b.price - a.price; }).slice(0, 10)
+  var trackedValue   = trackedGames.reduce(function(s, v)   { return s + v.price; }, 0);
+  var estimatedValue = estimatedGames.reduce(function(s, v) { return s + v.price; }, 0);
+  var totalValue     = trackedValue + estimatedValue;
+  var avgPrice       = valued.length ? (totalValue / valued.length).toFixed(2) : null;
+  var coveragePct    = ownedGames.length ? Math.round(trackedGames.length / ownedGames.length * 100) : 0;
+
+  // Top 10 highest-value games (prefer tracked, then by price)
+  var topRows = valued.slice().sort(function(a,b) { return b.price - a.price; }).slice(0, 10)
     .map(function(v) {
+      var badge = v.source === 'tracked'
+        ? '<span style="font-size:9px;background:rgba(74,222,128,0.15);color:#4ade80;border-radius:4px;padding:1px 5px;margin-left:6px">live</span>'
+        : '<span style="font-size:9px;background:rgba(255,255,255,0.06);color:var(--text3);border-radius:4px;padding:1px 5px;margin-left:6px">est.</span>';
       return '<div class="stat-bar-row">' +
-        '<div class="stat-bar-label" style="flex:1">' + escHtml(v.title) + '</div>' +
+        '<div class="stat-bar-label" style="flex:1;display:flex;align-items:center">' + escHtml(v.title) + badge + '</div>' +
         '<div style="font-size:12px;color:#4ade80;font-weight:700">$' + v.price.toFixed(2) + '</div>' +
       '</div>';
     }).join('');
 
+  // Price tier breakdown
+  var tiers = [
+    { label: '$60+',    min: 60,    max: Infinity, color: '#a78bfa' },
+    { label: '$40–59',  min: 40,    max: 60,       color: '#7fc8f8' },
+    { label: '$20–39',  min: 20,    max: 40,       color: '#4ade80' },
+    { label: '$10–19',  min: 10,    max: 20,       color: '#facc15' },
+    { label: 'Under $10', min: 0,   max: 10,       color: '#fb923c' },
+  ];
+  var tierRows = tiers.map(function(t) {
+    var count = valued.filter(function(v) { return v.price >= t.min && v.price < t.max; }).length;
+    var pct   = valued.length ? Math.round(count / valued.length * 100) : 0;
+    if (!count) return '';
+    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
+      '<div style="font-size:11px;color:var(--text3);width:72px;flex-shrink:0">' + t.label + '</div>' +
+      '<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">' +
+        '<div style="width:' + pct + '%;height:100%;background:' + t.color + ';border-radius:3px"></div>' +
+      '</div>' +
+      '<div style="font-size:11px;color:var(--text2);min-width:32px;text-align:right">' + count.toLocaleString() + '</div>' +
+    '</div>';
+  }).join('');
+
   el.innerHTML =
-    '<div class="stat-bar-title" style="margin-bottom:12px">Collection Value</div>' +
+    '<div class="stat-bar-title" style="margin-bottom:4px">Collection Value</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:16px">' +
+      'Estimated retail value of your owned library. Live prices come from your wishlist tracker — everything else uses a Metacritic-based price tier estimate.' +
+    '</div>' +
     '<div class="stats-cols" style="margin-bottom:16px">' +
       '<div class="stats-panel">' +
-        '<div class="stat-bar-title">Tracked Value</div>' +
-        '<div style="font-size:28px;font-weight:800;color:#4ade80;margin:8px 0">$' + totalValue.toFixed(2) + '</div>' +
-        '<div style="font-size:11px;color:var(--text3)">' + trackedCount + ' games with known prices</div>' +
+        '<div class="stat-bar-title">Est. Total Value</div>' +
+        '<div style="font-size:28px;font-weight:800;color:#4ade80;margin:8px 0">$' + Math.round(totalValue).toLocaleString() + '</div>' +
+        '<div style="font-size:11px;color:var(--text3);">' + ownedGames.length.toLocaleString() + ' owned games</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-top:4px">' +
+          '<span style="color:#4ade80">$' + Math.round(trackedValue).toLocaleString() + '</span> live · ' +
+          '<span style="color:var(--text2)">$' + Math.round(estimatedValue).toLocaleString() + '</span> estimated' +
+        '</div>' +
       '</div>' +
       '<div class="stats-panel">' +
-        '<div class="stat-bar-title">Coverage</div>' +
-        '<div style="font-size:28px;font-weight:800;color:var(--text2);margin:8px 0">' + coveragePct + '%</div>' +
-        '<div style="font-size:11px;color:var(--text3)">' + untrackedCount + ' unpriced · add to wishlist to track</div>' +
+        '<div class="stat-bar-title">Live Price Coverage</div>' +
+        '<div style="font-size:28px;font-weight:800;color:var(--steam);margin:8px 0">' + coveragePct + '%</div>' +
+        '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">' + trackedGames.length + ' games with real prices</div>' +
+        '<div style="font-size:11px;color:var(--text3);line-height:1.5">Add games to your Wishlist to get live prices and improve accuracy.</div>' +
       '</div>' +
       '<div class="stats-panel">' +
         '<div class="stat-bar-title">Avg Price</div>' +
-        '<div style="font-size:28px;font-weight:800;color:var(--steam);margin:8px 0">' + (avgPrice ? '$' + avgPrice : '—') + '</div>' +
-        '<div style="font-size:11px;color:var(--text3)">per tracked title</div>' +
+        '<div style="font-size:28px;font-weight:800;color:var(--text2);margin:8px 0">' + (avgPrice ? '$' + avgPrice : '—') + '</div>' +
+        '<div style="font-size:11px;color:var(--text3)">per owned title</div>' +
       '</div>' +
     '</div>' +
-    (rows ? '<div class="stats-panel"><div class="stat-bar-title" style="margin-bottom:10px">Top Valued Games</div>' + rows + '</div>' : '');
+    // Price tier breakdown
+    '<div class="stats-panel" style="margin-bottom:12px">' +
+      '<div class="stat-bar-title" style="margin-bottom:12px">Price Distribution</div>' +
+      tierRows +
+    '</div>' +
+    // Top valued games
+    (topRows ? '<div class="stats-panel"><div class="stat-bar-title" style="margin-bottom:10px">Top Valued Games</div>' + topRows + '</div>' : '');
 }
 
 function populateGoalGameSelect() {
@@ -1176,7 +1240,7 @@ function populateGoalGameSelect() {
   var sorted = games.slice().sort(function(a,b) { return a.title.localeCompare(b.title); });
   sel.innerHTML = '<option value="">Select a game…</option>' +
     sorted.map(function(g) {
-      var hrs = g.playtimeHours ? ' (' + g.playtimeHours + 'h)' : '';
+      var hrs = g.playtimeHours ? ' (' + fmtHrs(g.playtimeHours) + 'h)' : '';
       return '<option value="' + g.id + '">' + escHtml(g.title) + escHtml(hrs) + '</option>';
     }).join('');
 }
@@ -1685,7 +1749,7 @@ function renderLibrary() {
             return '<span class="plat-pill plat-' + p + '">' + (PLAT_LABEL[p] || p) + '</span>';
           }).join('') +
         '</div>' +
-        '<div class="list-playtime">' + (g.playtimeHours > 0 ? (g.playtimeHours >= 1000 ? (g.playtimeHours/1000).toFixed(1)+'k' : g.playtimeHours) + 'h' : '<span style="color:var(--text3)">—</span>') + '</div>' +
+        '<div class="list-playtime">' + (g.playtimeHours > 0 ? (fmtHrs(g.playtimeHours)) + 'h' : '<span style="color:var(--text3)">—</span>') + '</div>' +
         '<div class="list-mc-col">' +
           (g.metacriticScore ? '<span style="font-family:\'Syne\',sans-serif;font-size:11px;font-weight:800;color:' + (g.metacriticScore >= 80 ? '#4ade80' : g.metacriticScore >= 60 ? '#facc15' : '#f87171') + '">' + g.metacriticScore + '</span>' : '<span style="color:var(--text3)">—</span>') +
         '</div>' +
@@ -2407,6 +2471,14 @@ function escHtml(str) {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+// Safe playtime display — clamps negatives (bad Steam data) to 0
+function fmtHrs(h) {
+  var v = Math.max(0, h || 0);
+  if (v === 0) return '0';
+  if (v >= 1000) return (v / 1000).toFixed(1) + 'k';
+  return String(v);
+}
+
 function makeSparkline(history) {
   if (!history || history.length < 2) return '';
   var prices = history.map(function(h) { return h.price; });
@@ -2881,8 +2953,7 @@ function openGameDetail(game) {
   // Playtime
   var ptEl = document.getElementById('gameDetailPlaytime');
   if (game.playtimeHours && game.playtimeHours > 0) {
-    var ptText = (game.playtimeHours >= 1000
-      ? (game.playtimeHours/1000).toFixed(1) + 'k' : game.playtimeHours) + ' hours played';
+    var ptText = fmtHrs(game.playtimeHours) + ' hours played';
     ptEl.textContent = ptText;
   } else {
     ptEl.textContent = 'No playtime recorded';
@@ -5420,7 +5491,7 @@ async function renderHabitsPage() {
                  : '<div style="width:34px;height:45px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
-            '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + (g.playtimeHours||0) + 'h total' + (stars ? ' · ' + stars : '') + '</div>' +
+            '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + fmtHrs(g.playtimeHours) + 'h total' + (stars ? ' · ' + stars : '') + '</div>' +
           '</div>' +
           '<div style="font-size:11px;color:var(--text3);flex-shrink:0">' + when + '</div>' +
         '</div>';
@@ -5637,7 +5708,7 @@ function renderHallOfFame() {
             '<div style="flex:1;min-width:0">' +
               '<div style="font-size:11px;font-weight:700;color:#facc15;margin-bottom:2px">🏆 ' + escHtml(goal.label) + '</div>' +
               '<div style="font-size:10px;color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
-              '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + (g.playtimeHours||0) + 'h played · target ' + goal.targetHours + 'h</div>' +
+              '<div style="font-size:10px;color:var(--text3);margin-top:3px">' + fmtHrs(g.playtimeHours) + 'h played · target ' + goal.targetHours + 'h</div>' +
             '</div>' +
           '</div>' +
         '</div>';
@@ -5663,7 +5734,7 @@ function renderHallOfFame() {
           '<div style="flex:1;min-width:0">' +
             '<div style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
             '<div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:4px">' +
-              (g.playtimeHours ? g.playtimeHours + 'h' : '') +
+              (g.playtimeHours ? fmtHrs(g.playtimeHours) + 'h' : '') +
               (stars ? ' · ' + stars : '') +
             '</div>' +
           '</div>' +
@@ -5729,7 +5800,7 @@ async function renderWrappedPage() {
 
   // ── Data ──────────────────────────────────────────────
   var addedThisYear = games.filter(function(g) {
-    return g.addedAt && new Date(g.addedAt) >= yearStart && new Date(g.addedAt) < yearEnd;
+    return !g.gpCatalog && g.addedAt && new Date(g.addedAt) >= yearStart && new Date(g.addedAt) < yearEnd;
   });
   var completedThisYear = games.filter(function(g) {
     return g.status === 'finished' && g.lastPlayedAt &&
@@ -7043,7 +7114,7 @@ function burnDownSection(allSessions) {
 
   // Estimate hours to clear backlog (rough: 15h avg per game)
   var avgHrsPerGame   = 15;
-  var totalBacklogHrs = backlog.length * avgHrsPerGame;
+  var totalBacklogHrs = Math.max(0, backlog.length * avgHrsPerGame);
   console.log('[BurnDown] backlog.length:', backlog.length, 'totalBacklogHrs:', totalBacklogHrs, 'sample playtimes:', backlog.slice(0,5).map(function(g){ return g.title + ':' + g.playtimeHours; }));
   var hrsPerWeek      = (sessionsPerWeek * avgSessionSecs) / 3600;
   var weeksToFinish   = hrsPerWeek > 0 ? Math.round(totalBacklogHrs / hrsPerWeek) : null;
@@ -7063,7 +7134,7 @@ function burnDownSection(allSessions) {
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">' +
       statMini(backlog.length, 'In Backlog', '#fb923c') +
-      statMini('~' + Math.abs(Math.round(totalBacklogHrs)).toLocaleString() + 'h', 'Est. Total', '#fb923c') +
+      statMini('~' + Math.round(totalBacklogHrs).toLocaleString() + 'h', 'Est. Total', '#fb923c') +
       statMini(weeksToFinish ? (weeksToFinish > 104 ? yearsToFinish + ' yrs' : weeksToFinish + ' wks') : '?', 'At Your Pace', '#f87171') +
     '</div>' +
     (weeksToFinish ? '<div style="font-size:11px;color:var(--text3);line-height:1.6">' +
@@ -7956,7 +8027,7 @@ window.discOpenTopRatedPicker = function() {
           : '<div style="width:32px;height:42px;border-radius:4px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>') +
         '<div style="flex:1;min-width:0">' +
           '<div style="font-size:12px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(g.title) + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + (genres ? escHtml(genres) + ' · ' : '') + (g.playtimeHours||0) + 'h</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">' + (genres ? escHtml(genres) + ' · ' : '') + fmtHrs(g.playtimeHours) + 'h</div>' +
         '</div>' +
         '<div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px;flex-shrink:0">' +
           '<span style="color:#facc15;font-size:12px;letter-spacing:-1px">' + '★'.repeat(stars) + '<span style="opacity:0.2">' + '★'.repeat(5-stars) + '</span></span>' +

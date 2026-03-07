@@ -712,7 +712,7 @@
               style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:2px 4px">✕</button>
           </div>
           <div id="discSimilarDropdown" style="position:relative"></div>
-          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discOpenTopRatedPicker()">⭐ Top Rated</button>
+          <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discOpenTopRatedPicker()">⭐ Rated Games</button>
           <button class="settings-btn" style="font-size:10px;padding:6px 14px" onclick="discUseLastPlayed()">🕹 Last Played</button>
         </div>
         <div id="disc-similar-seed" style="margin-bottom:12px"></div>
@@ -1071,7 +1071,7 @@
           <div style="font-size:12px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Setup</div>
           <div style="font-size:12px;color:var(--text3);margin-bottom:10px">Re-run the first-launch setup wizard to re-enter your API keys.</div>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="settings-btn" id="openOnboardingBtn" style="background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700">⚙ Open Setup Wizard</button>
+            <button class="settings-btn" id="openOnboardingBtn" style="background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:700">⚙ Open Setup Wizard</button>
             <button class="settings-btn" onclick="resetPageHints()" style="font-weight:700">🎓 Reset Page Tutorials</button>
           </div>
         </div>
@@ -1453,7 +1453,7 @@
 <!-- ══════════════════════════════════════════════════
      FULL RESET CONFIRMATION
      ══════════════════════════════════════════════════ -->
-<div class="overlay" id="fullResetOverlay" style="display:none;z-index:10001" onclick="if(event.target===this)closeFullResetDialog()">
+<div class="overlay" id="fullResetOverlay" style="z-index:10001" onclick="if(event.target===this)closeFullResetDialog()">
   <div class="modal" style="max-width:440px;width:92vw">
     <div class="modal-header">
       <div class="modal-title">☢ Full Reset</div>
@@ -1479,7 +1479,7 @@
   </div>
 </div>
 
-<div class="overlay" id="resetSessionsOverlay" style="display:none;z-index:10001" onclick="if(event.target===this)closeResetSessionsDialog()">
+<div class="overlay" id="resetSessionsOverlay" style="z-index:10001" onclick="if(event.target===this)closeResetSessionsDialog()">
   <div class="modal" style="max-width:440px;width:92vw">
     <div class="modal-header">
       <div class="modal-title">🗑 Reset Session History</div>
@@ -1573,7 +1573,7 @@
 <div id="topRatedPickerOverlay" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center" onclick="if(event.target===this)discCloseTopRatedPicker()">
   <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;width:420px;max-height:560px;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,0.5)">
     <div style="padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between">
-      <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--text)">⭐ Pick a Rated Game</div>
+      <div style="font-family:'Syne',sans-serif;font-size:14px;font-weight:800;color:var(--text)">⭐ Rated Games</div>
       <button onclick="discCloseTopRatedPicker()" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px">✕</button>
     </div>
     <div id="topRatedPickerList" style="overflow-y:auto;flex:1;padding:8px 0"></div>

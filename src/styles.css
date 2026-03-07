@@ -31,6 +31,8 @@
   --radius-lg: 16px;
   --sidebar:   68px;
   --nav-active-indicator: var(--steam);
+  --accent:    #5ba3f5;
+  --accent-fg: #ffffff;
 }
 
 /* ── LIGHT THEME ── */
@@ -57,6 +59,8 @@ body.light-mode {
   --dupe:      #d93232;
   --dupe-bg:   rgba(217,50,50,0.07);
   --nav-active-indicator: var(--steam);
+  --accent:    #2d7dd6;
+  --accent-fg: #ffffff;
 }
 
 body.light-mode .noise-overlay { opacity: 0; }
