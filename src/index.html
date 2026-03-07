@@ -421,10 +421,10 @@
       <div class="search-bar" style="position:relative">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="searchInput" placeholder="Search… try genre:rpg tag:indie dev:valve">
-        <button class="search-clear" id="searchClear" style="display:none" title="Clear search">
+        <button class="search-clear" id="searchClear" style="display:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
-        <button id="searchHintBtn" title="Search syntax help" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:12px;font-weight:700;line-height:1">?</button>
+        <button id="searchHintBtn" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:12px;font-weight:700;line-height:1">?</button>
         <!-- Search hint tooltip -->
         <div id="searchHintBox" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;width:320px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,0.4);font-size:11px;line-height:1.8">
           <div style="font-weight:800;color:var(--text);margin-bottom:8px">Search Syntax</div>
@@ -442,18 +442,6 @@
           <div style="color:var(--text3);margin-top:8px;font-size:10px">Combine freely: <span style="color:var(--steam);font-family:monospace">genre:rpg tag:indie mc:75 -horror</span></div>
         </div>
       </div>
-      <select class="sort-select" id="sortSelect">
-        <option value="alpha">A → Z</option>
-        <option value="alpha-desc">Z → A</option>
-        <option value="metacritic-desc">Metacritic ↑ High to Low</option>
-        <option value="metacritic-asc">Metacritic ↓ Low to High</option>
-        <option value="playtime-desc">Playtime ↑ High to Low</option>
-        <option value="playtime-asc">Playtime ↓ Low to High</option>
-        <option value="recent">Recently Added</option>
-        <option value="platform">Platform</option>
-        <option value="genre">Genre</option>
-        <option value="dupes">Dupes First</option>
-      </select>
       <div class="view-toggle">
         <button class="view-btn active" id="gridBtn" data-view="grid">
           <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
@@ -462,13 +450,30 @@
           <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
         </button>
       </div>
-      <button class="add-btn" id="openAddModal">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Add Game
-      </button>
-      <button class="settings-btn" id="helpMeDecideBtn" title="Help me decide what to play" style="padding:7px 12px;font-size:12px;height:32px">✦</button>
-      <button class="settings-btn" id="replayPickerBtn" title="Help me pick a game to replay" style="padding:7px 12px;font-size:12px;height:32px">↩</button>
-      <button class="settings-btn" onclick="openRandomPicker()" title="What should I play?" style="padding:7px 12px;font-size:12px;height:32px" id="randomPickerBtn">🎲</button>
+
+      <div style="display:flex;gap:6px;flex-shrink:0">
+        <button class="decide-btn" id="helpMeDecideBtn">
+          <span class="decide-btn-icon">✦</span>
+          <span class="decide-btn-body">
+            <span class="decide-btn-label">Help Me Decide</span>
+            <span class="decide-btn-sub">3 questions, 3 picks</span>
+          </span>
+        </button>
+        <button class="decide-btn" id="replayPickerBtn">
+          <span class="decide-btn-icon">↩</span>
+          <span class="decide-btn-body">
+            <span class="decide-btn-label">Play Again</span>
+            <span class="decide-btn-sub">Revisit old favourites</span>
+          </span>
+        </button>
+        <button class="decide-btn" onclick="openRandomPicker()" id="randomPickerBtn">
+          <span class="decide-btn-icon">🎲</span>
+          <span class="decide-btn-body">
+            <span class="decide-btn-label">Surprise Me</span>
+            <span class="decide-btn-sub">Random pick from backlog</span>
+          </span>
+        </button>
+      </div>
     </div>
 
     <div class="filter-strip filter-strip-top">
@@ -479,8 +484,6 @@
       <button class="filter-chip platform-chip" data-p="epic"><span class="filter-dot" style="background:var(--epic)"></span>Epic <span class="filter-count" id="chip-epic">0</span></button>
       <button class="filter-chip platform-chip" data-p="amazon"><span class="filter-dot" style="background:var(--amazon)"></span>Amazon <span class="filter-count" id="chip-amazon">0</span></button>
       <button class="filter-chip platform-chip" data-p="xbox"><span class="filter-dot" style="background:#107c10"></span>Xbox <span class="filter-count" id="chip-xbox">0</span></button>
-      <div class="filter-divider"></div>
-      <button class="filter-chip" data-p="recent"><span class="filter-dot" style="background:#4ade80"></span>New <span class="filter-count" id="chip-recent">0</span></button>
       <div style="margin-left:auto"></div>
       <select class="sort-select filter-genre-select" id="genreFilter">
         <option value="all">All Genres</option>
@@ -499,6 +502,19 @@
       <select class="sort-select filter-genre-select" id="tagFilter" style="min-width:110px">
         <option value="all">All Tags</option>
       </select>
+      <div class="filter-divider"></div>
+      <select class="sort-select" id="sortSelect" style="min-width:130px">
+        <option value="alpha">A → Z</option>
+        <option value="alpha-desc">Z → A</option>
+        <option value="metacritic-desc">Metacritic ↑</option>
+        <option value="metacritic-asc">Metacritic ↓</option>
+        <option value="playtime-desc">Playtime ↑</option>
+        <option value="playtime-asc">Playtime ↓</option>
+        <option value="recent">Recently Added</option>
+        <option value="platform">Platform</option>
+        <option value="genre">Genre</option>
+        <option value="dupes">Dupes First</option>
+      </select>
     </div>
     <div class="filter-strip filter-strip-bottom">
       <span class="filter-strip-label">Status</span>
@@ -508,7 +524,7 @@
       <button class="filter-chip" data-p="status:not-for-me"><span class="filter-dot" style="background:#f87171"></span>Not for Me <span class="filter-count" id="chip-notforme">0</span></button>
       <div class="filter-divider"></div>
       <button class="filter-chip" data-p="intent:playnext"><span class="filter-dot" style="background:#4ade80"></span>▶ Play Next <span class="filter-count" id="chip-intent-playnext">0</span></button>
-      <button class="filter-chip" data-p="intent:priority"><span class="filter-dot" style="background:#f87171"></span>🔴 Priority <span class="filter-count" id="chip-intent-priority">0</span></button>
+      <button class="filter-chip" data-p="intent:priority"><span class="filter-dot" style="background:#f87171"></span>⭐ Focus List <span class="filter-count" id="chip-intent-priority">0</span></button>
       <button class="filter-chip" data-p="intent:queue"><span class="filter-dot" style="background:#60a5fa"></span>📋 Queue <span class="filter-count" id="chip-intent-queue">0</span></button>
     </div>
 
@@ -598,13 +614,13 @@
     </div>
 
     <!-- Sync reminder banner -->
-    <div id="syncReminderBanner" style="display:none;margin:0 16px 10px;background:rgba(250,204,21,0.07);border:1px solid rgba(250,204,21,0.25);border-radius:10px;padding:10px 14px;display:none;align-items:center;gap:10px">
+    <div id="syncReminderBanner" style="display:none;margin:0 16px 10px;background:rgba(250,204,21,0.07);border:1px solid rgba(250,204,21,0.25);border-radius:10px;padding:10px 14px;align-items:center;gap:10px">
       <span style="font-size:14px">🔄</span>
       <div style="flex:1;min-width:0">
-        <span id="syncReminderText" style="font-size:12px;color:var(--text2)"></span>
-        <button onclick="showPage('settings')" style="margin-left:10px;background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;padding:0">Go to Settings →</button>
+        <span id="syncReminderText" style="font-size:12px;color:var(--text2);line-height:1.5"></span>
+        <button onclick="showPage('settings')" style="margin-left:10px;background:none;border:none;color:var(--accent);font-size:11px;font-weight:700;cursor:pointer;padding:0;white-space:nowrap">Sync in Settings →</button>
       </div>
-      <button onclick="dismissSyncReminder()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0;flex-shrink:0;line-height:1">×</button>
+      <button onclick="dismissSyncReminder()" style="background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;padding:0;flex-shrink:0;line-height:1" title="Dismiss for 3 days">×</button>
     </div>
 
     <div class="game-area" id="gameArea"></div>
@@ -739,7 +755,7 @@
       <div class="search-bar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="wishSearchInput" placeholder="Search wishlist…">
-        <button class="search-clear" id="wishSearchClear" style="display:none" title="Clear search">
+        <button class="search-clear" id="wishSearchClear" style="display:none">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
@@ -1048,6 +1064,7 @@
         <div class="settings-section-desc">Permanently delete all games from your library. This cannot be undone.</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="settings-btn settings-btn-danger" id="clearLibraryBtn">Clear Library</button>
+          <button class="settings-btn settings-btn-danger" id="resetSessionsBtn">🗑 Reset Session History</button>
           <button class="settings-btn settings-btn-danger" id="fullResetBtn" style="background:rgba(239,83,83,0.15)">☢ Full Reset — Wipe Everything</button>
         </div>
         <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
@@ -1263,7 +1280,7 @@
             <div class="game-detail-section-label">Intent</div>
             <div style="display:flex;gap:6px;flex-wrap:wrap">
               <button class="status-btn intent-btn" data-intent="playnext" style="font-size:11px;padding:5px 10px">▶ Play Next</button>
-              <button class="status-btn intent-btn" data-intent="priority" style="font-size:11px;padding:5px 10px">🔴 Priority</button>
+              <button class="status-btn intent-btn" data-intent="priority" style="font-size:11px;padding:5px 10px">⭐ Focus List</button>
               <button class="status-btn intent-btn" data-intent="queue" style="font-size:11px;padding:5px 10px">📋 Queue</button>
             </div>
           </div>
@@ -1462,6 +1479,30 @@
   </div>
 </div>
 
+<div class="overlay" id="resetSessionsOverlay" style="display:none;z-index:10001" onclick="if(event.target===this)closeResetSessionsDialog()">
+  <div class="modal" style="max-width:440px;width:92vw">
+    <div class="modal-header">
+      <div class="modal-title">🗑 Reset Session History</div>
+      <button class="modal-close" onclick="closeResetSessionsDialog()">✕</button>
+    </div>
+    <div style="padding:20px 24px">
+      <div style="background:rgba(239,83,83,0.08);border:1px solid rgba(239,83,83,0.25);border-radius:10px;padding:14px 16px;margin-bottom:18px">
+        <div style="font-size:13px;font-weight:700;color:#f87171;margin-bottom:8px">This will permanently delete:</div>
+        <div style="font-size:12px;color:var(--text2);line-height:1.8">
+          ✕ All logged play sessions<br>
+          ✕ All session time data<br>
+          ✕ Habits page history &amp; burn-down stats
+        </div>
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:20px">Your game library, wishlist, and settings will <strong style="color:var(--text)">not</strong> be affected.</div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button class="settings-btn" onclick="closeResetSessionsDialog()">Cancel</button>
+        <button class="settings-btn settings-btn-danger" onclick="executeResetSessions()">🗑 Delete All Sessions</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- GAME FEEDBACK OVERLAY -->
 <div class="overlay" id="gameFeedbackOverlay" onclick="if(event.target===this)closeGameFeedback()">
   <div class="modal" style="max-width:400px">
@@ -1539,5 +1580,6 @@
   </div>
 </div>
 
+  <div id="chipTooltip"></div>
 </body>
 </html>

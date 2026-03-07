@@ -430,20 +430,29 @@ body::before {
   font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700;
   cursor: pointer; transition: opacity 0.15s, transform 0.1s;
   box-shadow: 0 2px 8px rgba(91,163,245,0.25);
-  height: 32px;
+  height: 32px; position: relative; z-index: 1;
 }
 .add-btn:hover { opacity: 0.9; transform: translateY(-1px); }
 .add-btn:active { transform: translateY(0); }
+/* Manual entry button — secondary style */
+.secondary-add-btn {
+  background: var(--surface2) !important;
+  color: var(--text2) !important;
+  box-shadow: none !important;
+  border: 1px solid var(--border) !important;
+  font-weight: 600 !important;
+}
+.secondary-add-btn:hover { border-color: var(--border2) !important; color: var(--text) !important; }
 
 /* FILTER STRIP — two rows */
 .filter-strip {
   display: flex; align-items: center; gap: 5px;
   padding: 6px 24px;
-  background: var(--bg); flex-shrink: 0; overflow-x: auto;
+  background: var(--bg); flex-shrink: 0; overflow-x: auto; overflow-y: visible;
 }
 .filter-strip::-webkit-scrollbar { height: 0; }
-.filter-strip-top { border-bottom: 1px solid var(--border); padding-bottom: 6px; }
-.filter-strip-bottom { border-bottom: 1px solid var(--border); padding-top: 5px; padding-bottom: 6px; }
+.filter-strip-top { border-bottom: 1px solid var(--border); padding-bottom: 6px; overflow-y: visible; }
+.filter-strip-bottom { border-bottom: 1px solid var(--border); padding-top: 5px; padding-bottom: 6px; overflow-y: visible; }
 .filter-strip-label {
   font-size: 9px; font-weight: 700;
   letter-spacing: 1.8px; text-transform: uppercase;
@@ -465,6 +474,26 @@ body::before {
   border: 1px solid var(--border);
   font-size: 11px; font-weight: 500; color: var(--text3);
   cursor: pointer; white-space: nowrap; transition: all 0.15s; background: none;
+  position: relative;
+}
+/* Chip tooltip — global floating div, avoids overflow clipping */
+#chipTooltip {
+  position: fixed;
+  z-index: 500;
+  background: var(--surface2);
+  color: var(--text2);
+  font-size: 10px;
+  font-weight: 500;
+  max-width: 220px;
+  text-align: center;
+  padding: 5px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--border2);
+  pointer-events: none;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  line-height: 1.5;
+  display: none;
+  white-space: normal;
 }
 .filter-chip:hover { border-color: var(--border2); color: var(--text2); }
 .filter-chip[data-p="all"].active    { border-color: var(--border2); background: var(--surface); color: var(--text); }
@@ -1163,27 +1192,34 @@ body::before {
 .gg-btn:hover { background:rgba(91,163,245,0.15); }
 
 /* Wishlist card components */
-.wish-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; }
-.wish-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:border-color 0.15s; animation:cardIn 0.18s ease both; }
+.wish-grid { display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; align-items:start; }
+.wish-card { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; transition:border-color 0.15s; animation:cardIn 0.18s ease both; display:flex; flex-direction:column; }
 .wish-card:hover { border-color:var(--border2); }
 .wish-card.on-sale { border-color:rgba(74,222,128,0.3); }
 .wish-card.owned   { border-color:rgba(91,163,245,0.3); }
 .wish-card-header  { display:flex; align-items:flex-start; gap:12px; padding:14px 14px 10px; }
-.wish-cover-placeholder { width:40px; height:53px; border-radius:5px; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:20px; }
-.wish-owned-badge  { font-size:10px; color:var(--steam); margin-top:2px; }
-.wish-delete { background:none; border:none; color:var(--text3); cursor:pointer; padding:4px; flex-shrink:0; opacity:0.6; transition:all 0.1s; }
+.wish-cover { width:52px; height:70px; border-radius:6px; overflow:hidden; flex-shrink:0; background:var(--surface2); object-fit:cover; }
+.wish-cover-placeholder { width:52px; height:70px; border-radius:6px; flex-shrink:0; background:var(--surface2); display:flex; align-items:center; justify-content:center; font-size:24px; }
+.wish-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; }
+.wish-title { font-size:13px; font-weight:700; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; line-height:1.3; }
+.wish-owned-badge  { font-size:10px; color:var(--steam); }
+.wish-target { font-size:10px; color:var(--text3); }
+.wish-target span { color:var(--text2); font-weight:600; }
+.wish-sparkline-wrap { margin-top:2px; }
+.wish-delete { background:none; border:none; color:var(--text3); cursor:pointer; padding:4px; flex-shrink:0; opacity:0.5; transition:all 0.1s; align-self:flex-start; }
 .wish-delete:hover { color:#f87171; opacity:1; }
-.wish-price-section { padding:10px 14px; border-top:1px solid var(--border); }
+.wish-price-section { padding:10px 14px; border-top:1px solid var(--border); flex:1; }
 .wish-price-rows    { display:flex; flex-direction:column; gap:5px; margin-bottom:6px; }
 .wish-deal-row-inner { display:flex; align-items:center; gap:8px; }
-.wish-deal-label { font-size:10px; color:var(--text3); width:100px; flex-shrink:0; }
+.wish-deal-label { font-size:10px; color:var(--text3); width:90px; flex-shrink:0; }
 .wish-deal-price { font-family:'Syne',sans-serif; font-size:13px; font-weight:800; color:var(--text2); }
 .wish-deal-price.on-sale { color:#4ade80; }
 .wish-deal-hist  { font-size:10px; color:var(--text3); margin-left:auto; }
 .wish-target-hit { font-size:11px; color:#4ade80; font-weight:700; margin:4px 0; }
 .wish-last-checked { font-size:10px; color:var(--text3); margin-top:3px; }
 .wish-not-checked  { font-size:11px; color:var(--text3); padding:3px 0; }
-.wish-action-btn { font-size:11px; padding:5px 12px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--text2); cursor:pointer; transition:all 0.12s; }
+.wish-actions { padding:10px 14px; border-top:1px solid var(--border); display:flex; gap:6px; flex-wrap:wrap; }
+.wish-action-btn { font-size:11px; padding:5px 12px; border-radius:7px; border:1px solid var(--border); background:var(--surface2); color:var(--text2); cursor:pointer; transition:all 0.12s; white-space:nowrap; }
 .wish-action-btn:hover { border-color:var(--border2); color:var(--text); }
 .wish-action-btn.primary { background:var(--steam-bg); border-color:rgba(91,163,245,0.3); color:var(--steam); }
 .wish-sort-row { display:flex; gap:6px; margin-bottom:12px; flex-wrap:wrap; }
@@ -1370,3 +1406,17 @@ body::before {
 
 /* Friend card Steam hover hint */
 .friend-game-cover:hover .steam-hover-hint { opacity: 1 !important; }
+
+/* ── DECISION TOOL BUTTONS (topbar) ── */
+.decide-btn {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px 5px 10px;
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 9px; cursor: pointer; transition: all 0.15s;
+  white-space: nowrap; height: 36px;
+}
+.decide-btn:hover { background: var(--surface3); border-color: var(--border3); }
+.decide-btn-icon { font-size: 14px; line-height: 1; flex-shrink: 0; }
+.decide-btn-body { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; }
+.decide-btn-label { font-family: 'Syne', sans-serif; font-size: 11px; font-weight: 700; color: var(--text); line-height: 1; }
+.decide-btn-sub { font-size: 9px; color: var(--text3); line-height: 1; font-weight: 500; }

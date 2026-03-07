@@ -6,7 +6,7 @@ const STATUS_COLOR = { exploring: '#60a5fa', finished: '#4ade80', 'not-for-me': 
 const STATUS_MIGRATE = { playing: 'exploring', completed: 'finished', abandoned: 'not-for-me', backlog: null, unplayed: null };
 
 // Intent system
-const INTENT_LABEL = { priority: '🔴 Priority', queue: '📋 Queue', playnext: '▶ Play Next' };
+const INTENT_LABEL = { priority: '⭐ Focus List', queue: '📋 Queue', playnext: '▶ Play Next' };
 const INTENT_COLOR = { priority: '#f87171', queue: '#60a5fa', playnext: '#4ade80' };
 const INTENT_ELIGIBLE = function(g) { return g.status !== 'finished' && g.status !== 'not-for-me'; };
 
@@ -114,6 +114,8 @@ function toggleTheme() {
 async function init() {
   initTheme();
   games = await window.nexus.games.getAll();
+  // Sanitize any negative playtimeHours that may have been stored from bad Steam data
+  games.forEach(function(g) { if (g.playtimeHours < 0) g.playtimeHours = 0; });
   wishlist = await window.nexus.wishlist.getAll();
   await migrateStatusValues(); // one-time migration: old status values → new
   await clearWrongIgdbNoArt(); // one-time fix: clear igdbNoArt on games that had platform suffixes in title
@@ -337,7 +339,8 @@ function setupEventListeners() {
   });
   wire('helpMeDecideBtn', 'click', openHelpMeDecide);
   wire('replayPickerBtn',  'click', openReplayPicker);
-  wire('fullResetBtn',   'click', openFullResetDialog);
+  wire('fullResetBtn',    'click', openFullResetDialog);
+  wire('resetSessionsBtn','click', openResetSessionsDialog);
   wire('openOnboardingBtn', 'click', function() { openOnboarding(false); });
   wire('resetConfirmInput', 'input', function() {
     document.getElementById('resetConfirmBtn').disabled = this.value !== 'RESET';
@@ -532,6 +535,9 @@ function showPage(page) {
   if (page === 'wrapped') { renderWrappedPage(); }
   if (page === 'freegames') { renderFreeGamesPage(); }
   if (page === 'friends') { document.getElementById('friendError').textContent = ''; renderFriendHistory(); }
+  // Dismiss any open hint when switching pages
+  var existingHint = document.getElementById('pageHintPopup');
+  if (existingHint) existingHint.remove();
   maybeShowPageHint(page);
 }
 
@@ -551,9 +557,9 @@ const FILTER_TITLES = {
   'status:exploring':   ['Exploring',           'Games you are actively playing'],
   'status:finished':    ['Finished',            'Games you have finished'],
   'status:not-for-me': ['Not for Me',          'Games you have stopped playing'],
-  'intent:playnext':   ['Intent: Play Next',   'Games flagged to play next'],
-  'intent:priority':   ['Intent: Priority',    'Games marked as high priority'],
-  'intent:queue':      ['Intent: Queue',       'Games added to your queue'],
+  'intent:playnext':   ['▶ Play Next',       'Games flagged to play next'],
+  'intent:priority':   ['⭐ Focus List',      'Games you want to play soon — your personal focus list'],
+  'intent:queue':      ['📋 Queue',           'Games added to your queue'],
 };
 
 function setMultiPlatformFilter(platforms) {
@@ -854,7 +860,7 @@ function renderFriendComparison() {
 
   theyHave.slice(0, 100).forEach(function(fg) {
     var title = fg.name || '';
-    var hrs   = fg.playtime_forever ? Math.round(fg.playtime_forever / 60) : 0;
+    var hrs   = fg.playtime_forever ? Math.max(0, Math.round(fg.playtime_forever / 60)) : 0;
     var inWish = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(title); });
     var myGame = games.find(function(g) { return normalizeTitle(g.title) === normalizeTitle(title); });
     // Try to get a Steam cover via appid
@@ -2252,12 +2258,14 @@ async function connectSteam() {
     feedback.textContent = 'Imported ' + result.total + ' games from Steam (' + result.added + ' new, ' + result.merged + ' merged). Synced at ' + syncTime + '.';
     feedback.className = 'settings-feedback ok';
 
-    document.getElementById('steam-sync-status').textContent = 'Synced at ' + syncTime;
-    document.getElementById('steam-sync-status').className = 'account-status status-ok';
-    document.getElementById('steam-status').textContent = 'Connected';
-    document.getElementById('steamResyncBtn').disabled = false;
-    document.getElementById('steamResyncBtn').style.opacity = '1';
-    document.getElementById('steamLastSyncLabel').textContent = 'Last synced: ' + syncTime;
+    var syncStatusEls = document.querySelectorAll('#steam-sync-status');
+    syncStatusEls.forEach(function(el) { el.textContent = 'Synced at ' + syncTime; el.className = 'account-status status-ok'; });
+    var steamStatusEl = document.getElementById('steam-status');
+    if (steamStatusEl) steamStatusEl.textContent = 'Connected';
+    var resyncBtn = document.getElementById('steamResyncBtn');
+    if (resyncBtn) { resyncBtn.disabled = false; resyncBtn.style.opacity = '1'; }
+    var lastSyncLabel = document.getElementById('steamLastSyncLabel');
+    if (lastSyncLabel) lastSyncLabel.textContent = 'Last synced: ' + syncTime;
     // Auto-fetch genres+tags in background after import
     setTimeout(function() { fetchSteamGenresInBackground(); }, 2000);
     // Check if any newly imported games were on the wishlist
@@ -2287,7 +2295,10 @@ async function resyncSteam() {
     var syncTime = new Date(result.lastSync).toLocaleTimeString();
     feedback.textContent = 'Re-synced ' + result.total + ' games (' + result.added + ' new, ' + result.merged + ' merged). Synced at ' + syncTime;
     feedback.className = 'settings-feedback ok';
-    document.getElementById('steamLastSyncLabel').textContent = 'Last synced: ' + syncTime;
+    var lastSyncLabel = document.getElementById('steamLastSyncLabel');
+    if (lastSyncLabel) lastSyncLabel.textContent = 'Last synced: ' + syncTime;
+    var syncStatusEls = document.querySelectorAll('#steam-sync-status');
+    syncStatusEls.forEach(function(el) { el.textContent = 'Synced at ' + syncTime; el.className = 'account-status status-ok'; });
     setTimeout(function() { fetchSteamGenresInBackground(); }, 2000);
   } catch (err) {
     feedback.textContent = 'Error: ' + err.message;
@@ -2309,11 +2320,11 @@ async function loadSteamStatus() {
     var steamStatusEl = document.getElementById('steam-status');
     if (steamStatusEl) steamStatusEl.textContent = 'Connected';
     var syncText = lastSync ? 'Synced ' + new Date(lastSync).toLocaleDateString() : 'Connected';
-    var steamSyncEl = document.getElementById('steam-sync-status');
-    if (steamSyncEl) { steamSyncEl.textContent = syncText; steamSyncEl.className = 'sidebar-row-sub'; }
-    document.getElementById('steamResyncBtn').disabled = false;
-    document.getElementById('steamResyncBtn').style.opacity = '1';
-    if (lastSync) document.getElementById('steamLastSyncLabel').textContent = 'Last synced: ' + new Date(lastSync).toLocaleString();
+    document.querySelectorAll('#steam-sync-status').forEach(function(el) { el.textContent = syncText; el.className = 'sidebar-row-sub'; });
+    var resyncBtn = document.getElementById('steamResyncBtn');
+    if (resyncBtn) { resyncBtn.disabled = false; resyncBtn.style.opacity = '1'; }
+    var lastSyncLabel = document.getElementById('steamLastSyncLabel');
+    if (lastSyncLabel && lastSync) lastSyncLabel.textContent = 'Last synced: ' + new Date(lastSync).toLocaleString();
   }
 }
 
@@ -2467,50 +2478,72 @@ async function checkSyncReminder() {
   var banner = document.getElementById('syncReminderBanner');
   if (!banner) return;
 
-  var STALE_DAYS = 14;
   var now = Date.now();
+  function daysAgo(ts) { return ts ? Math.floor((now - new Date(ts)) / 86400000) : null; }
 
-  // Gather last sync times for connected platforms
-  var steamId  = await window.nexus.store.get('steamId');
+  // Per-platform stale thresholds (days)
+  var THRESHOLDS = { steam: 30, gog: 14, epic: 14, amazon: 14, xbox: 7 };
+
+  var steamId   = await window.nexus.store.get('steamId');
   var steamSync = await window.nexus.store.get('steamLastSync');
   var gogSync   = await window.nexus.store.get('gogLastSync');
   var epicSync  = await window.nexus.store.get('epicLastSync');
   var xboxSync  = await window.nexus.store.get('xboxLastSync');
+  var amazonSync = await window.nexus.store.get('amazonLastSync');
+
+  // Check per-platform dismiss timestamps — don't re-nag for 3 days after dismissal
+  var SNOOZE_DAYS = 3;
+  async function isSnoozed(platform) {
+    var ts = await window.nexus.store.get('syncReminderDismissed.' + platform);
+    return ts && (now - new Date(ts)) < SNOOZE_DAYS * 86400000;
+  }
 
   var stale = [];
-  function daysAgo(ts) { return ts ? Math.floor((now - new Date(ts)) / 86400000) : null; }
+  var hasXbox = false;
 
-  if (steamId && steamSync) {
-    var d = daysAgo(steamSync);
-    if (d !== null && d >= STALE_DAYS) stale.push('Steam (' + d + 'd ago)');
-  }
-  if (gogSync) {
-    var d2 = daysAgo(gogSync);
-    if (d2 !== null && d2 >= STALE_DAYS) stale.push('GOG (' + d2 + 'd ago)');
-  }
-  if (epicSync) {
-    var d3 = daysAgo(epicSync);
-    if (d3 !== null && d3 >= STALE_DAYS) stale.push('Epic (' + d3 + 'd ago)');
-  }
-  if (xboxSync) {
-    var d4 = daysAgo(xboxSync);
-    if (d4 !== null && d4 >= STALE_DAYS) stale.push('Xbox (' + d4 + 'd ago)');
+  if (steamId && steamSync && daysAgo(steamSync) >= THRESHOLDS.steam && !(await isSnoozed('steam')))
+    stale.push({ name: 'Steam', days: daysAgo(steamSync) });
+  if (gogSync && daysAgo(gogSync) >= THRESHOLDS.gog && !(await isSnoozed('gog')))
+    stale.push({ name: 'GOG', days: daysAgo(gogSync) });
+  if (epicSync && daysAgo(epicSync) >= THRESHOLDS.epic && !(await isSnoozed('epic')))
+    stale.push({ name: 'Epic', days: daysAgo(epicSync) });
+  if (amazonSync && daysAgo(amazonSync) >= THRESHOLDS.amazon && !(await isSnoozed('amazon')))
+    stale.push({ name: 'Amazon', days: daysAgo(amazonSync) });
+  if (xboxSync && daysAgo(xboxSync) >= THRESHOLDS.xbox && !(await isSnoozed('xbox'))) {
+    stale.push({ name: 'Xbox', days: daysAgo(xboxSync) });
+    hasXbox = true;
   }
 
-  if (!stale.length) return;
+  if (!stale.length) { banner.style.display = 'none'; return; }
 
-  var text = document.getElementById('syncReminderText');
-  if (text) text.textContent = stale.length === 1
-    ? stale[0] + ' hasn\'t been synced in a while — you may be missing new games.'
-    : stale.join(', ') + ' haven\'t been synced in a while — you may be missing new games.';
+  var textEl = document.getElementById('syncReminderText');
+  if (textEl) {
+    var names = stale.map(function(s) { return s.name + ' (' + s.days + 'd ago)'; });
+    if (hasXbox && stale.length === 1) {
+      textEl.innerHTML = '<strong>Xbox</strong> hasn\'t been synced in ' + daysAgo(xboxSync) + ' days — Game Pass titles rotate regularly, so you may be missing new additions or games that have left the catalog.';
+    } else if (hasXbox) {
+      textEl.innerHTML = '<strong>' + names.join(', ') + '</strong> are overdue for a sync. Xbox in particular rotates Game Pass titles frequently — resync to stay up to date.';
+    } else {
+      textEl.innerHTML = '<strong>' + names.join(', ') + '</strong> ' + (stale.length === 1 ? 'hasn\'t' : 'haven\'t') + ' been synced in a while — you may be missing new games.';
+    }
+  }
 
   banner.style.display = 'flex';
 }
 
-window.dismissSyncReminder = function() {
+window.dismissSyncReminder = async function() {
   syncReminderDismissed = true;
   var banner = document.getElementById('syncReminderBanner');
   if (banner) banner.style.display = 'none';
+  // Snooze all currently stale platforms for 3 days
+  var now = Date.now();
+  var platforms = ['steam', 'gog', 'epic', 'amazon', 'xbox'];
+  for (var p of platforms) {
+    var lastSync = await window.nexus.store.get(p + 'LastSync');
+    if (lastSync) await window.nexus.store.set('syncReminderDismissed.' + p, new Date().toISOString());
+  }
+  // Allow re-check next session
+  setTimeout(function() { syncReminderDismissed = false; }, 3 * 86400000);
 };
 
 // ── LOAD SAVED PLATFORM SYNC STATUS ──
@@ -3657,15 +3690,15 @@ function renderWishlist() {
         coverHtml +
         '<div class="wish-info">' +
           '<div class="wish-title">' + escHtml(w.title) + '</div>' +
-          (owned ? '<div class="wish-owned-badge">\u2713 Owned on ' + owned.platforms.map(function(p) { return PLAT_LABEL[p] || p; }).join(', ') + '</div>' : '') +
+          (owned ? '<div class="wish-owned-badge">&#x2713; Owned on ' + owned.platforms.map(function(p) { return PLAT_LABEL[p] || p; }).join(', ') + '</div>' : '<div class="wish-owned-badge" style="visibility:hidden">-</div>') +
           (w.targetPrice || w.discountThreshold
             ? '<div class="wish-target">' +
                 (w.targetPrice ? 'Alert at <span>$' + w.targetPrice.toFixed(2) + '</span>' : '') +
-                (w.targetPrice && w.discountThreshold ? ' \u00B7 ' : '') +
+                (w.targetPrice && w.discountThreshold ? ' &middot; ' : '') +
                 (w.discountThreshold ? '<span>' + w.discountThreshold + '% off</span>' : '') +
               '</div>'
             : '<div class="wish-target">No price target set</div>') +
-          makeSparkline(w.priceHistory) +
+          '<div class="wish-sparkline-wrap">' + makeSparkline(w.priceHistory) + '</div>' +
         '</div>' +
         '<button class="wish-delete" data-id="' + w.id + '">' +
           '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>' +
@@ -3674,7 +3707,7 @@ function renderWishlist() {
       priceHtml +
       '<div class="wish-actions">' +
         '<button class="wish-action-btn primary gg-btn">View on gg.deals</button>' +
-        (w.priceHistory && w.priceHistory.length >= 2 ? '<button class="wish-action-btn hist-btn">📈 History</button>' : '') +
+        (w.priceHistory && w.priceHistory.length >= 2 ? '<button class="wish-action-btn hist-btn">&#x1F4C8; History</button>' : '') +
         '<button class="wish-action-btn" data-action="remove">Remove</button>' +
       '</div>';
 
@@ -5098,7 +5131,7 @@ function renderSessionPanel(game) {
   // Show last played date
   if (game.lastPlayedAt) {
     var d = new Date(game.lastPlayedAt);
-    var diff = Math.floor((Date.now() - d) / (1000*60*60*24));
+    var diff = Math.max(0, Math.floor((Date.now() - d) / (1000*60*60*24)));
     lastDate.textContent = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + ' days ago';
   } else {
     lastDate.textContent = '—';
@@ -5221,8 +5254,11 @@ async function renderHabitsPage() {
   Object.entries(allSessionData).forEach(function(entry) {
     var gameId = entry[0].replace('sessions:', '');
     var game   = games.find(function(g) { return String(g.id) === String(gameId); });
+    if (!game) return; // skip orphaned sessions from deleted/reset games
     (entry[1] || []).forEach(function(s) {
-      allSessions.push({ gameId: gameId, title: game ? game.title : 'Unknown', game: game, date: new Date(s.date), seconds: s.seconds });
+      var secs = Math.max(0, Number(s.seconds) || 0); // clamp negative/NaN
+      if (secs === 0) return; // skip zero-length sessions
+      allSessions.push({ gameId: gameId, title: game.title, game: game, date: new Date(s.date), seconds: secs });
     });
   });
   allSessions.sort(function(a,b) { return b.date - a.date; });
@@ -5375,7 +5411,7 @@ async function renderHabitsPage() {
   var recentHtml = recentlyPlayed.length
     ? recentlyPlayed.map(function(g) {
         var cover = coverCache[g.id] || coverCache[String(g.id)];
-        var diff  = Math.floor((now - new Date(g.lastPlayedAt)) / (1000*60*60*24));
+        var diff  = Math.max(0, Math.floor((now - new Date(g.lastPlayedAt)) / (1000*60*60*24)));
         var when  = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
         var stars = g.userRating > 0 ? '<span style="color:#facc15;letter-spacing:-1px">' + '★'.repeat(Math.round(g.userRating/2)) + '</span>' : '';
         var pal   = COVER_PALETTES[(g.pal||0)%COVER_PALETTES.length];
@@ -5393,7 +5429,7 @@ async function renderHabitsPage() {
 
   // ── Session log ──
   var sessionLogHtml = allSessions.slice(0, 20).map(function(s) {
-    var diff  = Math.floor((now - s.date) / (1000*60*60*24));
+    var diff  = Math.max(0, Math.floor((now - s.date) / (1000*60*60*24)));
     var when  = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff + 'd ago';
     var dur   = s.seconds >= 3600 ? (s.seconds/3600).toFixed(1)+'h' : Math.round(s.seconds/60)+'m';
     var cover = s.game ? (coverCache[s.game.id] || coverCache[String(s.game.id)]) : null;
@@ -5677,7 +5713,6 @@ async function renderWrappedPage() {
   var el = document.getElementById('wrappedContent');
   if (!el) return;
 
-  // Populate year selector
   var yearSel = document.getElementById('wrappedYear');
   if (yearSel && !yearSel.options.length) {
     var currentYear = new Date().getFullYear();
@@ -5689,22 +5724,18 @@ async function renderWrappedPage() {
     yearSel.addEventListener('change', renderWrappedPage);
   }
   var year = parseInt((yearSel && yearSel.value) || new Date().getFullYear());
-
   var yearStart = new Date(year + '-01-01');
-  var yearEnd   = new Date((year+1) + '-01-01');
+  var yearEnd   = new Date((year + 1) + '-01-01');
 
-  // Games added this year
+  // ── Data ──────────────────────────────────────────────
   var addedThisYear = games.filter(function(g) {
     return g.addedAt && new Date(g.addedAt) >= yearStart && new Date(g.addedAt) < yearEnd;
   });
-
-  // Games completed this year (status=completed and added/last played this year)
   var completedThisYear = games.filter(function(g) {
     return g.status === 'finished' && g.lastPlayedAt &&
       new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd;
   });
 
-  // Sessions this year — bulk load
   var yearSessions = [];
   try {
     var allSD = await window.nexus.store.getByPrefix('sessions:') || {};
@@ -5713,103 +5744,270 @@ async function renderWrappedPage() {
       var game   = games.find(function(g) { return String(g.id) === String(gameId); });
       (entry[1] || []).forEach(function(s) {
         var d = new Date(s.date);
-        if (d >= yearStart && d < yearEnd) {
-          yearSessions.push({ gameId: gameId, title: game ? game.title : gameId, date: d, seconds: s.seconds });
-        }
+        if (d >= yearStart && d < yearEnd)
+          yearSessions.push({ gameId: gameId, game: game, title: game ? game.title : null, date: d, seconds: Math.max(0, s.seconds || 0) });
       });
     });
   } catch(e) {}
 
-  var totalYearSecs = yearSessions.reduce(function(t,s) { return t + s.seconds; }, 0);
+  var totalYearSecs = yearSessions.reduce(function(t, s) { return t + s.seconds; }, 0);
   var totalYearHrs  = (totalYearSecs / 3600).toFixed(1);
 
-  // Most played game this year by session time
   var gameSessionTime = {};
-  yearSessions.forEach(function(s) {
-    gameSessionTime[s.gameId] = (gameSessionTime[s.gameId] || 0) + s.seconds;
-  });
-  var topGameId   = Object.keys(gameSessionTime).sort(function(a,b) { return gameSessionTime[b]-gameSessionTime[a]; })[0];
-  var topGame     = topGameId ? games.find(function(g) { return String(g.id) === String(topGameId); }) : null;
-  var topGameHrs  = topGame ? (gameSessionTime[topGameId] / 3600).toFixed(1) : 0;
+  yearSessions.forEach(function(s) { gameSessionTime[s.gameId] = (gameSessionTime[s.gameId] || 0) + s.seconds; });
+  var topGameId  = Object.keys(gameSessionTime).sort(function(a,b) { return gameSessionTime[b] - gameSessionTime[a]; })[0];
+  var topGame    = topGameId ? games.find(function(g) { return String(g.id) === String(topGameId); }) : null;
+  var topGameHrs = topGame ? (gameSessionTime[topGameId] / 3600).toFixed(1) : 0;
 
-  // Genre breakdown this year
   var genreCounts = {};
   addedThisYear.forEach(function(g) {
-    var genre = g.genre || 'Other';
+    var genre = (g.genres && g.genres[0]) || g.genre || 'Other';
     genreCounts[genre] = (genreCounts[genre] || 0) + 1;
   });
-  var topGenres = Object.entries(genreCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+  var topGenres = Object.entries(genreCounts).sort(function(a,b) { return b[1] - a[1]; });
+  var topGenre  = topGenres[0] || null;
 
-  // Top rated this year
-  var topRatedYear = games
-    .filter(function(g) { return g.userRating > 0 && g.lastPlayedAt && new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd; })
-    .sort(function(a,b) { return b.userRating - a.userRating; })
-    .slice(0, 5);
+  var hiddenGem = games
+    .filter(function(g) {
+      return g.userRating >= 8 && g.lastPlayedAt &&
+        new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd &&
+        (!g.metacriticScore || g.metacriticScore < 80);
+    })
+    .sort(function(a,b) { return b.userRating - a.userRating; })[0] || null;
 
-  // Backlog stat
-  var backlogCount = games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length;
-  var backlogHrsEst = backlogCount * 20; // rough 20hr estimate per game
+  var longestSess = yearSessions.reduce(function(best, s) { return s.seconds > (best ? best.seconds : 0) ? s : best; }, null);
 
-  el.innerHTML =
-    // Year card
-    '<div style="background:linear-gradient(135deg,#1a1a2e,#16213e,#0f3460);border-radius:16px;padding:28px;margin-bottom:20px;position:relative;overflow:hidden" id="wrappedCard">' +
-      '<div style="position:absolute;top:-30px;right:-30px;width:150px;height:150px;border-radius:50%;background:rgba(74,158,237,0.08)"></div>' +
-      '<div style="position:absolute;bottom:-20px;left:30px;width:100px;height:100px;border-radius:50%;background:rgba(251,146,60,0.08)"></div>' +
-      '<div style="font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:3px;text-transform:uppercase;margin-bottom:4px">Nexus Library</div>' +
-      '<div style="font-size:36px;font-weight:900;color:#fff;margin-bottom:20px">' + year + ' Wrapped</div>' +
-      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:20px">' +
-        wrappedStat(addedThisYear.length, 'Games Added') +
-        wrappedStat(completedThisYear.length, 'Completed') +
-        wrappedStat(totalYearHrs + 'h', 'Session Time') +
+  var backlogCount  = games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length;
+  var backlogHrsEst = backlogCount * 20;
+
+  var dayCounts = [0,0,0,0,0,0,0];
+  var dayNames  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+  yearSessions.forEach(function(s) { dayCounts[s.date.getDay()]++; });
+  var topDayIdx = dayCounts.indexOf(Math.max.apply(null, dayCounts));
+  var topDay    = dayCounts[topDayIdx] > 0 ? dayNames[topDayIdx] : null;
+
+  var avgSessMins = yearSessions.length ? Math.round(totalYearSecs / yearSessions.length / 60) : 0;
+
+  var personality = [];
+  if (avgSessMins > 0 && avgSessMins < 30)  personality.push('⚡ Short burst player — your sessions average ' + avgSessMins + ' minutes');
+  if (avgSessMins >= 30 && avgSessMins < 90) personality.push('🎮 Mid-session player — solid ' + avgSessMins + '-minute average sessions');
+  if (avgSessMins >= 90)                     personality.push('🏔 Marathon gamer — you average ' + avgSessMins + ' minutes per session');
+  if (topGenre)   personality.push('🔥 ' + topGenre[0] + '-heavy library — ' + topGenre[1] + ' games added this year');
+  if (topDay)     personality.push('📅 ' + topDay + 's are your most active gaming day');
+  if (backlogCount > addedThisYear.length) personality.push('📦 Your backlog grew faster than your playtime this year');
+  if (completedThisYear.length > 0)        personality.push('✅ You actually finished ' + completedThisYear.length + ' game' + (completedThisYear.length !== 1 ? 's' : '') + ' — impressive');
+  if (personality.length === 0)            personality.push('🎮 Start logging sessions to unlock your gaming personality');
+
+  var hrsPerYearEst = totalYearSecs > 0 ? (totalYearSecs / 3600) : null;
+  var yearsToFinish = hrsPerYearEst > 0 ? Math.round(backlogHrsEst / hrsPerYearEst) : null;
+
+  // ── Render ────────────────────────────────────────────
+  var html = '';
+
+  // cover art helper
+  function wCover(game) {
+    var url = game ? (coverCache[game.id] || coverCache[String(game.id)]) : null;
+    var pal = game ? COVER_PALETTES[(game.pal||0) % COVER_PALETTES.length] : COVER_PALETTES[0];
+    return url
+      ? '<img src="' + url + '" style="width:56px;height:74px;border-radius:6px;object-fit:cover;flex-shrink:0">'
+      : '<div style="width:56px;height:74px;border-radius:6px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>';
+  }
+
+  // 1. HERO CARD
+  var topPlatforms = ['steam','gog','epic','amazon','xbox'].filter(function(p){return games.some(function(g){return g.platforms.includes(p);});});
+  html +=
+    '<div id="wrappedCard" style="background:linear-gradient(135deg,#1a1a2e 0%,#16213e 55%,#0f3460 100%);border-radius:20px;padding:32px 36px;margin-bottom:20px;position:relative;overflow:hidden">' +
+      '<div style="position:absolute;top:-60px;right:-60px;width:260px;height:260px;border-radius:50%;background:rgba(74,158,237,0.09);pointer-events:none"></div>' +
+      '<div style="position:absolute;bottom:-40px;left:-20px;width:180px;height:180px;border-radius:50%;background:rgba(251,146,60,0.07);pointer-events:none"></div>' +
+      // top row: label + share buttons
+      '<div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:20px">' +
+        '<div>' +
+          '<div style="font-size:10px;font-weight:800;color:rgba(255,255,255,0.35);letter-spacing:4px;text-transform:uppercase;margin-bottom:4px">NEXUS LIBRARY</div>' +
+          '<div style="font-size:44px;font-weight:900;color:#fff;line-height:1;letter-spacing:-1px">' + year + ' Wrapped</div>' +
+        '</div>' +
+        '<div style="display:flex;gap:8px;flex-shrink:0">' +
+          '<button id="exportLibraryCard" style="background:var(--accent);border:none;color:#fff;border-radius:8px;padding:8px 16px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px">🚀 Share Wrapped</button>' +
+          '<button onclick="exportLibraryCard()" style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;border-radius:8px;padding:8px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px">⬜ Save Library Card</button>' +
+        '</div>' +
       '</div>' +
-      (topGame ? '<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:14px;margin-bottom:16px">' +
-        '<div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px">Most Played</div>' +
-        '<div style="font-size:18px;font-weight:800;color:#fff">' + escHtml(topGame.title) + '</div>' +
-        '<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-top:2px">' + topGameHrs + ' hours logged</div>' +
-      '</div>' : '') +
-      (topRatedYear.length ? '<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:14px;margin-bottom:16px">' +
-        '<div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Your Top Rated</div>' +
-        topRatedYear.map(function(g,i) {
-          return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">' +
-            '<span style="font-size:10px;color:rgba(255,255,255,0.3);min-width:14px">#' + (i+1) + '</span>' +
-            '<span style="font-size:12px;color:#fff;flex:1">' + escHtml(g.title) + '</span>' +
-            '<span style="color:#facc15;font-size:12px;font-weight:800">' + g.userRating + '</span>' +
-          '</div>';
-        }).join('') +
-      '</div>' : '') +
-      (topGenres.length ? '<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:14px">' +
-        '<div style="font-size:10px;color:rgba(255,255,255,0.5);text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Top Genres Added</div>' +
-        topGenres.map(function(g) {
-          return '<div style="display:flex;justify-content:space-between;margin-bottom:4px">' +
-            '<span style="font-size:11px;color:rgba(255,255,255,0.8)">' + escHtml(g[0]) + '</span>' +
-            '<span style="font-size:11px;color:rgba(255,255,255,0.4)">' + g[1] + ' games</span>' +
-          '</div>';
-        }).join('') +
-      '</div>' : '') +
-      '<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,0.25);text-align:right">nexus-library.app</div>' +
-    '</div>' +
-
-    // Backlog burn-down
-    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:16px">' +
-      '<div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px;text-transform:uppercase;letter-spacing:1px">📚 Backlog Snapshot</div>' +
-      '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">' +
-        statMini(backlogCount, 'In Backlog', '#fb923c') +
-        statMini('~' + Math.round(backlogHrsEst/10)*10 + 'h', 'Est. Play Time', '#fb923c') +
-        statMini(yearSessions.length, 'Sessions This Year', '#4a9eed') +
+      // big 3 stats
+      '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:24px;border-bottom:1px solid rgba(255,255,255,0.08);padding-bottom:24px">' +
+        wrappedStatHero(addedThisYear.length.toLocaleString(), 'GAMES ADDED') +
+        wrappedStatHero(completedThisYear.length.toLocaleString(), 'GAMES COMPLETED') +
+        wrappedStatHero(totalYearHrs + 'h', 'TOTAL PLAYTIME') +
+      '</div>' +
+      // narrative lines
+      '<div style="font-size:14px;color:rgba(255,255,255,0.65);line-height:2">' +
+        'You added <strong style="color:#fff">' + addedThisYear.length.toLocaleString() + ' games</strong> this year.<br>' +
+        'Your collection now includes <strong style="color:#fff">' + games.filter(function(g){return !g.gpCatalog;}).length.toLocaleString() + ' games</strong> across <strong style="color:#fff">' + topPlatforms.length + ' platform' + (topPlatforms.length !== 1 ? 's' : '') + '</strong>.<br>' +
+        (parseFloat(totalYearHrs) > 0
+          ? 'You spent <strong style="color:#fb923c">' + totalYearHrs + ' hours</strong> playing and completed <strong style="color:#4ade80">' + completedThisYear.length + ' games</strong>.<br>'
+          : '') +
+        (topGenre ? 'Your most added genre was <strong style="color:#fff">' + escHtml(topGenre[0]).toUpperCase() + '</strong> with <strong style="color:#fff">' + topGenre[1] + '</strong> new titles.' : '') +
       '</div>' +
     '</div>';
 
-  // Wire export button
+  // 2. HIGHLIGHTS
+  var longestDur = longestSess
+    ? (longestSess.seconds >= 3600 ? (longestSess.seconds/3600).toFixed(1) + 'h' : Math.round(longestSess.seconds/60) + ' minutes')
+    : '—';
+
+  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">' +
+    '<span style="font-size:16px">🏆</span>' +
+    '<span style="font-size:15px;font-weight:800;color:var(--text)">Highlights</span>' +
+    '<div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>' +
+  '</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
+
+  // Most Played card — blue header, cover art
+  var mpCover = topGame ? wCover(topGame) : '';
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden">' +
+      '<div style="background:#3b82f6;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
+        '<span style="font-size:14px">🎮</span>' +
+        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Most Played</span>' +
+      '</div>' +
+      '<div style="padding:14px;display:flex;align-items:center;gap:12px">' +
+        mpCover +
+        '<div style="min-width:0">' +
+          '<div style="font-size:14px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (topGame ? escHtml(topGame.title) : '—') + '</div>' +
+          '<div style="font-size:22px;font-weight:900;color:#3b82f6;line-height:1.2;margin-top:4px">' + (topGame ? topGameHrs + 'h' : '') + '</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:2px">played</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Top Genre card — red/orange header, big text
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden">' +
+      '<div style="background:#ef4444;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
+        '<span style="font-size:14px">🔥</span>' +
+        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Top Genre</span>' +
+      '</div>' +
+      '<div style="padding:14px">' +
+        '<div style="font-size:28px;font-weight:900;color:#ef4444;line-height:1;margin-bottom:6px">' + (topGenre ? escHtml(topGenre[0]) : '—') + '</div>' +
+        '<div style="font-size:22px;font-weight:900;color:var(--text);line-height:1">' + (topGenre ? topGenre[1] : '') + '</div>' +
+        '<div style="font-size:10px;color:var(--text3);margin-top:4px">games added</div>' +
+      '</div>' +
+    '</div>';
+
+  // Hidden Gem — purple header, cover art
+  var hgCover = hiddenGem ? wCover(hiddenGem) : '';
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden">' +
+      '<div style="background:#8b5cf6;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
+        '<span style="font-size:14px">💎</span>' +
+        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Hidden Gem</span>' +
+      '</div>' +
+      '<div style="padding:14px;display:flex;align-items:center;gap:12px">' +
+        hgCover +
+        '<div style="min-width:0">' +
+          '<div style="font-size:13px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (hiddenGem ? escHtml(hiddenGem.title) : 'Rate more games') + '</div>' +
+          (hiddenGem ? '<div style="font-size:26px;font-weight:900;color:#8b5cf6;line-height:1.2;margin-top:4px">' + hiddenGem.userRating + '</div><div style="font-size:10px;color:var(--text3)">rating</div>' : '<div style="font-size:11px;color:var(--text3);margin-top:6px">to unlock</div>') +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  // Longest Session — green header, big time
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden">' +
+      '<div style="background:#10b981;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
+        '<span style="font-size:14px">⏱</span>' +
+        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Longest Session</span>' +
+      '</div>' +
+      '<div style="padding:14px;display:flex;align-items:center;gap:10px">' +
+        '<div style="width:42px;height:42px;border-radius:50%;background:rgba(16,185,129,0.15);border:2px solid #10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">⏱</div>' +
+        '<div>' +
+          '<div style="font-size:22px;font-weight:900;color:#10b981;line-height:1">' + longestDur + '</div>' +
+          '<div style="font-size:10px;color:var(--text3);margin-top:3px">Longest single play session</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+
+  html += '</div>';
+
+  // 3. BOTTOM TWO-COL: Personality + Backlog
+  var paceStr = yearsToFinish === null ? null
+    : yearsToFinish > 999 ? '7,000+ years'
+    : yearsToFinish > 100 ? yearsToFinish.toLocaleString() + ' years'
+    : yearsToFinish > 1   ? yearsToFinish + ' years'
+    : 'less than a year';
+
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">';
+
+  // Personality panel
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">' +
+        '<span style="font-size:16px">⚡</span>' +
+        '<span style="font-size:14px;font-weight:800;color:var(--text)">Your ' + year + ' Gaming Personality</span>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:10px">' +
+        personality.map(function(p) {
+          var parts = p.match(/^(.) (.+)$/);
+          var icon = parts ? parts[1] : '•';
+          var text = parts ? parts[2] : p;
+          return '<div style="display:flex;align-items:flex-start;gap:10px">' +
+            '<span style="color:#4ade80;font-size:14px;flex-shrink:0;margin-top:1px">✓</span>' +
+            '<span style="font-size:13px;color:var(--text2);line-height:1.4">' + escHtml(text) + '</span>' +
+          '</div>';
+        }).join('') +
+      '</div>' +
+    '</div>';
+
+  // Backlog snapshot panel
+  html +=
+    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:14px">' +
+        '<span style="font-size:16px">⏳</span>' +
+        '<span style="font-size:14px;font-weight:800;color:var(--text)">Backlog Snapshot</span>' +
+      '</div>' +
+      '<div style="display:flex;flex-direction:column;gap:12px;margin-bottom:14px">' +
+        '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span style="font-size:20px">🎮</span>' +
+          '<span style="font-size:28px;font-weight:900;color:#fb923c">' + backlogCount.toLocaleString() + '</span>' +
+          '<span style="font-size:13px;color:var(--text3)">games waiting</span>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;gap:12px">' +
+          '<span style="font-size:20px">⏱</span>' +
+          '<span style="font-size:28px;font-weight:900;color:#f87171">' + Math.round(backlogHrsEst/10)*10 + 'h</span>' +
+          '<span style="font-size:13px;color:var(--text3)">estimated to finish</span>' +
+        '</div>' +
+      '</div>' +
+      (paceStr ?
+        '<div style="font-size:12px;color:var(--text3);padding:10px 12px;background:var(--surface);border-radius:8px;line-height:1.6">' +
+          'At your current pace, it would take <strong style="color:#fb923c">' + paceStr + '</strong> to clear your backlog.' +
+        '</div>' : '') +
+    '</div>';
+
+  html += '</div>'; // end two-col
+
+  el.innerHTML = html;
   var exportBtn = document.getElementById('exportLibraryCard');
-  if (exportBtn) {
-    exportBtn.onclick = exportLibraryCard;
-  }
+  if (exportBtn) exportBtn.onclick = exportLibraryCard;
 }
 
-function wrappedStat(val, label) {
+function wrappedStatHero(val, label) {
+  return '<div style="text-align:center;padding:0 12px">' +
+    '<div style="font-family:\'Syne\',sans-serif;font-size:40px;font-weight:900;color:#fff;line-height:1">' + val + '</div>' +
+    '<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:6px;letter-spacing:1.5px">' + label + '</div>' +
+  '</div>';
+}
+
+function wrappedStatBig(val, label, color) {
   return '<div style="text-align:center">' +
-    '<div style="font-size:28px;font-weight:900;color:#fff">' + val + '</div>' +
-    '<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:2px;text-transform:uppercase;letter-spacing:0.5px">' + label + '</div>' +
+    '<div style="font-family:\'Syne\',sans-serif;font-size:36px;font-weight:900;color:' + color + ';line-height:1">' + val + '</div>' +
+    '<div style="font-size:10px;color:rgba(255,255,255,0.35);margin-top:5px;text-transform:uppercase;letter-spacing:0.5px">' + label + '</div>' +
+  '</div>';
+}
+
+function highlightCard(icon, label, value, sub, color) {
+  return '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:16px">' +
+    '<div style="font-size:18px;margin-bottom:8px">' + icon + '</div>' +
+    '<div style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">' + label + '</div>' +
+    '<div style="font-size:14px;font-weight:800;color:' + color + ';line-height:1.3;margin-bottom:4px;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical">' + value + '</div>' +
+    '<div style="font-size:11px;color:var(--text3)">' + sub + '</div>' +
   '</div>';
 }
 
@@ -6835,7 +7033,7 @@ function burnDownSection(allSessions) {
 
   // Average session length from history
   var avgSessionSecs = allSessions.length
-    ? allSessions.reduce(function(t,s) { return t + s.seconds; }, 0) / allSessions.length
+    ? Math.max(60, allSessions.reduce(function(t,s) { return t + Math.max(0, s.seconds); }, 0) / allSessions.length)
     : 2 * 3600; // default 2h if no history
 
   // Sessions per week from last 4 weeks
@@ -6948,6 +7146,30 @@ function showContextMenu(e, game) {
         '</div>' : '') +
       '</div>' +
     '</div>' +
+
+    '<div class="ctx-separator"></div>' +
+
+    // Intent / queue actions
+    (function() {
+      var cur = game.intent || '';
+      return '<div class="ctx-submenu">' +
+        ctxItem('▶', 'Play Queue', null, '▸', true) +
+        '<div class="ctx-submenu-items">' +
+          ['playnext','priority','queue'].map(function(intent) {
+            var labels = { playnext: '▶ Play Next', priority: '⭐ Focus List', queue: '📋 Queue' };
+            var active = cur === intent ? ' style="color:var(--text);font-weight:700"' : '';
+            return '<div class="ctx-item"' + active + ' onclick="ctxSetIntent(\'' + intent + '\');hideContextMenu()">' +
+              '<span class="ctx-icon">' + labels[intent].split(' ')[0] + '</span>' +
+              '<span class="ctx-label">' + labels[intent].split(' ').slice(1).join(' ') + '</span>' +
+              (cur === intent ? '<span class="ctx-sub">active</span>' : '') +
+            '</div>';
+          }).join('') +
+          (cur ? '<div class="ctx-item" onclick="ctxClearIntent();hideContextMenu()" style="opacity:0.6">' +
+            '<span class="ctx-icon">○</span><span class="ctx-label">Clear</span>' +
+          '</div>' : '') +
+        '</div>' +
+      '</div>';
+    })() +
 
     '<div class="ctx-separator"></div>' +
 
@@ -7160,6 +7382,21 @@ async function ctxClearStatus() {
   await window.nexus.games.update(ctxGame.id, { status: null });
   renderAll();
   showStatus('✓ "' + ctxGame.title + '" status cleared', 100);
+  setTimeout(hideStatus, 2500);
+}
+
+async function ctxSetIntent(intent) {
+  if (!ctxGame) return;
+  await setGameIntent(ctxGame.id, intent);
+  var label = { playnext: 'Play Next', priority: 'Focus List', queue: 'Queue' }[intent] || intent;
+  showStatus('✓ "' + ctxGame.title + '" added to ' + label, 100);
+  setTimeout(hideStatus, 2500);
+}
+
+async function ctxClearIntent() {
+  if (!ctxGame) return;
+  await setGameIntent(ctxGame.id, '');
+  showStatus('✓ Queue cleared for "' + ctxGame.title + '"', 100);
   setTimeout(hideStatus, 2500);
 }
 
@@ -8071,12 +8308,63 @@ function closeFullResetDialog() {
   document.getElementById('fullResetOverlay').classList.remove('open');
 }
 
+function openResetSessionsDialog() {
+  document.getElementById('resetSessionsOverlay').classList.add('open');
+}
+
+function closeResetSessionsDialog() {
+  document.getElementById('resetSessionsOverlay').classList.remove('open');
+}
+
+async function executeResetSessions() {
+  try {
+    showStatus('Wiping session history…', -1);
+    var sessionData = await window.nexus.store.getByPrefix('sessions:') || {};
+    for (var key of Object.keys(sessionData)) {
+      await window.nexus.store.delete(key);
+    }
+    closeResetSessionsDialog();
+    showStatus('✓ Session history cleared', 100, {type:'success'});
+  } catch(e) {
+    showStatus('✗ Failed: ' + e.message, 100, {type:'error'});
+  }
+}
+
 async function executeFullReset() {
   try {
     showStatus('Wiping all data…', -1);
     await window.nexus.app.fullReset();
     // Wipe cover cache file too
     await window.nexus.covers.saveCache({});
+
+    // Wipe all session data (stored as sessions:{gameId} keys)
+    try {
+      var sessionData = await window.nexus.store.getByPrefix('sessions:') || {};
+      for (var key of Object.keys(sessionData)) {
+        await window.nexus.store.delete(key);
+      }
+    } catch(e) {}
+
+    // Wipe goals, wishlist, friend history, hint-seen flags, sync reminders
+    var storeKeysToClear = [
+      'playtimeGoals', 'friendHistory',
+      'syncReminderDismissed'
+    ];
+    for (var k of storeKeysToClear) {
+      try { await window.nexus.store.set(k, null); } catch(e) {}
+    }
+    // Clear all hint.seen.* flags
+    try {
+      var pages = ['library','discovery','stats','habits','goals','friends','wishlist','wrapped','settings'];
+      for (var p of pages) { await window.nexus.store.set('hint.seen.' + p, false); }
+    } catch(e) {}
+
+    // Wipe wishlist via IPC
+    try {
+      var wl = await window.nexus.wishlist.getAll();
+      for (var w of wl) { await window.nexus.wishlist.delete(w.id); }
+      wishlist = [];
+    } catch(e) {}
 
     // Reset ALL in-memory state
     games = [];
@@ -8265,27 +8553,50 @@ var onboardSteps = [
   },
   {
     title: 'Optional: More Integrations',
-    subtitle: 'These are all free and optional',
+    subtitle: 'Two free API keys that make Backlog Zero significantly more useful',
     render: function() {
-      return '<div style="display:flex;flex-direction:column;gap:12px">' +
-        '<div class="onboard-platform-card" style="border-color:rgba(91,163,245,0.15)">' +
-          '<h3 style="margin-bottom:4px">💰 Price Tracking — gg.deals</h3>' +
-          '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Track game prices across 40+ stores. Free API key at <a href="#" data-href="https://gg.deals/api/" class="settings-link">gg.deals/api</a>.</div>' +
+      return '<div style="display:flex;flex-direction:column;gap:16px">' +
+
+        '<div class="onboard-platform-card" style="border-color:rgba(74,222,128,0.25)">' +
+          '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">' +
+            '<span style="font-size:22px;line-height:1;flex-shrink:0">&#x1F4B0;</span>' +
+            '<div>' +
+              '<h3 style="margin:0 0 3px">Price Tracking &mdash; gg.deals</h3>' +
+              '<div style="font-size:12px;color:var(--text3);line-height:1.6">' +
+                'Backlog Zero can monitor prices for every game on your wishlist across 40+ stores &mdash; Steam, Humble, Epic, Fanatical, key resellers and more. ' +
+                'Set a target price or a % discount alert and get notified when a game hits your threshold. ' +
+                'You can also see the all-time historical low for any game at a glance.' +
+              '</div>' +
+              '<div style="margin-top:6px;font-size:11px;color:var(--text3)">Completely free. Get your key at <a href="#" data-href="https://gg.deals/api/" class="settings-link">gg.deals/api</a> &mdash; just sign in and copy it.</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="onboard-field-row">' +
-            '<input class="settings-input" id="ob-ggKey" placeholder="gg.deals API Key (optional)" style="flex:1">' +
+            '<input class="settings-input" id="ob-ggKey" placeholder="Paste your gg.deals API key here&hellip;" style="flex:1">' +
             '<button class="settings-btn" onclick="obSaveGGDeals()">Save</button>' +
           '</div>' +
           '<div id="ob-ggStatus"></div>' +
         '</div>' +
-        '<div class="onboard-platform-card" style="border-color:rgba(91,163,245,0.15)">' +
-          '<h3 style="margin-bottom:4px">🎮 Game Database — RAWG</h3>' +
-          '<div style="font-size:12px;color:var(--text3);margin-bottom:10px">Enriches non-Steam games with descriptions & Metacritic scores. Free key at <a href="#" data-href="https://rawg.io/apidocs" class="settings-link">rawg.io/apidocs</a>.</div>' +
+
+        '<div class="onboard-platform-card" style="border-color:rgba(168,85,247,0.2)">' +
+          '<div style="display:flex;align-items:flex-start;gap:10px;margin-bottom:10px">' +
+            '<span style="font-size:22px;line-height:1;flex-shrink:0">&#x1F5C4;&#xFE0F;</span>' +
+            '<div>' +
+              '<h3 style="margin:0 0 3px">Game Database &mdash; RAWG</h3>' +
+              '<div style="font-size:12px;color:var(--text3);line-height:1.6">' +
+                'Steam games come pre-loaded with metadata, but GOG, Epic, Xbox and Amazon games often have no descriptions, genres, or scores. ' +
+                'RAWG fills that gap &mdash; it enriches your non-Steam library with Metacritic scores, genre tags, and descriptions ' +
+                'so every game in Backlog Zero feels complete, regardless of where you bought it.' +
+              '</div>' +
+              '<div style="margin-top:6px;font-size:11px;color:var(--text3)">Free for personal use. Sign up at <a href="#" data-href="https://rawg.io/apidocs" class="settings-link">rawg.io/apidocs</a> and grab your key.</div>' +
+            '</div>' +
+          '</div>' +
           '<div class="onboard-field-row">' +
-            '<input class="settings-input" id="ob-rawgKey" placeholder="RAWG API Key (optional)" style="flex:1">' +
+            '<input class="settings-input" id="ob-rawgKey" placeholder="Paste your RAWG API key here&hellip;" style="flex:1">' +
             '<button class="settings-btn" onclick="obSaveRawg()">Save</button>' +
           '</div>' +
           '<div id="ob-rawgStatus"></div>' +
         '</div>' +
+
       '</div>';
     }
   },
@@ -9381,28 +9692,38 @@ function showWelcomeHint() {
   var existing = document.getElementById('pageHintPopup');
   if (existing) existing.remove();
 
-  var pageEl   = document.getElementById('page-library');
-  var headerEl = pageEl ? pageEl.querySelector('.topbar') : null;
-
   var popup = document.createElement('div');
-  popup.id  = 'pageHintPopup';
-  popup.innerHTML =
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
-      '<span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent)">Welcome</span>' +
-      '<button onclick="this.closest(\'#pageHintPopup\').remove()" title="Close" ' +
-        'style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:0.7" ' +
-        'onmouseenter="this.style.opacity=\'1\'" onmouseleave="this.style.opacity=\'0.7\'">✕</button>' +
-    '</div>' +
-    '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">' +
-      '<span style="font-size:20px;line-height:1">🎮</span>' +
-      '<span style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:800;color:var(--text)">Welcome to Backlog Zero</span>' +
-    '</div>' +
-    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5">Backlog Zero brings your entire game collection together in one place.</div>' +
-    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:14px">Track your backlog, discover hidden gems, and decide what to play next.</div>' +
-    '<div style="display:flex;justify-content:flex-end">' +
-      '<button onclick="this.closest(\'#pageHintPopup\').remove()" ' +
-        'style="background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;letter-spacing:0.3px">Got it</button>' +
-    '</div>';
+  popup.id = 'pageHintPopup';
+
+  var hdrRow = document.createElement('div');
+  hdrRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  var hdrLabel = document.createElement('span');
+  hdrLabel.style.cssText = 'font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent)';
+  hdrLabel.textContent = 'Page Overview';
+  var closeBtn = document.createElement('button');
+  closeBtn.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:4px;margin:-4px;opacity:0.7;display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex-shrink:0;box-sizing:border-box';
+  closeBtn.innerHTML = '&#x2715;';
+  closeBtn.addEventListener('click', function() { document.getElementById('pageHintPopup').remove(); });
+  closeBtn.addEventListener('mouseenter', function() { closeBtn.style.opacity = '1'; });
+  closeBtn.addEventListener('mouseleave', function() { closeBtn.style.opacity = '0.7'; });
+  hdrRow.appendChild(hdrLabel);
+  hdrRow.appendChild(closeBtn);
+
+  var titleRow = document.createElement('div');
+  titleRow.style.cssText = 'display:flex;align-items:center;gap:9px;margin-bottom:10px';
+  titleRow.innerHTML = '<span style="font-size:20px;line-height:1">&#x1F3AE;</span>' +
+    '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:var(--text)">Welcome to Backlog Zero</span>';
+  var sub1 = document.createElement('div');
+  sub1.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5';
+  sub1.textContent = 'Backlog Zero brings your entire game collection together in one place.';
+  var sub2 = document.createElement('div');
+  sub2.style.cssText = 'font-size:11px;color:var(--text3);line-height:1.6';
+  sub2.textContent = 'Track your backlog, discover hidden gems, and decide what to play next.';
+
+  popup.appendChild(hdrRow);
+  popup.appendChild(titleRow);
+  popup.appendChild(sub1);
+  popup.appendChild(sub2);
 
   popup.style.cssText = [
     'position:fixed',
@@ -9411,7 +9732,7 @@ function showWelcomeHint() {
     'border:1px solid var(--border)',
     'border-radius:12px',
     'padding:16px 18px',
-    'width:340px',
+    'width:320px',
     'box-shadow:0 8px 32px rgba(0,0,0,0.35)',
     'animation:hintFadeIn 0.18s ease',
     'pointer-events:all'
@@ -9439,27 +9760,39 @@ function showPageHint(page) {
 
   var popup = document.createElement('div');
   popup.id  = 'pageHintPopup';
-  popup.innerHTML =
-    // X close button
-    '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">' +
-      '<button onclick="dismissPageHint(\'' + page + '\')" title="Close" ' +
-        'style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;margin:0;opacity:0.7" ' +
-        'onmouseenter="this.style.opacity=\'1\'" onmouseleave="this.style.opacity=\'0.7\'">✕</button>' +
-    '</div>' +
-    // Icon + title
-    '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">' +
-      '<span style="font-size:20px;line-height:1">' + hint.icon + '</span>' +
-      '<span style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:800;color:var(--text)">' + hint.title + '</span>' +
-    '</div>' +
-    // Summary line
-    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5">' + summary + '</div>' +
-    // Detail line
-    (detail ? '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:14px">' + detail + '</div>' : '<div style="margin-bottom:14px"></div>') +
-    // Footer: Got it
-    '<div style="display:flex;justify-content:flex-end">' +
-      '<button onclick="dismissPageHint(\'' + page + '\')" ' +
-        'style="background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;letter-spacing:0.3px">Got it</button>' +
-    '</div>';
+
+  // Header row
+  var hdrRow = document.createElement('div');
+  hdrRow.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:10px';
+  var hdrLabel = document.createElement('span');
+  hdrLabel.style.cssText = 'font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent)';
+  hdrLabel.textContent = 'Page Overview';
+  var closeBtn = document.createElement('button');
+  closeBtn.style.cssText = 'background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:4px;margin:-4px;opacity:0.7;display:flex;align-items:center;justify-content:center;width:24px;height:24px;flex-shrink:0;box-sizing:border-box';
+  closeBtn.innerHTML = '&#x2715;';
+  closeBtn.addEventListener('click', function() { dismissPageHint(page); });
+  closeBtn.addEventListener('mouseenter', function() { closeBtn.style.opacity = '1'; });
+  closeBtn.addEventListener('mouseleave', function() { closeBtn.style.opacity = '0.7'; });
+  hdrRow.appendChild(hdrLabel);
+  hdrRow.appendChild(closeBtn);
+
+  // Body
+  var titleRow = document.createElement('div');
+  titleRow.style.cssText = 'display:flex;align-items:center;gap:9px;margin-bottom:10px';
+  titleRow.innerHTML = '<span style="font-size:20px;line-height:1">' + hint.icon + '</span>' +
+    '<span style="font-family:Syne,sans-serif;font-size:14px;font-weight:800;color:var(--text)">' + hint.title + '</span>';
+  var summaryEl = document.createElement('div');
+  summaryEl.style.cssText = 'font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5';
+  summaryEl.textContent = summary;
+  popup.appendChild(hdrRow);
+  popup.appendChild(titleRow);
+  popup.appendChild(summaryEl);
+  if (detail) {
+    var detailEl = document.createElement('div');
+    detailEl.style.cssText = 'font-size:11px;color:var(--text3);line-height:1.6';
+    detailEl.textContent = detail;
+    popup.appendChild(detailEl);
+  }
 
   popup.style.cssText = [
     'position:fixed',
@@ -9501,7 +9834,6 @@ function renderHintReopener(page) {
 
   var btn = document.createElement('button');
   btn.className = 'hint-reopener';
-  btn.title = 'Page overview';
   btn.textContent = '?';
   btn.onclick = function() { showPageHint(page); };
   btn.style.cssText = [

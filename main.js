@@ -362,16 +362,16 @@ ipcMain.handle('games:fetchSteamGenres', async (_event, steamAppIds) => {
   const results = {};
   for (const appId of steamAppIds) {
     try {
-      // Fetch genres, categories, metacritic, description, release date, developer, publisher in one call
-      const url = 'https://store.steampowered.com/api/appdetails?appids=' + appId
-        + '&filters=genres,categories,metacritic,short_description,release_date,developers,publishers'
-        + '&cc=us&l=en';
+      // genres + categories in one call (categories give us co-op, online, VR, etc.)
+      const url = 'https://store.steampowered.com/api/appdetails?appids=' + appId + '&filters=genres,categories';
       const data = await httpsGet(url);
       const entry = data && data[String(appId)];
       if (entry && entry.success && entry.data) {
         const d = entry.data;
         const genres = (d.genres || []).map(g => g.description).filter(Boolean);
-        // Categories used as tags — filter out pure Steam infrastructure/marketing ones
+        // Categories: "Single-player", "Multi-player", "Co-op", "Online Co-op",
+        // "Steam Achievements", "Steam Cloud", "VR Support", etc.
+        // We use them as tags (filter out pure marketing ones)
         const skipCats = new Set([
           'Steam Achievements', 'Steam Cloud', 'Steam Leaderboards',
           'Steam Trading Cards', 'Steam Workshop', 'Full controller support',
@@ -381,15 +381,7 @@ ipcMain.handle('games:fetchSteamGenres', async (_event, steamAppIds) => {
         const tags = (d.categories || [])
           .map(c => c.description)
           .filter(c => c && !skipCats.has(c));
-        results[appId] = {
-          genres,
-          tags,
-          metacriticScore: d.metacritic ? d.metacritic.score : null,
-          description:     d.short_description || null,
-          releaseDate:     d.release_date ? d.release_date.date : null,
-          developer:       (d.developers || []).join(', ') || null,
-          publisher:       (d.publishers || []).join(', ') || null,
-        };
+        results[appId] = { genres, tags };
       }
     } catch(e) {
       // skip silently — Steam store API is rate limited
@@ -511,7 +503,7 @@ ipcMain.handle('steam:importLibrary', async (_event, { steamId, apiKey }) => {
         games[existingIndex].platforms.push('steam');
       // Always refresh playtime and steamAppId so resync keeps data current
       games[existingIndex].steamAppId    = sg.appid;
-      games[existingIndex].playtimeHours = Math.round((sg.playtime_forever || 0) / 60);
+      games[existingIndex].playtimeHours = Math.max(0, Math.round((sg.playtime_forever || 0) / 60));
       if (!games[existingIndex].addedAt)
         games[existingIndex].addedAt = new Date().toISOString();
       merged++;
@@ -523,7 +515,7 @@ ipcMain.handle('steam:importLibrary', async (_event, { steamId, apiKey }) => {
         platforms: ['steam'],
         pal: nextId % 10,
         steamAppId: sg.appid,
-        playtimeHours: Math.round((sg.playtime_forever || 0) / 60),
+        playtimeHours: Math.max(0, Math.round((sg.playtime_forever || 0) / 60)),
         addedAt: new Date().toISOString(),
       });
       added++;
@@ -563,11 +555,11 @@ ipcMain.handle('steam:resync', async () => {
     if (idx !== -1) {
       if (!games[idx].platforms.includes('steam')) games[idx].platforms.push('steam');
       games[idx].steamAppId    = sg.appid;
-      games[idx].playtimeHours = Math.round((sg.playtime_forever || 0) / 60);
+      games[idx].playtimeHours = Math.max(0, Math.round((sg.playtime_forever || 0) / 60));
       if (!games[idx].addedAt) games[idx].addedAt = new Date().toISOString();
       merged++;
     } else {
-      games.push({ id: nextId++, title: sg.name, genre: 'Other', platforms: ['steam'], pal: nextId % 10, steamAppId: sg.appid, playtimeHours: Math.round((sg.playtime_forever || 0) / 60), addedAt: new Date().toISOString() });
+      games.push({ id: nextId++, title: sg.name, genre: 'Other', platforms: ['steam'], pal: nextId % 10, steamAppId: sg.appid, playtimeHours: Math.max(0, Math.round((sg.playtime_forever || 0) / 60)), addedAt: new Date().toISOString() });
       added++;
     }
   }
@@ -841,48 +833,13 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
 
   // Helper: clean a title for IGDB search (strips platform/edition noise)
   const cleanTitleForSearch = (title) => title
-    // Strip trademark/copyright symbols (replace with space to avoid joining words e.g. BioShock™Infinite)
-    // Also catch @ used as ersatz ® (e.g. "Diablo@ IV")
-    .replace(/\s*[\u2122\u00ae\u00a9@]\s*/g, ' ')
-    // Strip Amazon/Epic/GOG/Prime service suffixes
-    .replace(/\s*[-–]\s*Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\s*$/i, '')
-    .replace(/\s*\(Amazon\s*(Prime\s*(Gaming)?|Luna|Gaming)?\)\s*$/i, '')
-    .replace(/\s*[-–]\s*Prime\s*(Gaming|Giveaway)?\s*$/i, '')
-    .replace(/\s*\(Prime\s*(Gaming|Giveaway)?\)\s*$/i, '')
-    .replace(/\s*[-–]\s*Epic\s*Games?\s*$/i, '')
-    .replace(/\s*[-–]\s*GOG\.?CO?M?\s*$/i, '')
-    // Strip Xbox platform suffixes
-    .replace(/\s+for\s+Xbox\b.*$/i, '')
-    .replace(/\s*[-–]\s*Xbox\b.*$/i, '')
-    .replace(/\s+Xbox\s+Series\s+X[\|\/\s]?I?S?\s*$/i, '')
-    .replace(/\s+Xbox\s+(One|360|Series\s*X?\s*S?)?\s*$/i, '')
-    // Additional platform suffixes seen in imports
-    .replace(/\s*[-–]\s*(Xbox Game Pass|PC Game Pass|Game Pass|Ubisoft Connect|Battle\.net|Heroic|Steam)\s*$/i, '')
-    // Strip platform/OS suffixes — including bare trailing "PC", "(WIN)", "Windows Edition"
-    .replace(/\s*[-–]\s*Windows\s*(Edition|Version|10|11)?\s*$/i, '')
-    .replace(/\s+Windows\s+Edition\s*$/i, '')
-    .replace(/\s*[:\-–]\s*Windows\s*Edition\s*$/i, '')
-    .replace(/\s*\(Windows\s*Edition\)\s*$/i, '')
-    .replace(/\s*\((WIN|Windows|PC)\)\s*$/i, '')
-    .replace(/\s*\[(WIN|Windows|PC)\]\s*$/i, '')
-    .replace(/\s+PC\s*$/i, '')
-    // Strip (Game Preview) and similar early-access labels
-    .replace(/\s*\(Game\s*Preview\)\s*$/i, '')
-    .replace(/\s*\(Early\s*Access\)\s*$/i, '')
-    .replace(/\s*\(Beta\)\s*$/i, '')
-    // Strip collector's/special edition shorthands
-    .replace(/\s*[-–]\s*(CE|SE|GE|VE)\s*$/i, '')
-    // Strip edition/version noise
     .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s+(Edition|Version|Cut)?\s*$/i, '')
     .replace(/\s*[:\-–]\s*(Complete|Gold|GOTY|Definitive|Enhanced|Remaster(ed)?|Standard|Premium|Deluxe|Ultimate|Anniversary|Special|Legacy|Directors? Cut)\s*$/i, '')
-    .replace(/\s*\(GOTY\)\s*$/i, '')
     .replace(/\s+(Edition|Version)\s*$/i, '')
     .replace(/^ARCADE GAME SERIES:\s*/i, '')
-    // Strip parenthesised or bracketed platform tags
-    .replace(/\s*\((PC|Windows|Win|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
-    .replace(/\s*\[(PC|Windows|Win|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
-    .replace(/\s{2,}/g, ' ')
-    .replace(/[:\-–,;]+\s*$/, '')
+    .replace(/\s*\((PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming|Heroic)\)\s*$/i, '')
+    .replace(/\s*\[(PC|Windows|Mac|Steam|GOG|Epic|Amazon|Prime Gaming)\]\s*$/i, '')
+    .replace(/[\u2122\u00ae\u00a9]/g, '')
     .trim();
 
   // IGDB covers - needs credentials
@@ -967,103 +924,28 @@ ipcMain.handle('covers:fetchBatch', async (_event, { games, igdbClientId, igdbCl
       // Pass 2: Fuzzy search for unmatched games — throttled to 4 req/sec (IGDB limit)
       // Also sends progress events so the UI can show a counter
       const sleep = ms => new Promise(r => setTimeout(r, ms));
-
-      // Simple title similarity — fraction of query words found in candidate
-      const titleSimilarity = (query, candidate) => {
-        const normalize = s => s.toLowerCase().replace(/[^a-z0-9\s]/g, '').replace(/\s+/g, ' ').trim();
-        const qWords = normalize(query).split(' ').filter(w => w.length > 1);
-        const cWords = new Set(normalize(candidate).split(' ').filter(w => w.length > 1));
-        if (!qWords.length) return 0;
-        const shared = qWords.filter(w => cWords.has(w)).length;
-        return shared / qWords.length;
-      };
-
-      // Session-scoped: permanently skip games that fail or get low-confidence results
-      const fuzzyFailed = new Set();
-
-      // Global rate-limit state — when a 429 fires, pause the ENTIRE queue
-      let globalPauseUntil = 0;
-
       for (let ui = 0; ui < unmatched.length; ui++) {
         const g = unmatched[ui];
-        if (fuzzyFailed.has(g.id)) continue;
-
-        // Honour any active global pause before sending next request
-        const now = Date.now();
-        if (globalPauseUntil > now) {
-          await sleep(globalPauseUntil - now);
-        }
-
         // Send progress to renderer
         if (win && !win.isDestroyed()) {
           try { win.webContents.send('covers:fuzzyProgress', { done: ui, total: unmatched.length, title: g.title }); } catch(e) {}
         }
-
-        const searchTitle = cleanTitleForSearch(g.title);
-        const searchQuery = 'search "' + searchTitle.replace(/"/g, '') + '"; fields name,cover.image_id,genres.name; limit 8;';
-
-        let retries = 0;
-        const MAX_RETRIES = 4;
-
-        while (retries <= MAX_RETRIES) {
-          try {
-            const searchResults = await httpsPost('https://api.igdb.com/v4/games', searchQuery, IGDB_HEADERS);
-            if (Array.isArray(searchResults) && searchResults.length) {
-              // Score each result — require cover + minimum title similarity
-              const scored = searchResults
-                .filter(r => r.cover)
-                .map(r => ({ r, score: titleSimilarity(searchTitle, r.name) }))
-                .sort((a, b) => b.score - a.score);
-
-              // Require at least 50% word overlap — rejects "Final Fantasy IV Double Pack" for "Final Fantasy III"
-              const best = scored.length && scored[0].score >= 0.5 ? scored[0].r : null;
-              if (best) {
-                console.log('[IGDB fuzzy]', g.title, '->', best.name, '(score:', scored[0].score.toFixed(2) + ')');
-                applyResult(best, g);
-              } else {
-                const noCoverInResults = searchResults.every(r => !r.cover);
-                const topName = scored.length ? scored[0].r.name : (searchResults[0] ? searchResults[0].name : 'no results');
-                if (noCoverInResults) {
-                  // IGDB found the game but has no cover art for it — persist so we don't retry every session
-                  console.log('[IGDB fuzzy] no cover art in IGDB for:', g.title, '— marking igdbNoArt');
-                  const gIdx = allGames.findIndex(ag => ag.id === g.id);
-                  if (gIdx !== -1) { allGames[gIdx].igdbNoArt = true; genresUpdated = true; }
-                } else {
-                  console.log('[IGDB fuzzy] low-confidence skip:', g.title, '— best candidate:', topName);
-                }
-                fuzzyFailed.add(g.id);
-              }
-            } else {
-              // No results at all — also persist so we stop retrying
-              console.log('[IGDB fuzzy] no IGDB results for:', g.title, '— marking igdbNoArt');
-              const gIdx = allGames.findIndex(ag => ag.id === g.id);
-              if (gIdx !== -1) { allGames[gIdx].igdbNoArt = true; genresUpdated = true; }
-              fuzzyFailed.add(g.id);
-            }
-            break; // success or no results — exit retry loop
-          } catch(e) {
-            if (e.message && e.message.includes('429')) {
-              retries++;
-              // Exponential backoff: 5s → 10s → 20s → 40s, cap 60s
-              const backoff = Math.min(5000 * Math.pow(2, retries - 1), 60000);
-              console.warn('[IGDB fuzzy] 429 for', g.title, '— pausing entire queue', backoff + 'ms (attempt', retries + ')');
-              // Pause the global queue — all subsequent requests wait too
-              globalPauseUntil = Date.now() + backoff;
-              await sleep(backoff);
-              if (retries > MAX_RETRIES) {
-                console.error('[IGDB fuzzy] giving up on', g.title, 'after', MAX_RETRIES, 'retries');
-                fuzzyFailed.add(g.id);
-              }
-            } else {
-              console.error('[IGDB fuzzy] failed for ' + g.title + ':', e.message);
-              fuzzyFailed.add(g.id);
-              break;
+        try {
+          const searchTitle = cleanTitleForSearch(g.title);
+          const searchQuery = 'search "' + searchTitle.replace(/"/g, '') + '"; fields name,cover.image_id,genres.name; limit 5;';
+          const searchResults = await httpsPost('https://api.igdb.com/v4/games', searchQuery, IGDB_HEADERS);
+          if (Array.isArray(searchResults) && searchResults.length) {
+            const best = searchResults.find(r => r.cover) || searchResults[0];
+            if (best) {
+              console.log('[IGDB fuzzy]', g.title, '->', best.name);
+              applyResult(best, g);
             }
           }
+        } catch(e) {
+          console.error('[IGDB fuzzy] failed for ' + g.title + ':', e.message);
+          if (e.message && e.message.includes('429')) await sleep(2000); // back off on rate limit
         }
-
-        // Conservative base rate: 1 req/sec (well under the 4/sec limit, avoids burst issues)
-        await sleep(1000);
+        await sleep(260); // ~3.8 req/sec — safely under 4/sec limit
       }
       // Done signal
       if (win && !win.isDestroyed()) {
