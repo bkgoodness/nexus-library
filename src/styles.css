@@ -1361,3 +1361,12 @@ body::before {
 .onboard-skip-link:hover { color:var(--text2); }
 .onboard-platform-card { border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:12px; background:var(--surface); }
 .onboard-platform-card h3 { font-size:13px; font-weight:700; color:var(--text); margin-bottom:6px; }
+
+/* Page hint popup */
+@keyframes hintFadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Friend card Steam hover hint */
+.friend-game-cover:hover .steam-hover-hint { opacity: 1 !important; }

@@ -531,7 +531,8 @@ function showPage(page) {
   if (page === 'habits')  { renderHabitsPage(); }
   if (page === 'wrapped') { renderWrappedPage(); }
   if (page === 'freegames') { renderFreeGamesPage(); }
-  if (page === 'friends') { document.getElementById('friendError').textContent = ''; }
+  if (page === 'friends') { document.getElementById('friendError').textContent = ''; renderFriendHistory(); }
+  maybeShowPageHint(page);
 }
 
 // ── FILTER / VIEW ──
@@ -757,6 +758,7 @@ function kbFocusCard(idx) {
 // ── FRIEND COMPARISON ──
 var friendGames = [];
 var friendName  = '';
+var friendCurrentId = '';
 
 async function loadFriendLibrary() {
   var friendId = document.getElementById('friendSteamId').value.trim();
@@ -767,14 +769,51 @@ async function loadFriendLibrary() {
     var result = await window.nexus.steam.importFriend(friendId);
     friendGames = result.games;
     friendName  = result.personaName || ('Friend ' + friendId.slice(-4));
+    friendCurrentId = friendId;
     renderFriendComparison();
     document.getElementById('friendResults').style.display = 'block';
+    // Save to recent history
+    await saveFriendToHistory(friendId, friendName);
+    renderFriendHistory();
   } catch(e) {
     document.getElementById('friendError').textContent = 'Error: ' + e.message;
   } finally {
     btn.disabled = false; btn.textContent = 'Compare';
   }
 }
+
+async function saveFriendToHistory(id, name) {
+  var history = await window.nexus.store.get('friendHistory') || [];
+  // Remove if already exists, then prepend
+  history = history.filter(function(f) { return f.id !== id; });
+  history.unshift({ id: id, name: name, lastViewed: new Date().toISOString() });
+  history = history.slice(0, 10); // keep last 10
+  await window.nexus.store.set('friendHistory', history);
+}
+
+async function renderFriendHistory() {
+  var el = document.getElementById('friendRecentList');
+  if (!el) return;
+  var history = await window.nexus.store.get('friendHistory') || [];
+  if (!history.length) { el.innerHTML = ''; return; }
+  el.innerHTML =
+    '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Recent</div>' +
+    '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
+    history.map(function(f) {
+      return '<button onclick="loadFriendById(\'' + escHtml(f.id) + '\')" ' +
+        'style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap" ' +
+        'onmouseenter="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" ' +
+        'onmouseleave="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text2)\'">' +
+        escHtml(f.name) +
+        '</button>';
+    }).join('') +
+    '</div>';
+}
+
+window.loadFriendById = function(id) {
+  document.getElementById('friendSteamId').value = id;
+  loadFriendLibrary();
+};
 
 function renderFriendComparison() {
   var myTitles     = new Set(games.map(function(g) { return normalizeTitle(g.title); }));
@@ -825,9 +864,10 @@ function renderFriendComparison() {
     var row = document.createElement('div');
     row.className = 'friend-game-card';
     row.innerHTML =
-      '<div class="friend-game-cover">' +
+      '<div class="friend-game-cover"' + (fg.appid ? ' onclick="window.open(\'https://store.steampowered.com/app/' + fg.appid + '\',\'_blank\')" style="cursor:pointer" title="Open in Steam"' : '') + '>' +
         (coverUrl ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
         '<div class="friend-game-cover-bg" style="background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>' +
+        (fg.appid ? '<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.7);border-radius:4px;padding:2px 5px;font-size:9px;color:#7fc8f8;opacity:0;transition:opacity 0.15s" class="steam-hover-hint">Steam ↗</div>' : '') +
       '</div>' +
       '<div class="friend-game-body">' +
         '<div class="friend-game-title">' + escHtml(title) + '</div>' +
@@ -8283,7 +8323,10 @@ async function openOnboarding(isFirstLaunch) {
 
 function closeOnboarding() {
   document.getElementById('onboardingOverlay').classList.remove('open');
-  window.nexus.store.set('onboardingComplete', true);
+  window.nexus.store.get('onboardingComplete').then(function(wasDone) {
+    window.nexus.store.set('onboardingComplete', true);
+    if (!wasDone) showWelcomeHint();
+  });
 }
 
 function renderOnboardStep() {
@@ -9295,3 +9338,214 @@ window.pickerNotForMe = async function(gameId) {
   }
 };
 
+
+// ════════════════════════════════════════════════════════
+// PAGE HINTS — first-visit popups, one per page
+// ════════════════════════════════════════════════════════
+var PAGE_HINTS = {
+  library: {
+    icon: '📚',
+    title: 'Library',
+    body: 'This is your unified game library.\nBrowse everything you own across platforms, filter and search your collection, and manage your backlog.'
+  },
+  discovery: {
+    icon: '🧭',
+    title: 'Discover',
+    body: 'Find great games you already own.\nBacklog Zero surfaces hidden gems, suggests similar titles, and helps you decide what to play next.'
+  },
+  habits: {
+    icon: '📊',
+    title: 'Gaming Habits',
+    body: 'Your play history and gaming patterns.\nTrack sessions to see when you play, how long you play, and which games get the most time.'
+  },
+  goals: {
+    icon: '🎯',
+    title: 'Playtime Goals',
+    body: 'Set playtime milestones for games in your library and track your progress.\nCompleted goals appear in your Hall of Fame.'
+  },
+  stats: {
+    icon: '📈',
+    title: 'Library Stats',
+    body: 'A snapshot of your collection — platforms, genres, backlog size, and library health.\nMost stats are interactive and link directly to the relevant games.'
+  }
+};
+
+async function maybeShowPageHint(page) {
+  if (!PAGE_HINTS[page]) return;
+  var seen = await window.nexus.store.get('hint.seen.' + page);
+  if (seen) return;
+  showPageHint(page);
+}
+
+function showWelcomeHint() {
+  var existing = document.getElementById('pageHintPopup');
+  if (existing) existing.remove();
+
+  var pageEl   = document.getElementById('page-library');
+  var headerEl = pageEl ? pageEl.querySelector('.topbar') : null;
+
+  var popup = document.createElement('div');
+  popup.id  = 'pageHintPopup';
+  popup.innerHTML =
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">' +
+      '<span style="font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent)">Welcome</span>' +
+      '<button onclick="this.closest(\'#pageHintPopup\').remove()" title="Close" ' +
+        'style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;opacity:0.7" ' +
+        'onmouseenter="this.style.opacity=\'1\'" onmouseleave="this.style.opacity=\'0.7\'">✕</button>' +
+    '</div>' +
+    '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">' +
+      '<span style="font-size:20px;line-height:1">🎮</span>' +
+      '<span style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:800;color:var(--text)">Welcome to Backlog Zero</span>' +
+    '</div>' +
+    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5">Backlog Zero brings your entire game collection together in one place.</div>' +
+    '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:14px">Track your backlog, discover hidden gems, and decide what to play next.</div>' +
+    '<div style="display:flex;justify-content:flex-end">' +
+      '<button onclick="this.closest(\'#pageHintPopup\').remove()" ' +
+        'style="background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;letter-spacing:0.3px">Got it</button>' +
+    '</div>';
+
+  popup.style.cssText = [
+    'position:fixed',
+    'z-index:200',
+    'background:var(--surface)',
+    'border:1px solid var(--border)',
+    'border-radius:12px',
+    'padding:16px 18px',
+    'width:340px',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.35)',
+    'animation:hintFadeIn 0.18s ease',
+    'pointer-events:all'
+  ].join(';');
+
+  document.body.appendChild(popup);
+  popup.style.top   = '60px';
+  popup.style.right = '24px';
+}
+
+function showPageHint(page) {
+  var hint = PAGE_HINTS[page];
+  if (!hint) return;
+
+  var existing = document.getElementById('pageHintPopup');
+  if (existing) existing.remove();
+
+  // Find anchor — the topbar or stats-header of the active page
+  var pageEl   = document.getElementById('page-' + page);
+  var headerEl = pageEl ? (pageEl.querySelector('.topbar') || pageEl.querySelector('.stats-header')) : null;
+
+  var lines    = hint.body.split('\n');
+  var summary  = lines[0];
+  var detail   = lines[1] || '';
+
+  var popup = document.createElement('div');
+  popup.id  = 'pageHintPopup';
+  popup.innerHTML =
+    // X close button
+    '<div style="display:flex;justify-content:flex-end;margin-bottom:6px">' +
+      '<button onclick="dismissPageHint(\'' + page + '\')" title="Close" ' +
+        'style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:14px;line-height:1;padding:0;margin:0;opacity:0.7" ' +
+        'onmouseenter="this.style.opacity=\'1\'" onmouseleave="this.style.opacity=\'0.7\'">✕</button>' +
+    '</div>' +
+    // Icon + title
+    '<div style="display:flex;align-items:center;gap:9px;margin-bottom:10px">' +
+      '<span style="font-size:20px;line-height:1">' + hint.icon + '</span>' +
+      '<span style="font-family:\'Syne\',sans-serif;font-size:14px;font-weight:800;color:var(--text)">' + hint.title + '</span>' +
+    '</div>' +
+    // Summary line
+    '<div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:7px;line-height:1.5">' + summary + '</div>' +
+    // Detail line
+    (detail ? '<div style="font-size:11px;color:var(--text3);line-height:1.6;margin-bottom:14px">' + detail + '</div>' : '<div style="margin-bottom:14px"></div>') +
+    // Footer: Got it
+    '<div style="display:flex;justify-content:flex-end">' +
+      '<button onclick="dismissPageHint(\'' + page + '\')" ' +
+        'style="background:var(--accent);border:none;color:#fff;font-size:11px;font-weight:700;padding:6px 16px;border-radius:6px;cursor:pointer;letter-spacing:0.3px">Got it</button>' +
+    '</div>';
+
+  popup.style.cssText = [
+    'position:fixed',
+    'z-index:200',
+    'background:var(--surface)',
+    'border:1px solid var(--border)',
+    'border-radius:12px',
+    'padding:16px 18px',
+    'width:320px',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.35)',
+    'animation:hintFadeIn 0.18s ease',
+    'pointer-events:all',
+    'max-height:calc(100vh - 80px)',
+    'overflow-y:auto'
+  ].join(';');
+
+  document.body.appendChild(popup);
+  popup.style.top   = '60px';
+  popup.style.right = '24px';
+}
+
+window.dismissPageHint = async function(page) {
+  var popup = document.getElementById('pageHintPopup');
+  if (popup) {
+    popup.style.transition = 'opacity 0.18s, transform 0.18s';
+    popup.style.opacity = '0';
+    popup.style.transform = 'translateY(6px)';
+    setTimeout(function() { if (popup.parentNode) popup.remove(); }, 200);
+  }
+  await window.nexus.store.set('hint.seen.' + page, true);
+  // Show (?) button on topbar after dismissal
+  renderHintReopener(page);
+};
+
+function renderHintReopener(page) {
+  var pageEl   = document.getElementById('page-' + page);
+  var headerEl = pageEl ? (pageEl.querySelector('.topbar') || pageEl.querySelector('.stats-header')) : null;
+  if (!headerEl || headerEl.querySelector('.hint-reopener')) return;
+
+  var btn = document.createElement('button');
+  btn.className = 'hint-reopener';
+  btn.title = 'Page overview';
+  btn.textContent = '?';
+  btn.onclick = function() { showPageHint(page); };
+  btn.style.cssText = [
+    'background:none',
+    'border:1px solid var(--border)',
+    'color:var(--text3)',
+    'font-size:10px',
+    'font-weight:700',
+    'width:18px',
+    'height:18px',
+    'border-radius:50%',
+    'cursor:pointer',
+    'line-height:1',
+    'padding:0',
+    'margin-left:6px',
+    'vertical-align:middle',
+    'flex-shrink:0',
+    'transition:color 0.15s,border-color 0.15s'
+  ].join(';');
+  btn.onmouseenter = function() { btn.style.color = 'var(--accent)'; btn.style.borderColor = 'var(--accent)'; };
+  btn.onmouseleave = function() { btn.style.color = 'var(--text3)'; btn.style.borderColor = 'var(--border)'; };
+
+  // Append into the title row
+  var titleEl = headerEl.querySelector('.topbar-title,.stats-title');
+  if (titleEl) {
+    titleEl.style.display = 'inline-flex';
+    titleEl.style.alignItems = 'center';
+    titleEl.appendChild(btn);
+  } else {
+    headerEl.appendChild(btn);
+  }
+}
+
+window.resetPageHints = async function() {
+  // Remove any existing (?) buttons
+  document.querySelectorAll('.hint-reopener').forEach(function(b) { b.remove(); });
+  for (var page of Object.keys(PAGE_HINTS)) {
+    await window.nexus.store.set('hint.seen.' + page, false);
+  }
+  var btn = document.querySelector('[onclick="resetPageHints()"]');
+  if (btn) {
+    var orig = btn.textContent;
+    btn.textContent = '✓ Done — visit each page to see hints';
+    btn.disabled = true;
+    setTimeout(function() { btn.textContent = orig; btn.disabled = false; }, 3000);
+  }
+};
