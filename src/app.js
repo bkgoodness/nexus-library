@@ -96,19 +96,105 @@ function initTheme() {
 }
 
 function applyTheme(theme) {
-  var isLight = theme === 'light';
-  document.body.classList.toggle('light-mode', isLight);
+  var fade = document.getElementById('themeFade');
+
+  if (!fade) {
+    document.body.classList.remove('light-mode');
+    document.body.classList.remove('accessible-mode');
+
+    if (theme === 'light') document.body.classList.add('light-mode');
+    if (theme === 'accessible') document.body.classList.add('accessible-mode');
+
+    localStorage.setItem('nexusTheme', theme);
+    updateThemeIcons(theme);
+    showThemeTooltip(theme);
+    return;
+  }
+
+document.body.classList.add('theme-fading');
+
+setTimeout(function() {
+  document.body.classList.remove('light-mode');
+  document.body.classList.remove('accessible-mode');
+
+  if (theme === 'light') {
+    document.body.classList.add('light-mode');
+  }
+
+  if (theme === 'accessible') {
+    document.body.classList.add('accessible-mode');
+  }
+
   localStorage.setItem('nexusTheme', theme);
-  // Swap icons
-  var moonIcon = document.querySelector('.icon-moon');
-  var sunIcon  = document.querySelector('.icon-sun');
-  if (moonIcon) moonIcon.style.display = isLight ? 'none' : '';
-  if (sunIcon)  sunIcon.style.display  = isLight ? '' : 'none';
+  updateThemeIcons(theme);
+
+  requestAnimationFrame(function() {
+    requestAnimationFrame(function() {
+      document.body.classList.remove('theme-fading');
+    });
+  });
+}, 95);
+
+showThemeTooltip(theme);
+}
+
+function showThemeTooltip(theme) {
+
+  var label =
+    theme === 'light' ? 'Light Mode' :
+    theme === 'accessible' ? 'Accessible Mode' :
+    'Dark Mode';
+
+  var tip = document.createElement('div');
+
+  tip.textContent = label;
+  tip.style.position = 'fixed';
+  tip.style.bottom = '18px';
+  tip.style.left = '50%';
+  tip.style.transform = 'translateX(-50%)';
+  tip.style.padding = '6px 12px';
+  tip.style.fontSize = '11px';
+  tip.style.borderRadius = '20px';
+  tip.style.background = 'var(--surface3)';
+  tip.style.border = '1px solid var(--border2)';
+  tip.style.color = 'var(--text)';
+  tip.style.zIndex = '9999';
+  tip.style.opacity = '0';
+  tip.style.transition = 'opacity 180ms ease';
+
+  document.body.appendChild(tip);
+
+  requestAnimationFrame(function() {
+    tip.style.opacity = '1';
+  });
+
+  setTimeout(function() {
+    tip.style.opacity = '0';
+    setTimeout(function() { tip.remove(); }, 180);
+  }, 1400);
+
 }
 
 function toggleTheme() {
-  var current = document.body.classList.contains('light-mode') ? 'light' : 'dark';
-  applyTheme(current === 'dark' ? 'light' : 'dark');
+
+  var theme = localStorage.getItem('nexusTheme') || 'dark';
+
+  if (theme === 'dark') theme = 'light';
+  else if (theme === 'light') theme = 'accessible';
+  else theme = 'dark';
+
+  applyTheme(theme);
+
+}
+
+function updateThemeIcons(theme) {
+  var moonIcon = document.querySelector('.icon-moon');
+  var sunIcon = document.querySelector('.icon-sun');
+  var accessIcon = document.querySelector('.icon-accessible');
+
+  if (moonIcon) moonIcon.style.display = (theme === 'dark') ? '' : 'none';
+  if (sunIcon) sunIcon.style.display = (theme === 'light') ? '' : 'none';
+  if (accessIcon) accessIcon.style.display = (theme === 'accessible') ? '' : 'none';
 }
 
 async function init() {
@@ -508,6 +594,19 @@ function setupEventListeners() {
   wire('exportCsvBtn', 'click', exportCSV);
 }
 
+window.animateDiscoverRandom = function(card) {
+  if (card) {
+    card.classList.remove('rolling');
+    void card.offsetWidth;
+    card.classList.add('rolling');
+  }
+
+  setTimeout(function() {
+    if (card) card.classList.remove('rolling');
+    openRandomPicker();
+  }, 650);
+};
+
 // ── NAVIGATION ──
 function showPage(page) {
   currentPage = page;
@@ -574,9 +673,13 @@ function setMultiPlatformFilter(platforms) {
     if (sideEl) sideEl.classList.add('active');
   }
   var names = platforms.map(function(p) { return PLAT_LABEL[p] || p; });
-  document.getElementById('topTitle').textContent = names.join(' + ') + ' Libraries';
-  document.getElementById('topSub').textContent = platforms.length > 1 ? 'Showing games from ' + names.join(', ') : (FILTER_TITLES[platforms[0]] || ['',''])[1];
-  renderLibrary();
+  document.getElementById('topTitle').textContent =
+  platforms.length > 2 ? 'Selected Libraries' : names.join(' + ');
+
+document.getElementById('topSub').textContent =
+  platforms.length > 1
+    ? names.join(', ')
+    : (FILTER_TITLES[platforms[0]] || ['',''])[1];
 }
 
 function setFilter(f) {
@@ -8746,15 +8849,42 @@ window.spinRandomGame = function() {
 
   // Rolling animation
   el.innerHTML =
-    '<div style="text-align:center;padding:32px 16px">' +
-      '<div style="font-size:28px;margin-bottom:16px">🎲</div>' +
-      '<div style="font-size:13px;font-weight:700;color:var(--text);margin-bottom:12px">Rolling the dice…</div>' +
-      '<div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">' +
-        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">' + energyLabels[chosenEnergy] + '</span>' +
-        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">⏱ ' + timeLabels[chosenTime] + '</span>' +
-        '<span style="font-size:11px;padding:4px 10px;background:var(--surface3);border:1px solid var(--border);border-radius:6px;color:var(--text2)">' + modeLabels[chosenMode] + '</span>' +
+  '<div class="random-roll-state">' +
+    '<div class="random-roll-dice-wrap">' +
+  '<div class="random-roll-spark"></div>' +
+  '<div id="randomRollDie" style="display:inline-flex;color:var(--text);transform-origin:center center;position:relative;z-index:2;">' +
+        '<svg viewBox="0 0 24 24" width="34" height="34">' +
+          '<rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor"/>' +
+          '<circle cx="8" cy="8" r="1.4" fill="var(--bg)"/>' +
+          '<circle cx="16" cy="16" r="1.4" fill="var(--bg)"/>' +
+          '<circle cx="8" cy="16" r="1.4" fill="var(--bg)"/>' +
+          '<circle cx="16" cy="8" r="1.4" fill="var(--bg)"/>' +
+        '</svg>' +
       '</div>' +
-    '</div>';
+    '</div>' +
+    '<div class="random-roll-title">Rolling the dice...</div>' +
+    '<div class="random-roll-tags">' +
+      '<span class="random-roll-tag">' + energyLabels[chosenEnergy] + '</span>' +
+      '<span class="random-roll-tag">⏱ ' + timeLabels[chosenTime] + '</span>' +
+      '<span class="random-roll-tag">' + modeLabels[chosenMode] + '</span>' +
+    '</div>' +
+  '</div>';
+
+  var dieEl = document.getElementById('randomRollDie');
+var rollAngle = 0;
+var rollTimer = null;
+
+if (dieEl) {
+  rrollTimer = setInterval(function() {
+  rollAngle += 16;
+
+  var scale = 1 + Math.sin(rollAngle * Math.PI / 180) * 0.07;
+  var blur = 0.15 + Math.abs(Math.sin(rollAngle * Math.PI / 180)) * 0.5;
+
+  dieEl.style.transform = 'rotate(' + rollAngle + 'deg) scale(' + scale + ')';
+  dieEl.style.filter = 'drop-shadow(0 0 10px rgba(91,192,190,0.14)) blur(' + blur + 'px)';
+}, 32);
+}
 
   setTimeout(function() {
     var energy = PICKER_ENERGY_MAP[chosenEnergy] || PICKER_ENERGY_MAP.surprise;
@@ -8838,6 +8968,14 @@ window.spinRandomGame = function() {
       r2 -= Math.max(0.1, pool[i].score);
       if (r2 <= 0) { pick = pool[i]; break; }
     }
+
+    if (rollTimer) clearInterval(rollTimer);
+    if (dieEl) {
+  dieEl.style.filter = 'drop-shadow(0 0 10px rgba(91,192,190,0.10))';
+  dieEl.style.transition = 'transform 260ms cubic-bezier(.2,.9,.3,1)';
+dieEl.style.transform = 'rotate(' + (rollAngle + 40) + 'deg) scale(1)';
+
+}
 
     var g2   = pick.game;
     var cUrl = coverCache[g2.id] || coverCache[String(g2.id)];
@@ -9637,6 +9775,20 @@ window.refreshPlayNext = function() {
   playNextShownIds = new Set();
   renderPlayNext();
 };
+
+window.animateAndOpenRandomPicker = function(btn) {
+  if (btn) {
+    btn.classList.remove('rolling');
+    void btn.offsetWidth;
+    btn.classList.add('rolling');
+  }
+
+  setTimeout(function() {
+    openRandomPicker();
+    if (btn) btn.classList.remove('rolling');
+  }, 650);
+};
+
 
 // ══════════════════════════════════════════════════════
 // HELP ME DECIDE — QUIZ-BASED GAME PICKER

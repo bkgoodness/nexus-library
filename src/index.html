@@ -124,6 +124,22 @@
 .disc-similar-result-card:last-child { border-bottom: none; }
 .disc-similar-result-card:hover { background: var(--surface2); }
 
+.disc-tool-card.rolling {
+  transform: translateY(-3px) scale(1.04);
+  border-color: rgba(91,192,190,0.35);
+}
+
+.disc-tool-card.rolling .dice-icon {
+  animation: diceSpin 600ms cubic-bezier(.22,.9,.24,1);
+}
+
+@keyframes diceSpin {
+  0%   { transform: rotate(0deg) scale(1); }
+  35%  { transform: rotate(140deg) scale(1.15); }
+  65%  { transform: rotate(300deg) scale(1.05); }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
 /* Feedback overlay */
 .feedback-reaction-btn {
   background: var(--surface2);
@@ -146,9 +162,11 @@
 </head>
 <body>
 
+<div id="themeFade"></div>  
+
 <!-- ICON NAV -->
 <nav class="icon-nav">
-  <div class="nav-logo">NX<span>.</span></div>
+  <div class="nav-logo">BZ<span>.</span></div>
 
   <div class="nav-item active" title="Library" data-page="library">
     <div class="nav-icon-wrap">
@@ -223,6 +241,11 @@
     <div class="nav-icon-wrap">
       <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
       <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:none"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+      <svg class="icon-accessible" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" style="display:none">
+  <circle cx="12" cy="12" r="9"></circle>
+  <path d="M12 7v10"></path>
+  <path d="M7 12h10"></path>
+</svg>
     </div>
     <div class="nav-label">Theme</div>
   </div>
@@ -403,73 +426,88 @@
 
   <!-- LIBRARY HEALTH PAGE -->
   <!-- LIBRARY PAGE -->
-  <div id="page-library" class="page active">
-    <div class="topbar">
-      <div>
+ <div id="page-library" class="page active">
+  <div class="topbar">
+    <div class="topbar-main">
+
+      <div class="topbar-heading topbar-heading-library">
         <div class="topbar-title" id="topTitle">All Games</div>
         <div class="topbar-subtitle" id="topSub">Your complete unified library</div>
       </div>
-      <div style="flex:1"></div>
-      <div class="search-bar" style="position:relative">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-        <input type="text" id="searchInput" placeholder="Search… try genre:rpg tag:indie dev:valve">
-        <button class="search-clear" id="searchClear" style="display:none">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-        <button id="searchHintBtn" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:12px;font-weight:700;line-height:1">?</button>
-        <!-- Search hint tooltip -->
-        <div id="searchHintBox" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;width:320px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,0.4);font-size:11px;line-height:1.8">
-          <div style="font-weight:800;color:var(--text);margin-bottom:8px">Search Syntax</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">adventure indie</span> — must match BOTH words</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rpg | strategy</span> — match either genre</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">genre:rpg</span> — genre field only</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">tag:indie</span> — tag field only</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">dev:valve</span> — developer</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">status:backlog</span> — filter by status</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">mc:80</span> — Metacritic ≥ 80</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rating:8</span> — your rating ≥ 8</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">plat:steam</span> — platform</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">-horror</span> — exclude word</div>
-          <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">"dark souls"</span> — exact phrase</div>
-          <div style="color:var(--text3);margin-top:8px;font-size:10px">Combine freely: <span style="color:var(--steam);font-family:monospace">genre:rpg tag:indie mc:75 -horror</span></div>
+
+      <div class="topbar-actions">
+        <div class="search-bar" style="position:relative">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="text" id="searchInput" placeholder="Search… try genre:rpg tag:indie dev:valve">
+          <button class="search-clear" id="searchClear" style="display:none">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <button id="searchHintBtn" style="background:none;border:none;color:var(--text3);cursor:pointer;padding:2px 4px;font-size:12px;font-weight:700;line-height:1">?</button>
+
+          <div id="searchHintBox" style="display:none;position:absolute;top:calc(100% + 8px);right:0;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:14px;width:320px;z-index:300;box-shadow:0 8px 24px rgba(0,0,0,0.4);font-size:11px;line-height:1.8">
+            <div style="font-weight:800;color:var(--text);margin-bottom:8px">Search Syntax</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">adventure indie</span> — must match BOTH words</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rpg | strategy</span> — match either genre</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">genre:rpg</span> — genre field only</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">tag:indie</span> — tag field only</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">dev:valve</span> — developer</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">status:backlog</span> — filter by status</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">mc:80</span> — Metacritic ≥ 80</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">rating:8</span> — your rating ≥ 8</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">plat:steam</span> — platform</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">-horror</span> — exclude word</div>
+            <div style="color:var(--text2)"><span style="color:var(--steam);font-family:monospace">"dark souls"</span> — exact phrase</div>
+            <div style="color:var(--text3);margin-top:8px;font-size:10px">Combine freely: <span style="color:var(--steam);font-family:monospace">genre:rpg tag:indie mc:75 -horror</span></div>
+          </div>
+        </div>
+
+        <div class="view-toggle">
+          <button class="view-btn active" id="gridBtn" data-view="grid">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
+          </button>
+          <button class="view-btn" id="listBtn" data-view="list">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
+          </button>
+        </div>
+
+        <div class="library-topbar-buttons" style="display:flex;gap:4px;flex-shrink:1;min-width:0">
+          <button class="decide-btn" id="helpMeDecideBtn">
+            <span class="decide-btn-icon">✦</span>
+            <span class="decide-btn-body">
+              <span class="decide-btn-label">Help Me Decide</span>
+              <span class="decide-btn-sub">3 questions, 3 picks</span>
+            </span>
+          </button>
+
+          <button class="decide-btn" id="replayPickerBtn">
+            <span class="decide-btn-icon">↩</span>
+            <span class="decide-btn-body">
+              <span class="decide-btn-label">Play Again</span>
+              <span class="decide-btn-sub">Revisit old favourites</span>
+            </span>
+          </button>
+
+          <button class="decide-btn" onclick="animateAndOpenRandomPicker(this)" id="randomPickerBtn">
+            <span class="decide-btn-icon">
+              <svg class="dice-icon" viewBox="0 0 24 24" width="16" height="16">
+                <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor"/>
+                <circle cx="8" cy="8" r="1.4" fill="var(--bg)"/>
+                <circle cx="16" cy="16" r="1.4" fill="var(--bg)"/>
+                <circle cx="8" cy="16" r="1.4" fill="var(--bg)"/>
+                <circle cx="16" cy="8" r="1.4" fill="var(--bg)"/>
+              </svg>
+            </span>
+            <span class="decide-btn-body">
+              <span class="decide-btn-label">Surprise Me</span>
+              <span class="decide-btn-sub">Random pick from backlog</span>
+            </span>
+          </button>
         </div>
       </div>
-      <div class="view-toggle">
-        <button class="view-btn active" id="gridBtn" data-view="grid">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zm8 0A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm-8 8A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm8 0A1.5 1.5 0 0 1 10.5 9h3A1.5 1.5 0 0 1 15 10.5v3A1.5 1.5 0 0 1 13.5 15h-3A1.5 1.5 0 0 1 9 13.5v-3z"/></svg>
-        </button>
-        <button class="view-btn" id="listBtn" data-view="list">
-          <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5zm0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5z"/></svg>
-        </button>
-      </div>
-
-      <div style="display:flex;gap:6px;flex-shrink:0">
-        <button class="decide-btn" id="helpMeDecideBtn">
-          <span class="decide-btn-icon">✦</span>
-          <span class="decide-btn-body">
-            <span class="decide-btn-label">Help Me Decide</span>
-            <span class="decide-btn-sub">3 questions, 3 picks</span>
-          </span>
-        </button>
-        <button class="decide-btn" id="replayPickerBtn">
-          <span class="decide-btn-icon">↩</span>
-          <span class="decide-btn-body">
-            <span class="decide-btn-label">Play Again</span>
-            <span class="decide-btn-sub">Revisit old favourites</span>
-          </span>
-        </button>
-        <button class="decide-btn" onclick="openRandomPicker()" id="randomPickerBtn">
-          <span class="decide-btn-icon">🎲</span>
-          <span class="decide-btn-body">
-            <span class="decide-btn-label">Surprise Me</span>
-            <span class="decide-btn-sub">Random pick from backlog</span>
-          </span>
-        </button>
-      </div>
     </div>
+  </div>
 
-    <div class="filter-strip filter-strip-top">
-      <button class="filter-chip active" id="chipAll" data-p="all"><span class="filter-count" id="chip-all">0</span> All</button>
+  <div class="filter-strip filter-strip-top">     <button class="filter-chip active" id="chipAll" data-p="all"><span class="filter-count" id="chip-all">0</span> All</button>
       <div class="filter-divider"></div>
       <button class="filter-chip platform-chip" data-p="steam"><span class="filter-dot" style="background:var(--steam)"></span>Steam <span class="filter-count" id="chip-steam">0</span></button>
       <button class="filter-chip platform-chip" data-p="gog"><span class="filter-dot" style="background:var(--gog)"></span>GOG <span class="filter-count" id="chip-gog">0</span></button>
@@ -667,8 +705,16 @@
             <div class="disc-tool-label">Play Again</div>
             <div class="disc-tool-desc">Revisit games you've already played</div>
           </div>
-          <div class="disc-tool-card" onclick="openRandomPicker()">
-            <div class="disc-tool-icon">🎲</div>
+          <div class="disc-tool-card" onclick="animateDiscoverRandom(this)">
+            <div class="disc-tool-icon">
+  <svg class="dice-icon" viewBox="0 0 24 24" width="22" height="22">
+    <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor"/>
+    <circle cx="8" cy="8" r="1.4" fill="var(--bg)"/>
+    <circle cx="16" cy="16" r="1.4" fill="var(--bg)"/>
+    <circle cx="8" cy="16" r="1.4" fill="var(--bg)"/>
+    <circle cx="16" cy="8" r="1.4" fill="var(--bg)"/>
+  </svg>
+</div>
             <div class="disc-tool-label">Surprise Me</div>
             <div class="disc-tool-desc">Spin the wheel, get one game</div>
           </div>
@@ -716,12 +762,14 @@
 
   <!-- STATS PAGE -->
   <div id="page-stats" class="page">
-    <div class="topbar">
-      <div>
-        <div class="topbar-title">Statistics</div>
-        <div class="topbar-subtitle">A breakdown of your collection</div>
-      </div>
+<div class="topbar">
+  <div class="topbar-main">
+    <div class="topbar-heading">
+      <div class="topbar-title">Statistics</div>
+      <div class="topbar-subtitle">A breakdown of your collection</div>
     </div>
+  </div>
+</div>
     <div class="page-scroll" id="statsArea"></div>
   </div>
 
@@ -729,7 +777,7 @@
   <div id="page-dupes" class="page">
     <div class="topbar">
       <div>
-        <div class="topbar-title" style="color:var(--dupe)">Duplicate Games</div>
+        <div class="topbar-title">Duplicate Games</div>
         <div class="topbar-subtitle">Games you own on more than one platform — check before buying!</div>
       </div>
     </div>
@@ -738,12 +786,15 @@
 
   <!-- WISHLIST PAGE -->
   <div id="page-wishlist" class="page">
-    <div class="topbar">
-      <div>
-        <div class="topbar-title" style="color:var(--epic)">Wishlist</div>
-        <div class="topbar-subtitle">Track games and get notified when prices drop</div>
-      </div>
-      <div style="flex:1"></div>
+   <div class="topbar">
+  <div class="topbar-main">
+
+    <div class="topbar-heading">
+      <div class="topbar-title">Wishlist</div>
+      <div class="topbar-subtitle">Track games and get notified when prices drop</div>
+    </div>
+
+    <div class="topbar-actions">
       <div class="search-bar">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" id="wishSearchInput" placeholder="Search wishlist…">
@@ -751,20 +802,26 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+
       <button class="add-btn" id="openWishModal" style="background:var(--epic);color:var(--bg)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
         Add to Wishlist
       </button>
+
       <button class="add-btn" id="checkAllPricesBtn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
         Check Prices
       </button>
+
       <button class="add-btn" id="removeOwnedWishBtn" style="background:var(--surface2);color:var(--text2);border:1px solid var(--border2)" title="Remove all wishlisted games you now own">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
         Remove Owned
       </button>
     </div>
-    <div class="filter-row" style="padding:0 16px 8px;display:flex;gap:8px;align-items:center">
+
+  </div>
+</div>
+    <div class="topbar-secondary" style="padding:8px 24px">
       <select id="wishSortSelect" class="sort-select" style="font-size:11px">
         <option value="alpha">A → Z</option>
         <option value="price">Lowest Price</option>
@@ -782,58 +839,69 @@
   <!-- FRIENDS PAGE -->
   <div id="page-friends" class="page">
     <div class="topbar">
-      <div>
-        <div class="topbar-title" style="color:var(--steam)">Friend Comparison</div>
-        <div class="topbar-subtitle">Compare your library with a Steam friend</div>
-      </div>
+  <div class="topbar-main">
+    <div class="topbar-heading">
+      <div class="topbar-title">Friend Comparison</div>
+      <div class="topbar-subtitle">Compare your library with a Steam friend</div>
     </div>
-    <div class="page-scroll">
-      <div class="settings-section" style="max-width:900px;margin:0 auto 20px">
-        <div class="settings-section-title">🔍 Look Up a Friend</div>
-        <div class="settings-row" style="gap:8px">
-          <input type="text" id="friendSteamId" class="settings-input" placeholder="Friend's 17-digit Steam ID…" style="flex:1">
-          <button class="modal-btn modal-btn-add" id="friendLoadBtn" onclick="loadFriendLibrary()">Compare</button>
-        </div>
-        <div class="settings-hint">Their library must be set to Public in Steam privacy settings.</div>
-        <div id="friendError" style="color:#f87171;font-size:12px;margin-top:6px"></div>
-        <div id="friendRecentList" style="margin-top:10px"></div>
-      </div>
-      <div id="friendResults" style="display:none"></div>
+  </div>
+</div>
+
+<div class="topbar-secondary" style="padding:12px 24px">
+  <div style="display:flex;gap:8px;align-items:flex-end;width:100%;max-width:900px">
+    <div style="flex:1;min-width:220px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Steam ID</div>
+      <input type="text" id="friendSteamId" class="settings-input" placeholder="Friend's 17-digit Steam ID…" style="width:100%">
     </div>
+    <button class="modal-btn modal-btn-add" id="friendLoadBtn" onclick="loadFriendLibrary()">Compare</button>
+  </div>
+</div>
+
+<div class="page-scroll">
+  <div style="max-width:900px;margin:0 auto 20px;padding-top:12px">
+    <div class="settings-hint">Their library must be set to Public in Steam privacy settings.</div>
+    <div id="friendError" style="color:#f87171;font-size:12px;margin-top:6px"></div>
+    <div id="friendRecentList" style="margin-top:10px"></div>
+  </div>
+  <div id="friendResults" style="display:none"></div>
+</div>
   </div>
 
   <!-- GOALS PAGE -->
   <div id="page-goals" class="page">
     <div class="topbar" style="flex-shrink:0">
-      <div>
-        <div class="topbar-title" style="color:#fb923c">Playtime Goals</div>
-        <div class="topbar-subtitle">Set milestones and track your progress</div>
-      </div>
+  <div class="topbar-main">
+    <div class="topbar-heading">
+      <div class="topbar-title">Playtime Goals</div>
+      <div class="topbar-subtitle">Set milestones and track your progress</div>
     </div>
-    <div style="display:flex;gap:16px;flex:1;overflow:hidden;padding:0 24px 32px">
-      <div style="flex:1;min-width:0;max-width:700px;overflow-y:auto;padding-right:4px">
-        <div class="settings-section" style="margin-bottom:20px">
-          <div class="settings-section-title">➕ Add Goal</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
-            <div style="flex:2;min-width:180px">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Game</div>
-              <select id="goalGameSelect" class="sort-select" style="width:100%;font-size:12px">
-                <option value="">Select a game…</option>
-              </select>
-            </div>
-            <div style="flex:1;min-width:80px">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Target hours</div>
-              <input type="number" id="goalTargetHours" class="settings-input" placeholder="100" min="1" style="width:100%">
-            </div>
-            <div style="flex:2;min-width:160px">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Label (optional)</div>
-              <input type="text" id="goalLabel" class="settings-input" placeholder="e.g. Finish the main story">
-            </div>
-            <button class="modal-btn modal-btn-add" onclick="addGoal()" style="align-self:flex-end">Add Goal</button>
-          </div>
-        </div>
-        <div id="goalsArea"></div>
-      </div>
+  </div>
+</div>
+
+<div class="topbar-secondary" style="padding:12px 24px">
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;width:100%">
+    <div style="flex:2;min-width:180px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Game</div>
+      <select id="goalGameSelect" class="sort-select" style="width:100%;font-size:12px">
+        <option value="">Select a game…</option>
+      </select>
+    </div>
+    <div style="flex:1;min-width:80px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Target hours</div>
+      <input type="number" id="goalTargetHours" class="settings-input" placeholder="100" min="1" style="width:100%">
+    </div>
+    <div style="flex:2;min-width:160px">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Label (optional)</div>
+      <input type="text" id="goalLabel" class="settings-input" placeholder="e.g. Finish the main story">
+    </div>
+    <button class="modal-btn modal-btn-add" onclick="addGoal()" style="align-self:flex-end">Add Goal</button>
+  </div>
+</div>
+
+<div style="display:flex;gap:16px;flex:1;overflow:hidden;padding:20px 24px 32px">
+  <div style="flex:1;min-width:0;max-width:700px;overflow-y:auto;padding-right:4px">
+    <div id="goalsArea"></div>
+  </div>
       <div style="width:280px;flex-shrink:0;overflow-y:auto" id="goalsHallOfFame"></div>
     </div>
   </div>
@@ -1046,66 +1114,90 @@
 
   <!-- HABITS PAGE -->
   <div id="page-habits" class="page">
-    <div class="stats-header" style="margin-bottom:20px">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-        <div>
-          <div class="stats-title">Gaming Habits</div>
-          <div class="stats-subtitle" id="habitsSubtitle">Your session history and play patterns</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;flex-shrink:0">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:13px">🎮</span>
-            <span style="font-size:12px;font-weight:700;color:var(--text)">Auto Session Tracking</span>
-            <!-- Tooltip -->
-            <div style="position:relative;display:inline-block">
-              <span id="autoSessionHelpBtn" style="width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--text3);font-size:10px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1">?</span>
-              <div id="autoSessionTooltip" style="display:none;position:absolute;top:calc(100% + 8px);right:-8px;width:280px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:var(--text2);line-height:1.6;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
-                <div style="font-weight:800;color:var(--text);margin-bottom:6px">Auto Session Tracking</div>
-                Polls your Steam profile every 60 seconds to detect when you launch or close a game, then automatically starts and stops a session timer for you.
-                <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
-                  <div style="font-weight:700;color:var(--text);margin-bottom:6px">How to enable on Steam</div>
-                  <div style="display:flex;flex-direction:column;gap:4px;color:var(--text3)">
-                    <div>1. Open <strong style="color:var(--text2)">Steam</strong> and click your username</div>
-                    <div>2. Go to <strong style="color:var(--text2)">Profile → Edit Profile</strong></div>
-                    <div>3. Click <strong style="color:var(--text2)">Privacy Settings</strong></div>
-                    <div>4. Set <strong style="color:var(--text2)">My Profile</strong> to <strong style="color:#4ade80">Public</strong></div>
-                    <div>5. Set <strong style="color:var(--text2)">Game Details</strong> to <strong style="color:#4ade80">Public</strong></div>
-                  </div>
+    <div class="topbar">
+  <div class="topbar-main">
+
+    <div class="topbar-heading">
+      <div class="topbar-title">Gaming Habits</div>
+      <div class="topbar-subtitle" id="habitsSubtitle">Your session history and play patterns</div>
+    </div>
+
+    <div class="topbar-actions">
+      <div style="display:flex;align-items:center;gap:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px 14px;flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:13px">🎮</span>
+          <span style="font-size:12px;font-weight:700;color:var(--text)">Auto Session Tracking</span>
+
+          <div style="position:relative;display:inline-block">
+            <span id="autoSessionHelpBtn" style="width:16px;height:16px;border-radius:50%;background:var(--surface3);border:1px solid var(--border2);color:var(--text3);font-size:10px;font-weight:800;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;line-height:1">?</span>
+            <div id="autoSessionTooltip" style="display:none;position:absolute;top:calc(100% + 8px);right:-8px;width:280px;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:12px 14px;font-size:11px;color:var(--text2);line-height:1.6;z-index:200;box-shadow:0 8px 24px rgba(0,0,0,0.4)">
+              <div style="font-weight:800;color:var(--text);margin-bottom:6px">Auto Session Tracking</div>
+              Polls your Steam profile every 60 seconds to detect when you launch or close a game, then automatically starts and stops a session timer for you.
+              <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+                <div style="font-weight:700;color:var(--text);margin-bottom:6px">How to enable on Steam</div>
+                <div style="display:flex;flex-direction:column;gap:4px;color:var(--text3)">
+                  <div>1. Open <strong style="color:var(--text2)">Steam</strong> and click your username</div>
+                  <div>2. Go to <strong style="color:var(--text2)">Profile → Edit Profile</strong></div>
+                  <div>3. Click <strong style="color:var(--text2)">Privacy Settings</strong></div>
+                  <div>4. Set <strong style="color:var(--text2)">My Profile</strong> to <strong style="color:#4ade80">Public</strong></div>
+                  <div>5. Set <strong style="color:var(--text2)">Game Details</strong> to <strong style="color:#4ade80">Public</strong></div>
                 </div>
-                <div style="position:absolute;top:-5px;right:14px;width:8px;height:8px;background:var(--surface2);border-left:1px solid var(--border2);border-top:1px solid var(--border2);transform:rotate(45deg)"></div>
               </div>
+              <div style="position:absolute;top:-5px;right:14px;width:8px;height:8px;background:var(--surface2);border-left:1px solid var(--border2);border-top:1px solid var(--border2);transform:rotate(45deg)"></div>
             </div>
           </div>
-          <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
-            <input type="checkbox" id="autoSessionToggle" style="opacity:0;width:0;height:0">
-            <span id="autoSessionSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:20px;transition:0.2s">
-              <span style="position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;display:block" id="autoSessionThumb"></span>
-            </span>
-          </label>
-          <div id="steamPresenceStatus" style="font-size:10px;color:var(--text3);min-width:36px;text-align:right">Off</div>
         </div>
+
+        <label style="position:relative;display:inline-block;width:36px;height:20px;flex-shrink:0">
+          <input type="checkbox" id="autoSessionToggle" style="opacity:0;width:0;height:0">
+          <span id="autoSessionSlider" style="position:absolute;cursor:pointer;inset:0;background:var(--border2);border-radius:20px;transition:0.2s">
+            <span style="position:absolute;height:14px;width:14px;left:3px;bottom:3px;background:#fff;border-radius:50%;transition:0.2s;display:block" id="autoSessionThumb"></span>
+          </span>
+        </label>
+
+        <div id="steamPresenceStatus" style="font-size:10px;color:var(--text3);min-width:36px;text-align:right">Off</div>
       </div>
     </div>
+
+  </div>
+</div>
     <div class="page-scroll" id="habitsContent"></div>
   </div>
 
-  <!-- WRAPPED PAGE -->
+  <!-- IDENTITY PAGE -->
   <div id="page-wrapped" class="page">
-    <div class="stats-header" style="margin-bottom:20px">
-      <div class="stats-title">Identity Report</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px">
-        <select id="wrappedYear" class="sort-select" style="font-size:11px"></select>
-        <select id="wrappedQuarter" class="sort-select" style="font-size:11px">
-          <option value="1">Q1 · Jan – Mar</option>
-          <option value="2">Q2 · Apr – Jun</option>
-          <option value="3">Q3 · Jul – Sep</option>
-          <option value="4">Q4 · Oct – Dec</option>
-        </select>
-        <button id="exportLibraryCard" class="settings-btn" style="font-size:11px;padding:6px 14px">📸 Save Library Card</button>
-      </div>
+    <div class="topbar">
+  <div class="topbar-main">
+
+    <div class="topbar-heading">
+      <div class="topbar-title">Identity Report</div>
+      <div class="topbar-subtitle">Your gaming identity and play patterns</div>
     </div>
-    <div class="page-scroll" id="wrappedContent" style="padding:0 24px 32px"></div>
+
   </div>
+</div>
+
+<div class="topbar-secondary" style="padding:12px 24px">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+
+    <select id="wrappedYear" class="sort-select" style="font-size:11px"></select>
+
+    <select id="wrappedQuarter" class="sort-select" style="font-size:11px">
+      <option value="1">Q1 · Jan – Mar</option>
+      <option value="2">Q2 · Apr – Jun</option>
+      <option value="3">Q3 · Jul – Sep</option>
+      <option value="4">Q4 · Oct – Dec</option>
+    </select>
+
+    <button id="exportLibraryCard" class="settings-btn" style="font-size:11px;padding:6px 14px">
+      📸 Save Library Card
+    </button>
+
+  </div>
+</div>
+    <div class="page-scroll page-scroll-wrapped">
+  <div id="wrappedContent" class="wrapped-shell"></div>
+</div>
 
   <!-- FREE GAMES PAGE -->
   <div id="page-freegames" class="page">
