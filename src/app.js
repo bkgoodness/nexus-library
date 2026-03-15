@@ -6141,548 +6141,310 @@ async function renderWrappedPage() {
   var el = document.getElementById('wrappedContent');
   if (!el) return;
 
-  // Year selector
   var yearSel = document.getElementById('wrappedYear');
-  if (yearSel && !yearSel.options.length) {
-    var currentYear = new Date().getFullYear();
-    for (var y = currentYear; y >= 2020; y--) {
-      var opt = document.createElement('option');
-      opt.value = y; opt.textContent = y;
-      yearSel.appendChild(opt);
-    }
+  if (yearSel && !yearSel.dataset.bound) {
+    yearSel.dataset.bound = '1';
     yearSel.addEventListener('change', renderWrappedPage);
   }
 
-  // Quarter selector — default to current quarter
   var quarterSel = document.getElementById('wrappedQuarter');
-  if (quarterSel && !quarterSel.dataset.wired) {
-    var currentMonth = new Date().getMonth(); // 0-11
-    quarterSel.value = Math.floor(currentMonth / 3) + 1;
-    quarterSel.dataset.wired = '1';
+  if (quarterSel && !quarterSel.dataset.bound) {
+    quarterSel.dataset.bound = '1';
     quarterSel.addEventListener('change', renderWrappedPage);
   }
 
-  var year    = parseInt((yearSel && yearSel.value) || new Date().getFullYear());
+  var data = await buildIdentityData();
+
+  el.innerHTML =
+    renderIdentityHero(data) +
+    renderIdentityHighlights(data) +
+    renderIdentityCard(data) +
+    renderIdentityBacklogOutlook(data);
+}
+
+async function buildIdentityData() {
+  var yearSel = document.getElementById('wrappedYear');
+  var quarterSel = document.getElementById('wrappedQuarter');
+
+  var year = parseInt((yearSel && yearSel.value) || new Date().getFullYear());
   var quarter = parseInt((quarterSel && quarterSel.value) || 1);
 
-  // Quarter date bounds
-  var qStartMonth = (quarter - 1) * 3;        // 0, 3, 6, 9
-  var yearStart   = new Date(year, qStartMonth, 1);
-  var yearEnd     = new Date(year, qStartMonth + 3, 1);
+  var qStartMonth = (quarter - 1) * 3;
+  var periodStart = new Date(year, qStartMonth, 1);
+  var periodEnd = new Date(year, qStartMonth + 3, 1);
 
-  // Quarter label for display
-  var qLabels     = ['', 'Jan – Mar', 'Apr – Jun', 'Jul – Sep', 'Oct – Dec'];
+  var qLabels = ['', 'Jan – Mar', 'Apr – Jun', 'Jul – Sep', 'Oct – Dec'];
   var periodLabel = 'Q' + quarter + ' ' + year + ' · ' + qLabels[quarter];
 
-  // ── Data ──────────────────────────────────────────────
-  var addedThisYear = games.filter(function(g) {
-    return !g.gpCatalog && g.addedAt && new Date(g.addedAt) >= yearStart && new Date(g.addedAt) < yearEnd;
-  });
-  var completedThisYear = games.filter(function(g) {
-    return g.status === 'finished' && g.lastPlayedAt &&
-      new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd;
+  var added = games.filter(function(g) {
+    return !g.gpCatalog && g.addedAt && new Date(g.addedAt) >= periodStart && new Date(g.addedAt) < periodEnd;
   });
 
-  var yearSessions = [];
+  var completed = games.filter(function(g) {
+  return g.status === 'finished' && g.lastPlayedAt &&
+    new Date(g.lastPlayedAt) >= periodStart && new Date(g.lastPlayedAt) < periodEnd;
+  });
+
+  var backlogStartCount = games.filter(function(g) {
+  if (g.gpCatalog) return false;
+  var addedDate = g.addedAt ? new Date(g.addedAt) : null;
+  return (!addedDate || addedDate < periodStart) && g.status !== 'finished';
+}).length;
+  
+  var sessions = [];
   try {
     var allSD = await window.nexus.store.getByPrefix('sessions:') || {};
     Object.entries(allSD).forEach(function(entry) {
       var gameId = entry[0].replace('sessions:', '');
-      var game   = games.find(function(g) { return String(g.id) === String(gameId); });
+      var game = games.find(function(g) { return String(g.id) === String(gameId); });
       (entry[1] || []).forEach(function(s) {
         var d = new Date(s.date);
-        if (d >= yearStart && d < yearEnd)
-          yearSessions.push({ gameId: gameId, game: game, title: game ? game.title : null, date: d, seconds: Math.max(0, s.seconds || 0) });
+        if (d >= periodStart && d < periodEnd) {
+          sessions.push({
+            gameId: gameId,
+            game: game,
+            title: game ? game.title : null,
+            date: d,
+            seconds: Math.max(0, s.seconds || 0)
+          });
+        }
       });
     });
-  } catch(e) {}
+  } catch (e) {}
 
-  var totalYearSecs = yearSessions.reduce(function(t, s) { return t + s.seconds; }, 0);
-  var totalYearHrs  = (totalYearSecs / 3600).toFixed(1);
+  var totalSecs = sessions.reduce(function(t, s) { return t + s.seconds; }, 0);
+  var totalHours = totalSecs / 3600;
+
+  var backlogCurrentCount = games.filter(function(g) {
+  return !g.gpCatalog && g.status !== 'finished';
+  }).length;
+
+  var gamesAddedCount = added.length;
+  var gamesCompletedCount = completed.length;
+
+  var netBacklogChange = backlogCurrentCount - backlogStartCount;
+
+  var estimatedClearMonths = gamesCompletedCount > 0
+    ? Math.round((backlogCurrentCount / gamesCompletedCount) * 3)
+    : null;
+
+  var estimatedClearLabel = estimatedClearMonths === null
+    ? 'No estimate yet'
+    : estimatedClearMonths < 12
+      ? estimatedClearMonths + ' months'
+      : (estimatedClearMonths / 12).toFixed(1) + ' years';
 
   var gameSessionTime = {};
-  yearSessions.forEach(function(s) { gameSessionTime[s.gameId] = (gameSessionTime[s.gameId] || 0) + s.seconds; });
-  var topGameId  = Object.keys(gameSessionTime).sort(function(a,b) { return gameSessionTime[b] - gameSessionTime[a]; })[0];
-  var topGame    = topGameId ? games.find(function(g) { return String(g.id) === String(topGameId); }) : null;
-  var topGameHrs = topGame ? (gameSessionTime[topGameId] / 3600).toFixed(1) : 0;
+  sessions.forEach(function(s) {
+    gameSessionTime[s.gameId] = (gameSessionTime[s.gameId] || 0) + s.seconds;
+  });
+
+  var newPlayedCount = Object.keys(gameSessionTime).length;
+
+  var topGameId = Object.keys(gameSessionTime).sort(function(a, b) {
+    return gameSessionTime[b] - gameSessionTime[a];
+  })[0];
+
+  var topGame = topGameId
+    ? games.find(function(g) { return String(g.id) === String(topGameId); })
+    : null;
+
+  var topGameHours = topGame ? (gameSessionTime[topGameId] / 3600) : 0;
 
   var genreCounts = {};
-  addedThisYear.forEach(function(g) {
+  added.forEach(function(g) {
     var genre = (g.genres && g.genres[0]) || g.genre || 'Other';
     genreCounts[genre] = (genreCounts[genre] || 0) + 1;
   });
-  var topGenres = Object.entries(genreCounts).sort(function(a,b) { return b[1] - a[1]; });
-  var topGenre  = topGenres[0] || null;
 
-  var hiddenGem = games
-    .filter(function(g) {
-      return g.userRating >= 8 && g.lastPlayedAt &&
-        new Date(g.lastPlayedAt) >= yearStart && new Date(g.lastPlayedAt) < yearEnd &&
-        (!g.metacriticScore || g.metacriticScore < 80);
-    })
-    .sort(function(a,b) { return b.userRating - a.userRating; })[0] || null;
+  var topGenres = Object.entries(genreCounts).sort(function(a, b) { return b[1] - a[1]; });
+  var topGenre = topGenres[0] || null;
 
-  var longestSess = yearSessions.reduce(function(best, s) { return s.seconds > (best ? best.seconds : 0) ? s : best; }, null);
+  var longestSession = sessions.reduce(function(best, s) {
+    return s.seconds > (best ? best.seconds : 0) ? s : best;
+  }, null);
 
-  var backlogGames  = games.filter(function(g) { return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; });
-  var backlogCount  = backlogGames.length;
-  var backlogHrsEst = backlogCount * 15; // align with Stats page
+  var identityKey = calculateIdentity(added.length, completed.length, sessions, games);
+  var identityMeta = IDENTITY_ARCHETYPES[identityKey] || IDENTITY_ARCHETYPES.unknown;
 
-  // Completion rate: games finished vs total played this quarter
-  var playedThisQuarter = yearSessions.reduce(function(ids, s) { if (!ids.includes(s.gameId)) ids.push(s.gameId); return ids; }, []).length;
-  var completionRate = playedThisQuarter > 0 ? Math.round((completedThisYear.length / playedThisQuarter) * 100) : 0;
-
-  // Backlog growth trend: net change this quarter
-  var backlogNet    = addedThisYear.length - completedThisYear.length;
-  var backlogTrend  = backlogNet > 0 ? '+' + backlogNet : String(backlogNet); // negative = shrinking
-
-  // Top 3 genres in the full backlog
-  var backlogGenreCounts = {};
-  backlogGames.forEach(function(g) {
-    var genre = (g.genres && g.genres[0]) || g.genre || 'Other';
-    backlogGenreCounts[genre] = (backlogGenreCounts[genre] || 0) + 1;
-  });
-  var top3BacklogGenres = Object.entries(backlogGenreCounts)
-    .sort(function(a,b) { return b[1] - a[1]; })
-    .slice(0, 3);
-
-  // Pace: use real session data to match Stats page; fall back to null if no sessions
-  var allSessionSecs = yearSessions.length > 0
-    ? yearSessions.reduce(function(t,s){return t+s.seconds;},0) / yearSessions.length
-    : 0;
-  var hrsPerYearEst = allSessionSecs > 0 ? (totalYearSecs / 3600) : null;
-
-  var dayCounts = [0,0,0,0,0,0,0];
-  var dayNames  = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  yearSessions.forEach(function(s) { dayCounts[s.date.getDay()]++; });
-  var topDayIdx = dayCounts.indexOf(Math.max.apply(null, dayCounts));
-  var topDay    = dayCounts[topDayIdx] > 0 ? dayNames[topDayIdx] : null;
-
-  var avgSessMins = yearSessions.length ? Math.round(totalYearSecs / yearSessions.length / 60) : 0;
-
-  var personality = [];
-  if (avgSessMins > 0 && avgSessMins < 30)  personality.push('⚡ Short burst player — your sessions average ' + avgSessMins + ' minutes');
-  if (avgSessMins >= 30 && avgSessMins < 90) personality.push('🎮 Mid-session player — solid ' + avgSessMins + '-minute average sessions');
-  if (avgSessMins >= 90)                     personality.push('🏔 Marathon gamer — you average ' + avgSessMins + ' minutes per session');
-  if (topGenre)   personality.push('🔥 ' + topGenre[0] + '-heavy library — ' + topGenre[1] + ' games added this quarter');
-  if (topDay)     personality.push('📅 ' + topDay + 's are your most active gaming day');
-  if (backlogCount > addedThisYear.length) personality.push('📦 Your backlog grew faster than your playtime this quarter');
-  if (completedThisYear.length > 0)        personality.push('✅ You actually finished ' + completedThisYear.length + ' game' + (completedThisYear.length !== 1 ? 's' : '') + ' — impressive');
-  if (personality.length === 0)            personality.push('🎮 Start logging sessions to unlock your gaming personality');
-
-  var hrsPerYearEst = totalYearSecs > 0 ? (totalYearSecs / 3600) : null;
-  var yearsToFinish = hrsPerYearEst > 0 ? Math.round(backlogHrsEst / hrsPerYearEst) : null;
-
-  // ── Render ────────────────────────────────────────────
-  var html = '';
-
-  // cover art helper
-  function wCover(game) {
-    var url = game ? (coverCache[game.id] || coverCache[String(game.id)]) : null;
-    var pal = game ? COVER_PALETTES[(game.pal||0) % COVER_PALETTES.length] : COVER_PALETTES[0];
-    return url
-      ? '<img src="' + url + '" style="width:56px;height:74px;border-radius:6px;object-fit:cover;flex-shrink:0">'
-      : '<div style="width:56px;height:74px;border-radius:6px;flex-shrink:0;background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>';
-  }
-
-  // 1. HERO CARD
-  var topPlatforms = ['steam','gog','epic','amazon','xbox'].filter(function(p){return games.some(function(g){return g.platforms.includes(p);});});
-  html +=
-    '<div id="wrappedCard" style="background-image:url(' + IDENTITY_CARD_BG + ');background-size:cover;background-position:center top;border-radius:16px;padding:20px 24px;margin-bottom:16px;position:relative;overflow:hidden">' +
-      '<div style="position:absolute;inset:0;background:linear-gradient(135deg,rgba(8,14,30,0.88) 0%,rgba(10,20,48,0.78) 60%,rgba(15,40,80,0.65) 100%);pointer-events:none;border-radius:16px"></div>' +
-      // Logo — top right, small, just the icon portion visible
-      '<img src="' + IDENTITY_LOGO + '" style="position:absolute;top:16px;right:20px;width:90px;height:auto;opacity:0.5;pointer-events:none">' +
-      '<div style="position:relative">' +
-        // Eyebrow + title row
-        '<div style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:3px;text-transform:uppercase;margin-bottom:6px">BACKLOG ZERO</div>' +
-        '<div style="font-size:26px;font-weight:800;color:#fff;line-height:1.1;letter-spacing:-0.5px;margin-bottom:2px">Q' + quarter + ' ' + year + ' — Identity Report</div>' +
-        '<div style="font-size:11px;color:rgba(255,255,255,0.3);letter-spacing:1px;text-transform:uppercase;margin-bottom:16px">' + qLabels[quarter] + ' ' + year + '</div>' +
-        // Stats row — compact, left-aligned not centred
-        '<div style="display:flex;gap:32px;margin-bottom:16px;padding-bottom:16px;border-bottom:1px solid rgba(255,255,255,0.08)">' +
-          '<div>' +
-            '<div style="font-size:28px;font-weight:900;color:#fff;line-height:1;font-family:Syne,sans-serif">' + addedThisYear.length.toLocaleString() + '</div>' +
-            '<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;letter-spacing:1.5px">GAMES ADDED</div>' +
-          '</div>' +
-          '<div>' +
-            '<div style="font-size:28px;font-weight:900;color:#fff;line-height:1;font-family:Syne,sans-serif">' + completedThisYear.length.toLocaleString() + '</div>' +
-            '<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;letter-spacing:1.5px">GAMES COMPLETED</div>' +
-          '</div>' +
-          '<div>' +
-            '<div style="font-size:28px;font-weight:900;color:#fff;line-height:1;font-family:Syne,sans-serif">' + totalYearHrs + 'h</div>' +
-            '<div style="font-size:10px;color:rgba(255,255,255,0.4);margin-top:3px;letter-spacing:1.5px">TOTAL PLAYTIME</div>' +
-          '</div>' +
-        '</div>' +
-        // Narrative — tight, readable
-        '<div style="font-size:13px;color:rgba(255,255,255,0.6);line-height:1.8">' +
-          'You added <strong style="color:#fff">' + addedThisYear.length.toLocaleString() + ' games</strong> this quarter. ' +
-          'Your collection includes <strong style="color:#fff">' + games.filter(function(g){return !g.gpCatalog;}).length.toLocaleString() + ' games</strong> across <strong style="color:#fff">' + topPlatforms.length + ' platform' + (topPlatforms.length !== 1 ? 's' : '') + '</strong>.<br>' +
-          (parseFloat(totalYearHrs) > 0
-            ? 'You spent <strong style="color:#fb923c">' + totalYearHrs + 'h</strong> playing and completed <strong style="color:#4ade80">' + completedThisYear.length + ' games</strong>.<br>'
-            : '') +
-          (topGenre ? 'Your most added genre was <strong style="color:#fff">' + escHtml(topGenre[0]).toUpperCase() + '</strong> with <strong style="color:#fff">' + topGenre[1] + '</strong> new titles.' : '') +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  // Pre-calc identity so highlights can react to it
-  var earlyIdentityKey = calculateIdentity(addedThisYear.length, completedThisYear.length, yearSessions, games);
-  // Which highlight gets the spotlight ring based on identity
-  var spotlightMap = { loyalist: 'mostplayed', finisher: 'mostplayed', sprinter: 'longestsession', explorer: 'topgenre', strategist: 'topgenre', collector: 'topgenre', completionist: 'mostplayed', unknown: null };
-  var spotlightCard = spotlightMap[earlyIdentityKey];
-
-  // 2. HIGHLIGHTS
-  var longestDur = longestSess
-    ? (longestSess.seconds >= 3600 ? (longestSess.seconds/3600).toFixed(1) + 'h' : Math.round(longestSess.seconds/60) + ' minutes')
-    : '—';
-
-  html += '<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">' +
-    '<span style="font-size:16px">🏆</span>' +
-    '<span style="font-size:15px;font-weight:800;color:var(--text)">Highlights</span>' +
-    '<div style="flex:1;height:1px;background:var(--border);margin-left:4px"></div>' +
-  '</div>';
-
-  html += '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px">';
-
-  // Most Played card — blue header, cover art
-  var mpCover = topGame ? wCover(topGame) : '';
-  var mpBorder = spotlightCard === 'mostplayed' ? 'border:2px solid ' + IDENTITY_ARCHETYPES[earlyIdentityKey].color + ';box-shadow:0 0 16px ' + IDENTITY_ARCHETYPES[earlyIdentityKey].glow : 'border:1px solid var(--border)';
-  html +=
-    '<div style="background:var(--surface2);' + mpBorder + ';border-radius:14px;overflow:hidden">' +
-      '<div style="background:#3b82f6;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
-        '<span style="font-size:14px">🎮</span>' +
-        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Most Played</span>' +
-      '</div>' +
-      '<div style="padding:14px;display:flex;align-items:center;gap:12px">' +
-        mpCover +
-        '<div style="min-width:0">' +
-          '<div style="font-size:14px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (topGame ? escHtml(topGame.title) : '—') + '</div>' +
-          '<div style="font-size:22px;font-weight:900;color:#3b82f6;line-height:1.2;margin-top:4px">' + (topGame ? topGameHrs + 'h' : '') + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:2px">played</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  // Top Genre card — red/orange header, big text
-  var tgBorder = spotlightCard === 'topgenre' ? 'border:2px solid ' + IDENTITY_ARCHETYPES[earlyIdentityKey].color + ';box-shadow:0 0 16px ' + IDENTITY_ARCHETYPES[earlyIdentityKey].glow : 'border:1px solid var(--border)';
-  html +=
-    '<div style="background:var(--surface2);' + tgBorder + ';border-radius:14px;overflow:hidden">' +
-      '<div style="background:#ef4444;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
-        '<span style="font-size:14px">🔥</span>' +
-        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Top Genre</span>' +
-      '</div>' +
-      '<div style="padding:14px">' +
-        '<div style="font-size:22px;font-weight:900;color:#ef4444;line-height:1;margin-bottom:6px">' + (topGenre ? escHtml(topGenre[0]) : '—') + '</div>' +
-        '<div style="font-size:18px;font-weight:900;color:var(--text);line-height:1">' + (topGenre ? topGenre[1] : '') + '</div>' +
-        '<div style="font-size:10px;color:var(--text3);margin-top:4px">games added</div>' +
-      '</div>' +
-    '</div>';
-
-  // Hidden Gem — purple header, cover art
-  var hgCover = hiddenGem ? wCover(hiddenGem) : '';
-  html +=
-    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;overflow:hidden">' +
-      '<div style="background:#8b5cf6;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
-        '<span style="font-size:14px">💎</span>' +
-        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Hidden Gem</span>' +
-      '</div>' +
-      '<div style="padding:14px;display:flex;align-items:center;gap:12px">' +
-        hgCover +
-        '<div style="min-width:0">' +
-          '<div style="font-size:13px;font-weight:800;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + (hiddenGem ? escHtml(hiddenGem.title) : 'Rate more games') + '</div>' +
-          (hiddenGem ? '<div style="font-size:26px;font-weight:900;color:#8b5cf6;line-height:1.2;margin-top:4px">' + hiddenGem.userRating + '</div><div style="font-size:10px;color:var(--text3)">rating</div>' : '<div style="font-size:11px;color:var(--text3);margin-top:6px">to unlock</div>') +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  // Longest Session — green header, big time
-  var lsBorder = spotlightCard === 'longestsession' ? 'border:2px solid ' + IDENTITY_ARCHETYPES[earlyIdentityKey].color + ';box-shadow:0 0 16px ' + IDENTITY_ARCHETYPES[earlyIdentityKey].glow : 'border:1px solid var(--border)';
-  html +=
-    '<div style="background:var(--surface2);' + lsBorder + ';border-radius:14px;overflow:hidden">' +
-      '<div style="background:#10b981;padding:10px 14px;display:flex;align-items:center;gap:7px">' +
-        '<span style="font-size:14px">⏱</span>' +
-        '<span style="font-size:11px;font-weight:800;color:#fff;letter-spacing:0.5px">Longest Session</span>' +
-      '</div>' +
-      '<div style="padding:14px;display:flex;align-items:center;gap:10px">' +
-        '<div style="width:42px;height:42px;border-radius:50%;background:rgba(16,185,129,0.15);border:2px solid #10b981;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:18px">⏱</div>' +
-        '<div>' +
-          '<div style="font-size:22px;font-weight:900;color:#10b981;line-height:1">' + longestDur + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:3px">Longest single play session</div>' +
-        '</div>' +
-      '</div>' +
-    '</div>';
-
-  html += '</div>';
-
-  // ── Empty state ───────────────────────────────────────────────────────────
-  if (yearSessions.length === 0 && addedThisYear.length === 0) {
-    el.innerHTML =
-      '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:400px;text-align:center;padding:40px">' +
-        '<div style="font-size:48px;margin-bottom:16px">🎮</div>' +
-        '<div style="font-size:20px;font-weight:800;color:var(--text);margin-bottom:8px">No activity in Q' + quarter + ' ' + year + '</div>' +
-        '<div style="font-size:14px;color:var(--text3);max-width:320px;line-height:1.6">No sessions logged and no games added during ' + qLabels[quarter] + ' ' + year + '. Start playing to unlock your quarterly identity.</div>' +
-      '</div>';
-    return;
-  }
-
-  // ── Calculate & save identity ──────────────────────────────────────────────
-  // Build data object for personalized descriptions
-  var gameTime2 = {};
-  yearSessions.forEach(function(s) { gameTime2[s.gameId] = (gameTime2[s.gameId]||0) + s.seconds; });
-  var topGameId2    = Object.keys(gameTime2).sort(function(a,b){ return gameTime2[b]-gameTime2[a]; })[0];
-  var topGame2      = topGameId2 ? games.find(function(g){ return String(g.id) === String(topGameId2); }) : null;
-  var topGameHrs2   = topGame2 ? (gameTime2[topGameId2]/3600).toFixed(1) : 0;
-  var topGamePct2   = totalYearSecs > 0 ? Math.round(gameTime2[topGameId2||0] / totalYearSecs * 100) : 0;
-  var playedSet     = new Set(yearSessions.map(function(s){ return s.gameId; }));
-  var strategySecs2 = 0;
-  yearSessions.forEach(function(s) {
-    var g = s.game; if (!g) return;
-    var genre = ((g.genres && g.genres[0]) || g.genre || '').toLowerCase();
-    var tags  = (g.tags || []).map(function(t){ return t.toLowerCase(); });
-    if (genre.includes('strateg') || genre.includes('simulat') ||
-        tags.some(function(t){ return t.includes('strateg') || t.includes('simulat'); }))
-      strategySecs2 += s.seconds;
-  });
-
-  var descData = {
-    added:         addedThisYear.length,
-    completed:     completedThisYear.length,
-    hrs:           totalYearHrs,
-    topGame:       topGame2 ? topGame2.title : null,
-    topGameHrs:    topGameHrs2,
-    topGamePct:    topGamePct2,
-    sessions:      yearSessions.length,
-    genres:        Object.keys(Object.fromEntries(yearSessions.map(function(s){ return [(s.game && s.game.genres && s.game.genres[0]) || 'Other', 1]; }))).length,
-    gamesPlayed:   playedSet.size,
-    topGenre:      topGenre ? topGenre[0] : null,
-    topGenreCount: topGenre ? topGenre[1] : 0,
-    backlog:       backlogCount,
-    avgMins:       avgSessMins,
-    stratPct:      totalYearSecs > 0 ? (strategySecs2 / totalYearSecs * 100) : 0,
+  return {
+    year: year,
+    quarter: quarter,
+    qLabels: qLabels,
+    periodLabel: periodLabel,
+    added: added,
+    completed: completed,
+    sessions: sessions,
+    totalSecs: totalSecs,
+    totalHours: totalHours,
+    newPlayedCount: newPlayedCount,
+    backlogStartCount: backlogStartCount,
+    backlogCurrentCount: backlogCurrentCount,
+    netBacklogChange: netBacklogChange,
+    estimatedClearMonths: estimatedClearMonths,
+    estimatedClearLabel: estimatedClearLabel,
+    topGame: topGame,
+    topGameHours: topGameHours,
+    topGenre: topGenre,
+    longestSession: longestSession,
+    identityKey: identityKey,
+    identityMeta: identityMeta
   };
+}
 
-  var identityKey  = calculateIdentity(addedThisYear.length, completedThisYear.length, yearSessions, games);
-  var archetype    = IDENTITY_ARCHETYPES[identityKey];
-  await saveIdentityToHistory(year, quarter, identityKey);
-  var prevIdentityKey = await getPreviousIdentity(year, quarter);
-  var prevArchetype   = prevIdentityKey ? IDENTITY_ARCHETYPES[prevIdentityKey] : null;
+function renderIdentityHero(data) {
+  return (
+    '<section class="identity-hero">' +
 
-  // ── 3. LAYOUT: Backlog Reality Check left, Identity Card right ─────────────
-  var paceStr = yearsToFinish === null ? null
-    : yearsToFinish > 999 ? '7,000+ years'
-    : yearsToFinish > 100 ? yearsToFinish.toLocaleString() + ' years'
-    : yearsToFinish > 1   ? yearsToFinish + ' years'
-    : 'less than a year';
+      '<div class="identity-hero-kicker">Backlog Zero</div>' +
+      '<div class="identity-hero-title">Identity Report</div>' +
+      '<div class="identity-hero-subtitle">' + escHtml(data.periodLabel) + '</div>' +
 
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">';
-
-  // LEFT: Backlog Reality Check
-  var trendColor  = backlogNet > 0 ? '#f87171' : backlogNet < 0 ? '#4ade80' : 'var(--text2)';
-  var trendArrow  = backlogNet > 0 ? '▲' : backlogNet < 0 ? '▼' : '—';
-  var trendLabel  = backlogNet > 0 ? 'grew this quarter' : backlogNet < 0 ? 'shrank this quarter' : 'no change';
-
-  html +=
-    '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:16px;padding:20px;display:flex;flex-direction:column">' +
-      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">' +
-        '<span style="font-size:16px">⏳</span>' +
-        '<span style="font-size:14px;font-weight:800;color:var(--text)">Backlog Reality Check</span>' +
-      '</div>' +
-      // Row 1: two big stats
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">' +
-        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">' +
-          '<div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Games Waiting</div>' +
-          '<div style="font-size:34px;font-weight:900;color:#fb923c;line-height:1">' + backlogCount.toLocaleString() + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:4px">~' + Math.round(backlogHrsEst/10)*10 + 'h to clear</div>' +
+      '<div class="identity-hero-archetype">' +
+        '<div class="identity-archetype-badge">' +
+          escHtml(data.identityMeta.label || "Unknown") +
         '</div>' +
-        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">' +
-          '<div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">This Quarter</div>' +
-          '<div style="font-size:34px;font-weight:900;color:' + trendColor + ';line-height:1">' + trendArrow + ' ' + Math.abs(backlogNet) + '</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:4px">' + trendLabel + '</div>' +
+        '<div class="identity-archetype-desc">' +
+          escHtml(data.identityMeta.description || "Keep playing to reveal your identity pattern.") +
         '</div>' +
       '</div>' +
-      // Row 2: completion rate + pace
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px">' +
-        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">' +
-          '<div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Completion Rate</div>' +
-          '<div style="font-size:34px;font-weight:900;color:#a78bfa;line-height:1">' + completionRate + '%</div>' +
-          '<div style="font-size:10px;color:var(--text3);margin-top:4px">' + completedThisYear.length + ' of ' + playedThisQuarter + ' played</div>' +
+
+      '<div class="identity-hero-stats">' +
+
+        '<div class="identity-hero-stat">' +
+          '<strong>' + data.added.length + '</strong>' +
+          '<span>Added</span>' +
         '</div>' +
-        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">' +
-          '<div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">At Your Pace</div>' +
-          (paceStr
-            ? '<div style="font-size:20px;font-weight:900;color:#f87171;line-height:1.1;margin-bottom:4px">' + paceStr + '</div>' +
-              '<div style="font-size:10px;color:var(--text3)">to clear backlog</div>'
-            : '<div style="font-size:20px;font-weight:900;color:var(--text3);line-height:1.1">—</div>' +
-              '<div style="font-size:10px;color:var(--text3)">log sessions to unlock</div>') +
+
+        '<div class="identity-hero-stat">' +
+          '<strong>' + data.completed.length + '</strong>' +
+          '<span>Completed</span>' +
+        '</div>' +
+
+        '<div class="identity-hero-stat">' +
+          '<strong>' + data.totalHours.toFixed(1) + 'h</strong>' +
+          '<span>Played</span>' +
+        '</div>' +
+
+      '</div>' +
+
+    '</section>'
+  );
+}
+
+function renderIdentityHighlights(data) {
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Highlights</div>' +
+      '<div class="identity-highlights-grid">' +
+        renderIdentityHighlightCard('Most Played', data.topGame ? escHtml(data.topGame.title) : '—', data.topGame ? data.topGameHours.toFixed(1) + 'h' : 'No play data') +
+        renderIdentityHighlightCard('Top Genre', data.topGenre ? escHtml(data.topGenre[0]) : '—', data.topGenre ? data.topGenre[1] + ' added' : 'No genre signal') +
+        renderIdentityHighlightCard('Longest Session', data.longestSession ? formatIdentityDuration(data.longestSession.seconds) : '—', 'Single-session peak') +
+        renderIdentityHighlightCard('Quarter', 'Q' + data.quarter, escHtml(data.qLabels[data.quarter])) +
+      '</div>' +
+    '</section>'
+  );
+}
+
+function renderIdentityArchetype(data) {
+  return (
+    '<section class="identity-section identity-archetype">' +
+      '<div class="identity-section-title">Archetype</div>' +
+      '<div class="identity-archetype-name">' + escHtml(data.identityMeta.label || 'Unknown') + '</div>' +
+      '<div class="identity-archetype-copy">' + escHtml(data.identityMeta.description || 'Keep playing to reveal your identity pattern.') + '</div>' +
+    '</section>'
+  );
+}
+
+function renderIdentityTaste(data) {
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Taste Profile</div>' +
+      '<div class="identity-placeholder">Genre, platform, and collection taste modules go here.</div>' +
+    '</section>'
+  );
+}
+
+function renderIdentityPlayStyle(data) {
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Play Style</div>' +
+      '<div class="identity-placeholder">Session cadence, completion tendency, and behavior insights go here.</div>' +
+    '</section>'
+  );
+}
+
+function renderIdentitySupport(data) {
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Supporting Signals</div>' +
+      '<div class="identity-placeholder">Recent standouts, hidden gem, backlog pressure, and supporting narrative go here.</div>' +
+    '</section>'
+  );
+}
+
+function renderIdentityHighlightCard(label, value, meta) {
+  return (
+    '<div class="identity-highlight-card">' +
+      '<div class="identity-highlight-label">' + label + '</div>' +
+      '<div class="identity-highlight-value">' + value + '</div>' +
+      '<div class="identity-highlight-meta">' + meta + '</div>' +
+    '</div>'
+  );
+}
+
+function formatIdentityDuration(seconds) {
+  if (!seconds) return '—';
+  if (seconds >= 3600) return (seconds / 3600).toFixed(1) + 'h';
+  return Math.round(seconds / 60) + 'm';
+}
+
+function renderIdentityCard(data) {
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Identity Card</div>' +
+      '<div class="identity-card-shell">' +
+        '<div class="identity-card-avatar">' +
+          '<div class="identity-card-avatar-inner">' +
+            escHtml((data.identityMeta.label || 'Unknown').charAt(0)) +
+          '</div>' +
+        '</div>' +
+        '<div class="identity-card-copy">' +
+          '<div class="identity-card-name">' + escHtml(data.identityMeta.label || 'Unknown') + '</div>' +
+          '<div class="identity-card-desc">' +
+            escHtml(data.identityMeta.description || 'Keep playing to reveal your identity pattern.') +
+          '</div>' +
         '</div>' +
       '</div>' +
-      // Row 3: top 3 backlog genres
-      (top3BacklogGenres.length > 0 ?
-        '<div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px">' +
-          '<div style="font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Top Genres in Backlog</div>' +
-          '<div style="display:flex;flex-direction:column;gap:6px">' +
-            top3BacklogGenres.map(function(entry, i) {
-              var pct = backlogCount > 0 ? Math.round(entry[1] / backlogCount * 100) : 0;
-              var barColor = ['#fb923c','#a78bfa','#38bdf8'][i];
-              return '<div>' +
-                '<div style="display:flex;justify-content:space-between;margin-bottom:3px">' +
-                  '<span style="font-size:11px;color:var(--text2);font-weight:600">' + entry[0] + '</span>' +
-                  '<span style="font-size:11px;color:var(--text3)">' + entry[1].toLocaleString() + ' · ' + pct + '%</span>' +
-                '</div>' +
-                '<div style="height:3px;background:var(--border);border-radius:2px">' +
-                  '<div style="height:100%;width:' + pct + '%;background:' + barColor + ';border-radius:2px"></div>' +
-                '</div>' +
-              '</div>';
-            }).join('') +
-          '</div>' +
-        '</div>'
-      : '') +
-    '</div>';
+    '</section>'
+  );
+}
 
-  // RIGHT: Identity Card with reveal animation
-  var evidenceBullets = archetype.evidence(descData);
-  // Per-archetype object-position — centres the focal point of each image
-  var charFocus = {
-    collector:     'center center',
-    finisher:      'center center',
-    loyalist:      'center top',
-    explorer:      'center center',
-    sprinter:      'right center',
-    strategist:    'left center',
-    completionist: 'center top',
-    unknown:       'center center',
-  };
-  var focus = charFocus[identityKey] || 'center center';
+function renderIdentityBacklogOutlook(data) {
+  var changeLabel = data.netBacklogChange > 0
+    ? '+' + data.netBacklogChange
+    : String(data.netBacklogChange);
 
-  // ── Build JSON content contract (spec §10) ───────────────────────────────
-  var titleLen = archetype.title.replace(/\s/g,'').length;
-  var titleSize = titleLen <= 10 ? '52px' : titleLen <= 16 ? '46px' : titleLen <= 22 ? '40px' : '34px';
+  var paceCopy = data.estimatedClearMonths === null
+    ? 'No estimate yet — complete more games this period to establish a pace.'
+    : 'At your current pace, backlog zero is approximately ' + data.estimatedClearLabel + ' away.';
 
-  // Summary: 2–3 statement blocks, not a paragraph blob
-  var summaryLines = (function() {
-    var lines = [];
-    lines.push('You added <strong style="color:#fff">' + descData.added.toLocaleString() + ' games</strong> this quarter.');
-    if (parseFloat(descData.hrs) > 0) {
-      lines.push('You played <strong style="color:#fff">' + descData.hrs + 'h</strong> across <strong style="color:#fff">' + descData.sessions + ' sessions</strong>.');
-    } else {
-      lines.push('You played <strong style="color:rgba(255,255,255,0.5)">0.0h</strong> and completed <strong style="color:rgba(255,255,255,0.5)">' + descData.completed + '</strong> titles.');
-    }
-    var net = descData.added - descData.completed;
-    if (net > 0) lines.push('Your backlog grew by <strong style="color:' + archetype.color + '">' + net.toLocaleString() + '</strong> — but collecting is part of the ritual.');
-    else if (descData.completed > 0) lines.push('You finished <strong style="color:#4ade80">' + descData.completed + ' game' + (descData.completed !== 1 ? 's' : '') + '</strong> — the backlog shrank.');
-    return lines.slice(0, 3);
-  })();
+  return (
+    '<section class="identity-section">' +
+      '<div class="identity-section-title">Backlog Outlook</div>' +
 
-  // Stats module: 2×2 grid (spec §5D)
-  var statsModule = [
-    { label: 'ADDED',        value: descData.added.toLocaleString() },
-    { label: 'COMPLETED',    value: String(descData.completed) },
-    { label: 'HOURS PLAYED', value: descData.hrs + 'h' },
-    { label: 'BACKLOG SIZE', value: descData.backlog.toLocaleString() },
-  ];
+      '<div class="identity-highlights-grid">' +
+        renderIdentityHighlightCard('Backlog Start', String(data.backlogStartCount), 'At start of period') +
+        renderIdentityHighlightCard('Current Backlog', String(data.backlogCurrentCount), 'Where you are now') +
+        renderIdentityHighlightCard('Games Added', String(data.gamesAddedCount), 'Added this period') +
+        renderIdentityHighlightCard('New Games Played', String(data.newPlayedCount), 'Touched this period') +
+        renderIdentityHighlightCard('Games Completed', String(data.gamesCompletedCount), 'Finished this period') +
+        renderIdentityHighlightCard('Net Change', changeLabel, data.netBacklogChange > 0 ? 'Backlog grew' : data.netBacklogChange < 0 ? 'Backlog shrank' : 'No change') +
+      '</div>' +
 
-  // Insights: 3-row system readout (spec §5E)
-  var playPattern = descData.sessions === 0 ? 'No sessions yet'
-    : descData.avgMins < 30 ? 'Quick-burst sessions'
-    : descData.avgMins < 90 ? 'Mid-length sessions'
-    : 'Marathon sessions';
-  var backlogTrend = (descData.added - descData.completed) > 50 ? 'Rapid expansion'
-    : (descData.added - descData.completed) > 0 ? 'Gradual growth'
-    : (descData.added - descData.completed) < 0 ? 'Actively shrinking'
-    : 'Stable';
-  var insightRows = [
-    { label: 'PRIMARY GENRE', value: descData.topGenre ? descData.topGenre + ' · ' + descData.topGenreCount.toLocaleString() + ' titles' : '—' },
-    { label: 'PLAY PATTERN',  value: playPattern },
-    { label: 'BACKLOG TREND', value: backlogTrend },
-  ];
-
-  var cardId = 'identityCard_' + Date.now();
-  html +=
-    '<div id="' + cardId + '" style="' +
-      'background:linear-gradient(135deg,#0f1219 0%,#111827 100%);' +
-      'border-radius:14px;position:relative;overflow:hidden;' +
-      'border:1px solid rgba(255,255,255,0.09);' +
-      'opacity:0;transition:opacity 0.4s ease">' +
-
-      // Left identity bar — the only color element
-      '<div style="position:absolute;top:0;left:0;width:3px;height:100%;background:' + archetype.color + '"></div>' +
-
-      // Card layout: content left, emblem top-right
-      '<div style="display:flex;flex-direction:row;padding:22px 22px 20px 26px;gap:16px;box-sizing:border-box">' +
-
-        // CONTENT COLUMN
-        '<div style="flex:1;display:flex;flex-direction:column;min-width:0">' +
-
-          // Header: logo + report label — centered, treated as a proper header
-          '<div style="display:flex;flex-direction:column;align-items:center;gap:6px;margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid rgba(255,255,255,0.07)">' +
-            '<img src="' + IDENTITY_LOGO + '" style="width:140px;height:auto;pointer-events:none;mix-blend-mode:screen">' +
-            '<span style="font-size:10px;font-weight:700;color:rgba(255,255,255,0.35);letter-spacing:0.2em;text-transform:uppercase">Identity Report</span>' +
-          '</div>' +
-
-          // Identity title — archetype color, matches the logo accent
-          '<div style="font-size:' + titleSize + ';font-weight:900;color:' + archetype.color + ';line-height:0.92;letter-spacing:-0.025em;margin-bottom:16px">' +
-            archetype.title.toUpperCase() +
-          '</div>' +
-
-          // Summary — 2–3 statements, readable, not too bright
-          '<div style="display:flex;flex-direction:column;gap:4px;margin-bottom:18px">' +
-            summaryLines.map(function(line) {
-              return '<div style="font-size:12.5px;color:rgba(255,255,255,0.52);line-height:1.55">' + line + '</div>';
-            }).join('') +
-          '</div>' +
-
-          // Bullets — the reason for the identity
-          '<div style="display:flex;flex-direction:column;gap:5px;margin-bottom:18px">' +
-            evidenceBullets.map(function(b) {
-              return '<div style="display:flex;align-items:center;gap:8px">' +
-                '<div style="width:3px;height:3px;border-radius:50%;background:' + archetype.color + ';flex-shrink:0"></div>' +
-                '<span style="font-size:12px;color:rgba(255,255,255,0.5)">' + escHtml(b) + '</span>' +
-              '</div>';
-            }).join('') +
-          '</div>' +
-
-          // Period badge — document stamp, bottom of content
-          '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:auto">' +
-            '<div style="display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(255,255,255,0.13);border-radius:100px;padding:5px 13px">' +
-              '<div style="width:5px;height:5px;border-radius:50%;background:' + archetype.color + '"></div>' +
-              '<span style="font-size:10px;font-weight:600;color:rgba(255,255,255,0.5);letter-spacing:0.1em">' + qLabels[quarter].toUpperCase() + ' ' + year + '</span>' +
-            '</div>' +
-            (prevArchetype ?
-              '<span style="font-size:10px;color:rgba(255,255,255,0.18)">Last quarter: <span style="color:rgba(255,255,255,0.38);font-weight:600">' + prevArchetype.title + '</span></span>'
-            : '') +
-          '</div>' +
-
-        '</div>' + // end content column
-
-        // EMBLEM COLUMN — character as crest, top-right
-        '<div style="flex-shrink:0;width:160px;display:flex;flex-direction:column;align-items:center;padding-top:4px">' +
-          '<div style="width:148px;height:148px;border-radius:10px;overflow:hidden;' +
-            'border:1px solid rgba(255,255,255,0.07);' +
-            'background:#080c12;' +
-            'flex-shrink:0;position:relative">' +
-            '<img src="' + archetype.img + '" style="' +
-              'position:absolute;inset:-10%;width:120%;height:120%;' +
-              'object-fit:cover;object-position:center 15%;' +
-              'mix-blend-mode:screen;opacity:0.95" ' +
-              'onerror="this.parentElement.style.display:\'none\'">' +
-          '</div>' +
-          // Identity name below emblem — small label, like a crest caption
-          '<div style="margin-top:8px;font-size:9px;font-weight:700;color:rgba(255,255,255,0.2);letter-spacing:0.14em;text-transform:uppercase;text-align:center">' +
-            archetype.title +
-          '</div>' +
-        '</div>' + // end emblem column
-
-      '</div>' + // end row layout
-    '</div>';
-
-  html += '</div>'; // end two-col
-
-  el.innerHTML = html;
-
-  var card = document.getElementById(cardId);
-  if (card) requestAnimationFrame(function() { setTimeout(function() { card.style.opacity = '1'; }, 60); });
-
-  var exportBtn = document.getElementById('exportLibraryCard');
-  if (exportBtn) exportBtn.onclick = exportLibraryCard;
+      '<div class="identity-outlook-note">' + escHtml(paceCopy) + '</div>' +
+    '</section>'
+  );
 }
 
 function wrappedStatHero(val, label) {
