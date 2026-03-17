@@ -6135,6 +6135,73 @@ async function getPreviousIdentity(year, quarter) {
   } catch(e) { return null; }
 }
 
+function renderIdentityHighlightsRow(items) {
+  return (
+    '<div class="identity-highlights-row">' +
+      items.map(function(item) {
+        return (
+          '<div class="identity-highlight-pill">' +
+            '<div class="identity-highlight-label">' + item.label + '</div>' +
+            '<div class="identity-highlight-value">' + item.value + '</div>' +
+          '</div>'
+        );
+      }).join('') +
+    '</div>'
+  );
+}
+
+function renderBacklogRealityCheck(data) {
+  return (
+    '<div class="identity-module identity-reality-check">' +
+      '<div class="identity-module-header">' +
+        '<div class="identity-module-title">Backlog Reality Check</div>' +
+      '</div>' +
+
+      '<div class="identity-reality-copy">' +
+        'You added <strong>' + data.gamesAdded + '</strong> games this period and completed <strong>' + data.gamesCompleted + '</strong>. ' +
+        'Your backlog changed by <strong>' + data.backlogDelta + '</strong>.' +
+      '</div>' +
+
+      '<div class="identity-reality-grid">' +
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Backlog Growth</div>' +
+          '<div class="identity-reality-stat-value">' + data.backlogDelta + '</div>' +
+        '</div>' +
+
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Completion Rate</div>' +
+          '<div class="identity-reality-stat-value">' + data.completionRate + '%</div>' +
+        '</div>' +
+
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Top Genre</div>' +
+          '<div class="identity-reality-stat-value">' + data.topGenre + '</div>' +
+        '</div>' +
+
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Platforms Used</div>' +
+          '<div class="identity-reality-stat-value">' + data.platformCount + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function renderIdentityArchetypeModule(data) {
+  return (
+    '<div class="identity-archetype-module">' +
+      '<div class="identity-archetype-shell" style="background-image:url(\'' + data.template + '\')">' +
+        '<div class="identity-archetype-overlay"></div>' +
+        '<div class="identity-archetype-inner">' +
+          '<div class="identity-archetype-meta">Current Archetype</div>' +
+          '<div class="identity-archetype-name">' + data.identityName + '</div>' +
+          '<div class="identity-archetype-text">' + data.identitySummary + '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
 // ── END IDENTITY SYSTEM ──────────────────────────────────────────────────────
 
 async function renderWrappedPage() {
@@ -6143,6 +6210,15 @@ async function renderWrappedPage() {
 
   var yearSel = document.getElementById('wrappedYear');
   if (yearSel && !yearSel.dataset.bound) {
+    var currentYear = new Date().getFullYear();
+    yearSel.innerHTML = '';
+    for (var y = currentYear; y >= 2020; y--) {
+      var opt = document.createElement('option');
+      opt.value = y;
+      opt.textContent = y;
+      yearSel.appendChild(opt);
+    }
+    yearSel.value = String(currentYear);
     yearSel.dataset.bound = '1';
     yearSel.addEventListener('change', renderWrappedPage);
   }
@@ -6155,11 +6231,131 @@ async function renderWrappedPage() {
 
   var data = await buildIdentityData();
 
+  var highlights = [
+    { label: 'Top Genre', value: data.topGenre ? data.topGenre[0] : '—' },
+    { label: 'Top Platform', value: data.topPlatform || '—' },
+    { label: 'Longest Session', value: data.longestSession ? formatIdentityDuration(data.longestSession.seconds) : '—' },
+    { label: 'Favorite Game', value: data.topGame ? data.topGame.title : '—' }
+  ];
+
+  var completionRate = data.added.length > 0
+    ? Math.round((data.completed.length / data.added.length) * 100)
+    : 0;
+
+  var backlogRealityData = {
+    gamesAdded: data.added.length,
+    gamesCompleted: data.completed.length,
+    backlogDelta: data.netBacklogChange,
+    completionRate: completionRate,
+    topGenre: data.topGenre ? data.topGenre[0] : '—',
+    platformCount: data.platformCount || 0
+  };
+
+  var archetypeVisual = data.identityMeta || {};
+  var archetypeBg = archetypeVisual.template || archetypeVisual.bg || '';
+  var archetypeArt = archetypeVisual.image || '';
+
   el.innerHTML =
-    renderIdentityHero(data) +
-    renderIdentityHighlights(data) +
-    renderIdentityCard(data) +
-    renderIdentityBacklogOutlook(data);
+    '<div class="identity-page-layout">' +
+
+            '<div class="identity-top-band">' +
+        '<div class="identity-report-hero">' +
+
+          '<div class="identity-report-eyebrow">Backlog Zero · Identity Report</div>' +
+
+          '<div class="identity-report-main">' +
+            '<div class="identity-report-copy">' +
+
+              '<div class="identity-report-title">' + escHtml(archetypeVisual.label || 'Unknown') + '</div>' +
+              '<div class="identity-report-period">' + escHtml(data.periodLabel || 'Q1 2026 · Jan–Mar') + '</div>' +
+
+              '<div class="identity-report-summary">' +
+                escHtml(archetypeVisual.description || 'Keep playing to reveal your identity pattern.') +
+              '</div>' +
+
+              '<div class="identity-report-stats">' +
+                '<div class="identity-report-stat">' +
+                  '<div class="identity-report-stat-value">' + data.added.length + '</div>' +
+                  '<div class="identity-report-stat-label">Added</div>' +
+                '</div>' +
+
+                '<div class="identity-report-stat">' +
+                  '<div class="identity-report-stat-value">' + data.completed.length + '</div>' +
+                  '<div class="identity-report-stat-label">Completed</div>' +
+                '</div>' +
+
+                '<div class="identity-report-stat">' +
+                  '<div class="identity-report-stat-value">' + ((typeof data.totalHours === "number" ? data.totalHours.toFixed(1) : data.totalHours) || 0) + 'h</div>' +
+                  '<div class="identity-report-stat-label">Played</div>' +
+                '</div>' +
+              '</div>' +
+
+            '</div>' +
+
+            '<div class="identity-report-visual"></div>' +
+          '</div>' +
+
+        '</div>' +
+      '</div>' +
+
+      '<div class="identity-middle-band">' +
+        renderIdentityHighlightsRow(highlights) +
+      '</div>' +
+
+      '<div class="identity-bottom-band">' +
+
+        '<div class="identity-bottom-left">' +
+          renderBacklogRealityCheck(backlogRealityData) +
+        '</div>' +
+
+        '<div class="identity-bottom-right">' +
+          '<div class="identity-archetype-module">' +
+            '<div class="identity-archetype-shell"' +
+              (archetypeBg ? ' style="background:' + archetypeBg + ';"' : '') +
+            '>' +
+
+              (archetypeVisual && archetypeVisual.img
+                ? '<img src="' + archetypeVisual.img + '" class="identity-archetype-art" alt="' + escHtml(archetypeVisual.title || "Unknown") + '">'
+                : '') +
+
+              '<div class="identity-archetype-overlay"></div>' +
+
+              '<div class="identity-archetype-inner">' +
+                '<div class="identity-archetype-meta">Current Archetype</div>' +
+                '<div class="identity-archetype-name">' + escHtml(archetypeVisual.title || 'Identity Unknown') + '</div>' +
+                '<div class="identity-archetype-text">' +
+                  (archetypeVisual && typeof archetypeVisual.desc === 'function'
+                    ? archetypeVisual.desc({
+                        added: data.added.length,
+                        completed: data.completed.length,
+                        hrs: Math.round(data.totalHours * 10) / 10,
+                        backlog: data.backlogCurrentCount,
+                        sessions: data.sessions.length,
+                        genres: data.topGenre ? 1 : 0,
+                        gamesPlayed: data.sessions.length,
+                        topGame: data.topGame ? data.topGame.title : null,
+                        topGameHrs: data.topGameHours || 0,
+                        topGamePct: data.totalHours > 0 && data.topGameHours > 0
+                          ? Math.round((data.topGameHours / data.totalHours) * 100)
+                          : 0,
+                        topGenre: data.topGenre ? data.topGenre[0] : null,
+                        topGenreCount: data.topGenre ? data.topGenre[1] : 0,
+                        avgMins: data.sessions.length > 0
+                          ? Math.round((data.totalSecs / data.sessions.length) / 60)
+                          : 0,
+                        stratPct: 0
+                      })
+                    : 'Keep playing to reveal your identity pattern.') +
+                '</div>' +
+              '</div>' +
+
+            '</div>' +
+          '</div>' +
+        '</div>' +
+
+      '</div>' +
+
+    '</div>';
 }
 
 async function buildIdentityData() {
@@ -6264,6 +6460,21 @@ async function buildIdentityData() {
     return s.seconds > (best ? best.seconds : 0) ? s : best;
   }, null);
 
+  var platformCounts = {};
+  games.forEach(function(g) {
+    (g.platforms || []).forEach(function(p) {
+      if (!p || p === 'gamepass') return;
+      platformCounts[p] = (platformCounts[p] || 0) + 1;
+    });
+  });
+
+  var topPlatformKey = Object.keys(platformCounts).sort(function(a, b) {
+    return platformCounts[b] - platformCounts[a];
+  })[0] || '';
+
+  var topPlatform = topPlatformKey ? (PLAT_LABEL[topPlatformKey] || topPlatformKey) : '—';
+  var platformCount = Object.keys(platformCounts).length;
+
   var identityKey = calculateIdentity(added.length, completed.length, sessions, games);
   var identityMeta = IDENTITY_ARCHETYPES[identityKey] || IDENTITY_ARCHETYPES.unknown;
 
@@ -6286,10 +6497,14 @@ async function buildIdentityData() {
     topGame: topGame,
     topGameHours: topGameHours,
     topGenre: topGenre,
+    topPlatform: topPlatform,
+    platformCount: platformCount,
     longestSession: longestSession,
     identityKey: identityKey,
     identityMeta: identityMeta
   };
+
+  var totalHours = 0; 
 }
 
 function renderIdentityHero(data) {
@@ -6389,6 +6604,21 @@ function renderIdentityHighlightCard(label, value, meta) {
       '<div class="identity-highlight-label">' + label + '</div>' +
       '<div class="identity-highlight-value">' + value + '</div>' +
       '<div class="identity-highlight-meta">' + meta + '</div>' +
+    '</div>'
+  );
+}
+
+function renderIdentityHighlightsRow(items) {
+  return (
+    '<div class="identity-highlights-row">' +
+      items.map(function(item) {
+        return (
+          '<div class="identity-highlight-pill">' +
+            '<div class="identity-highlight-label">' + escHtml(item.label) + '</div>' +
+            '<div class="identity-highlight-value">' + escHtml(item.value) + '</div>' +
+          '</div>'
+        );
+      }).join('') +
     '</div>'
   );
 }
