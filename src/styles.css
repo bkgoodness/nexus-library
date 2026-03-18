@@ -149,6 +149,11 @@ body.light-mode .left-panel-label { color: var(--text3); }
 body.light-mode .left-panel-desc { color: var(--text2); }
 body.light-mode .mc-panel { background-color: var(--surface3); border-color: var(--border2); }
 
+body.light-mode .identity-report-watermark-logo {
+  opacity: 0.03;
+  filter: grayscale(100%) brightness(0.6) contrast(0.9);
+}
+
 html, body { height: 100%; overflow: hidden; }
 body {
   background: var(--bg);
@@ -2381,19 +2386,81 @@ body.accessible-mode .filter-chip.active {
    TOP IDENTITY REPORT HERO
 ───────────────────────────────────────────────────────────── */
 
-.identity-report-hero {
-  background:
-    radial-gradient(circle at 78% 22%, rgba(91,163,245,0.10), transparent 34%),
-    linear-gradient(135deg, #131a2d 0%, #1a2239 52%, #2a3248 100%);
-  border: 1px solid var(--border);
-  border-radius: 22px;
-  padding: 18px 22px 16px;
-  height: 100%;
+.identity-report-watermark {
+  position: absolute;
+  top: 18px;
+  right: 28px;
+  bottom: 18px;
+  width: 42%;
+  pointer-events: none;
+  z-index: 0;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
-  position: relative;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+.identity-report-watermark-logo {
+  position: absolute;
+  right: -40px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 420px;
+  height: auto;
+  opacity: 0.06;
+  filter: grayscale(100%) brightness(1.25) contrast(0.95);
+  pointer-events: none;
+  user-select: none;
+}
+
+.identity-report-watermark-equation {
+  margin-top: 8px;
+  margin-right: 22px;
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 1.8px;
+  color: rgba(255,255,255,0.08);
+  user-select: none;
+}
+
+@media (max-width: 1320px) {
+  .identity-report-watermark {
+    width: 36%;
+    right: 20px;
+  }
+
+  .identity-report-watermark-logo {
+  width: 260px;
+}
+
+  .identity-report-watermark-equation {
+    font-size: 15px;
+    margin-right: 12px;
+  }
+
+  .identity-report-copy {
+    max-width: 64%;
+  }
+}
+
+@media (max-width: 1080px) {
+  .identity-report-watermark {
+    opacity: 0.7;
+    width: 32%;
+  }
+
+  .identity-report-watermark-logo {
+  width: 220px;
+}
+
+  .identity-report-watermark-equation {
+    font-size: 13px;
+    letter-spacing: 1.3px;
+  }
+
+  .identity-report-copy {
+    max-width: 70%;
+  }
 }
 
 .identity-report-hero::after {
@@ -2432,6 +2499,9 @@ body.accessible-mode .filter-chip.active {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: relative;
+  z-index: 1;
+  max-width: 58%;
 }
 
 .identity-report-title {
@@ -2484,18 +2554,7 @@ body.accessible-mode .filter-chip.active {
   text-transform: uppercase;
   color: rgba(255,255,255,0.50);
 }
-
-.identity-report-visual {
-  border-radius: 18px;
-  min-height: 100%;
-  background:
-    radial-gradient(circle at 65% 35%, rgba(91,163,245,0.18), transparent 30%),
-    radial-gradient(circle at 78% 58%, rgba(255,255,255,0.06), transparent 18%),
-    linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
-  border: 1px solid rgba(255,255,255,0.04);
-  opacity: 0.9;
-}
-
+  
 @media (max-width: 1200px) {
   .identity-report-main {
     grid-template-columns: 1fr;
@@ -2799,4 +2858,9 @@ body.accessible-mode .filter-chip.active {
   .identity-reality-grid {
     grid-template-columns: 1fr;
   }
+}
+
+body.light-mode .identity-report-watermark-logo {
+  opacity: 0.03;
+  filter: grayscale(100%) brightness(0.6) contrast(0.9);
 }

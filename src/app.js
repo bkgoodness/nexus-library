@@ -6264,6 +6264,11 @@ async function renderWrappedPage() {
           '<div class="identity-report-eyebrow">Backlog Zero · Identity Report</div>' +
 
           '<div class="identity-report-main">' +
+            '<div class="identity-report-watermark">' +
+              '<img src="./bz_logo_circle.svg" class="identity-report-watermark-logo" alt="Backlog Zero">' +
+              '<div class="identity-report-watermark-equation">B + Z = 0</div>' +
+            '</div>' +
+
             '<div class="identity-report-copy">' +
 
               '<div class="identity-report-title">' + escHtml(archetypeVisual.label || 'Unknown') + '</div>' +
