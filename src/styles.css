@@ -2400,7 +2400,7 @@ body.accessible-mode .filter-chip.active {
 
 .identity-bottom-band {
   display: grid;
-  grid-template-columns: minmax(320px, 0.88fr) minmax(500px, 1.12fr);
+  grid-template-columns: minmax(320px, 0.88fr) minmax(500px, 1.fr);
   gap: 16px;
   align-items: start;
   margin-top: 18px;
