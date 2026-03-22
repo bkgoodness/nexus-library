@@ -6300,6 +6300,114 @@ function renderIdentityArchetypeModule(data) {
   );
 }
 
+// ── 5.5 Archetype Modal System ────────────────────────────────
+// Full-size archetype card modal
+// This is the expanded version of the embedded archetype preview.
+
+function renderIdentityCardModal(data) {
+  var evidence = (data.identityEvidence || []).slice(0, 3);
+
+  return (
+    '<div id="identityCardModal" class="identity-card-modal" aria-hidden="true">' +
+      '<div class="identity-card-modal-backdrop"></div>' +
+      '<div class="identity-card-modal-dialog" role="dialog" aria-modal="true" aria-labelledby="identityCardTitle">' +
+        '<button type="button" class="identity-card-modal-close" id="identityCardCloseBtn" aria-label="Close Identity Card">×</button>' +
+
+        '<div class="identity-card-full" style="background:' + (data.identityBg || 'linear-gradient(150deg,#061420 0%,#0a2030 50%,#072535 100%)') + ';">' +
+          '<div class="identity-card-full-header">BACKLOG ZERO • IDENTITY CLASSIFICATION</div>' +
+
+          '<div class="identity-card-full-body">' +
+            '<div class="identity-card-full-copy">' +
+              '<div id="identityCardTitle" class="identity-card-full-title">' + escHtml((data.identityName || 'Identity Unknown').toUpperCase()) + '</div>' +
+
+              '<div id="identityCardNarrative" class="identity-card-full-narrative">' +
+                (data.identitySummary || '') +
+              '</div>' +
+
+              '<div class="identity-card-full-basis-label">CLASSIFICATION BASIS</div>' +
+              '<div id="identityCardEvidence" class="identity-card-full-basis">' +
+                evidence.map(function(line) {
+                  return '<div class="identity-card-full-basis-line">• ' + escHtml(line) + '</div>';
+                }).join('') +
+              '</div>' +
+            '</div>' +
+
+            '<div class="identity-card-full-visual">' +
+              '<div class="identity-card-full-visual-frame">' +
+                '<img id="identityCardImage" class="identity-card-full-image" src="' + data.identityImage + '" alt="' + escHtml(data.identityName || 'Archetype') + '">' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+
+          '<div class="identity-card-full-footer">' +
+            '<div id="identityCardQuarter" class="identity-card-full-quarter">' + escHtml(data.periodLabel || 'Q1 2026') + '</div>' +
+            '<div class="identity-card-full-status">Classification Confirmed</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>'
+  );
+}
+
+function openIdentityCardModal() {
+  var modal = document.getElementById('identityCardModal');
+  if (!modal) return;
+  modal.classList.add('is-open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closeIdentityCardModal() {
+  var modal = document.getElementById('identityCardModal');
+  if (!modal) return;
+  modal.classList.remove('is-open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function bindIdentityCardModal() {
+  var modal = document.getElementById('identityCardModal');
+  var openBtn = document.getElementById('identityCardOpenBtn');
+  var closeBtn = document.getElementById('identityCardCloseBtn');
+  var card = document.querySelector('.identity-archetype-module');
+
+  if (openBtn && !openBtn.dataset.bound) {
+    openBtn.dataset.bound = '1';
+    openBtn.addEventListener('click', function(e) {
+      e.stopPropagation();
+      openIdentityCardModal();
+    });
+  }
+
+  if (card && !card.dataset.bound) {
+    card.dataset.bound = '1';
+    card.style.cursor = 'pointer';
+    card.addEventListener('click', openIdentityCardModal);
+  }
+
+  if (closeBtn && !closeBtn.dataset.bound) {
+    closeBtn.dataset.bound = '1';
+    closeBtn.addEventListener('click', closeIdentityCardModal);
+  }
+
+  if (modal && !modal.dataset.bound) {
+    modal.dataset.bound = '1';
+    modal.addEventListener('click', function(e) {
+      if (
+        e.target.classList.contains('identity-card-modal-backdrop') ||
+        e.target === modal
+      ) {
+        closeIdentityCardModal();
+      }
+    });
+  }
+
+  if (!document.body.dataset.identityEscBound) {
+    document.body.dataset.identityEscBound = '1';
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape') closeIdentityCardModal();
+    });
+  }
+}
+
 // ── REPORT NOTES LOGIC ──────────────────────────────────────────────────────
 
 function getPreviousQuarterInfo(year, quarterIndex) {
@@ -6621,6 +6729,7 @@ async function renderWrappedPage() {
                 '<div class="identity-archetype-meta">Current Archetype</div>' +
                 '<div class="identity-archetype-name">' + escHtml(archetypeVisual.title || 'Identity Unknown') + '</div>' +
                 '<div class="identity-archetype-text">' +
+                '<button type="button" class="identity-card-open-btn" id="identityCardOpenBtn">View Full Identity Card</button>' +
                   (archetypeVisual && typeof archetypeVisual.desc === 'function'
                     ? archetypeVisual.desc({
                         added: data.added.length,
