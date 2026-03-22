@@ -6158,14 +6158,14 @@ function renderBacklogRealityCheck(data) {
       '</div>' +
 
       '<div class="identity-reality-copy">' +
-        'You added <strong>' + data.gamesAdded + '</strong> games this period and completed <strong>' + data.gamesCompleted + '</strong>. ' +
-        'Your backlog changed by <strong>' + data.backlogDelta + '</strong>.' +
+        'A compact view of how your library changed this period.' +
       '</div>' +
 
       '<div class="identity-reality-grid">' +
+
         '<div class="identity-reality-stat">' +
           '<div class="identity-reality-stat-label">Backlog Growth</div>' +
-          '<div class="identity-reality-stat-value">' + data.backlogDelta + '</div>' +
+          '<div class="identity-reality-stat-value">' + (data.backlogGrowth > 0 ? '+' : '') + data.backlogGrowth + '</div>' +
         '</div>' +
 
         '<div class="identity-reality-stat">' +
@@ -6179,9 +6179,20 @@ function renderBacklogRealityCheck(data) {
         '</div>' +
 
         '<div class="identity-reality-stat">' +
-          '<div class="identity-reality-stat-label">Platforms Used</div>' +
-          '<div class="identity-reality-stat-value">' + data.platformCount + '</div>' +
+          '<div class="identity-reality-stat-label">Top Platform</div>' +
+          '<div class="identity-reality-stat-value">' + data.topPlatform + '</div>' +
         '</div>' +
+
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Longest Session</div>' +
+          '<div class="identity-reality-stat-value">' + data.longestSession + '</div>' +
+        '</div>' +
+
+        '<div class="identity-reality-stat">' +
+          '<div class="identity-reality-stat-label">Library Change</div>' +
+          '<div class="identity-reality-stat-value">' + (data.libraryChange > 0 ? '+' : '') + data.libraryChange + '</div>' +
+        '</div>' +
+
       '</div>' +
     '</div>'
   );
@@ -6200,6 +6211,182 @@ function renderIdentityArchetypeModule(data) {
       '</div>' +
     '</div>'
   );
+}
+
+// ── REPORT NOTES LOGIC ──────────────────────────────────────────────────────
+
+function getPreviousQuarterInfo(year, quarterIndex) {
+  if (quarterIndex <= 0) {
+    return { year: year - 1, quarterIndex: 3 };
+  }
+  return { year: year, quarterIndex: quarterIndex - 1 };
+}
+
+function buildIdentityDataForPeriod(year, quarterIndex) {
+  var startMonth = quarterIndex * 3;
+  var start = new Date(year, startMonth, 1);
+  var end = new Date(year, startMonth + 3, 1);
+
+  var added = games.filter(function(g) {
+    if (!g.addedAt) return false;
+    var d = new Date(g.addedAt);
+    return d >= start && d < end;
+  });
+
+  var completed = games.filter(function(g) {
+    if (g.status !== 'finished' || !g.lastPlayedAt) return false;
+    var d = new Date(g.lastPlayedAt);
+    return d >= start && d < end;
+  });
+
+  var sessions = [];
+  games.forEach(function(g) {
+    (g.sessions || []).forEach(function(s) {
+      if (!s || !s.startedAt) return;
+      var d = new Date(s.startedAt);
+      if (d >= start && d < end) {
+        sessions.push({
+          gameId: g.id,
+          title: g.title,
+          platform: g.platform,
+          genre: g.genre || null,
+          seconds: s.seconds || 0,
+          startedAt: s.startedAt
+        });
+      }
+    });
+  });
+
+  var totalSecs = sessions.reduce(function(sum, s) {
+    return sum + (s.seconds || 0);
+  }, 0);
+
+  return {
+    addedCount: added.length,
+    completedCount: completed.length,
+    sessionsCount: sessions.length,
+    totalHours: totalSecs / 3600,
+    netBacklogChange: added.length - completed.length
+  };
+}
+
+function buildIdentityReportNotes(data, previousPeriodData) {
+  var notes = [];
+
+  var addedCount = data.added ? data.added.length : 0;
+  var completedCount = data.completed ? data.completed.length : 0;
+  var sessionsCount = data.sessions ? data.sessions.length : 0;
+  var totalHours = typeof data.totalHours === 'number' ? data.totalHours : 0;
+  var completionRate = addedCount > 0
+    ? Math.round((completedCount / addedCount) * 100)
+    : 0;
+
+  var longestSessionText = data.longestSession
+    ? formatIdentityDuration(data.longestSession.seconds)
+    : null;
+
+  var topGenreName = data.topGenre ? data.topGenre[0] : null;
+  var topGenreCount = data.topGenre ? data.topGenre[1] : 0;
+
+// 1. Backlog / acquisition behavior
+if (data.netBacklogChange > 0) {
+  var backlogLine =
+    'Acquisition continues to outpace completion, with backlog expanding by +' +
+    data.netBacklogChange + ' this period.';
+
+  if (previousPeriodData && previousPeriodData.netBacklogChange !== null) {
+    if (data.netBacklogChange > previousPeriodData.netBacklogChange) {
+      backlogLine =
+        'Backlog growth has accelerated versus last period, reinforcing a collection-driven pattern.';
+    } else if (data.netBacklogChange < previousPeriodData.netBacklogChange) {
+      backlogLine =
+        'Backlog growth has slowed versus last period, though acquisition still exceeds completion.';
+    }
+  }
+
+  notes.push(backlogLine);
+
+} else if (data.netBacklogChange < 0) {
+
+  notes.push(
+    'Completion has outpaced acquisition, reducing backlog pressure by ' +
+    Math.abs(data.netBacklogChange) + ' this period.'
+  );
+
+} else {
+
+  notes.push(
+    'Backlog movement remains stable, with acquisition and completion roughly balanced.'
+  );
+}
+
+  // 2. Completion behavior
+if (completionRate === 0 && addedCount > 0) {
+  notes.push(
+    'No newly added titles were completed, indicating continued backlog expansion without reduction.'
+  );
+} else if (completionRate >= 50) {
+  notes.push(
+    'Completion efficiency is strong, with ' + completionRate +
+    '% of added titles reaching completion.'
+  );
+} else {
+  var completionLine =
+    'Completion activity remains limited, with only ' + completionRate +
+    '% of newly added titles completed.';
+  if (previousPeriodData && previousPeriodData.addedCount > 0) {
+    var prevRate = Math.round(
+      (previousPeriodData.completedCount / previousPeriodData.addedCount) * 100
+    );
+
+    if (completionRate > prevRate) {
+      completionLine =
+        'Completion efficiency has improved versus last period, indicating increased follow-through.';
+    } else if (completionRate < prevRate) {
+      completionLine =
+        'Completion efficiency has declined versus last period, suggesting reduced progression through the backlog.';
+    }
+  }
+
+  notes.push(completionLine);
+}
+
+
+  // 3. Engagement / session behavior
+  if (sessionsCount === 0 || totalHours === 0) {
+    notes.push(
+      'Recorded play activity is minimal, and identity signals are still forming.'
+    );
+  } else if (totalHours < 5) {
+    notes.push(
+      'Playtime remains limited at ' + totalHours.toFixed(1) +
+      ' hours, indicating lower engagement relative to library growth.'
+    );
+  } else if (longestSessionText) {
+    notes.push(
+      'Session patterns indicate focused engagement, with peak sessions reaching ' +
+      longestSessionText + '.'
+    );
+  }
+
+  // 4. Platform concentration
+  if (data.topPlatform) {
+    notes.push(
+      'Platform usage is heavily concentrated on ' + data.topPlatform +
+    ', with limited distribution across other systems.'
+    );
+  }
+
+  // 5. Genre tendency
+  if (topGenreName) {
+    notes.push(
+      'Genre preference is currently centered around ' + topGenreName +
+    (topGenreCount > 0 ? ', appearing most frequently in recent activity.' : '.')
+    );
+  }
+
+  // prioritize stronger signals first
+return notes.slice(0, Math.min(3, notes.length));
 }
 
 // ── END IDENTITY SYSTEM ──────────────────────────────────────────────────────
@@ -6231,25 +6418,28 @@ async function renderWrappedPage() {
 
   var data = await buildIdentityData();
 
-  var highlights = [
-    { label: 'Top Genre', value: data.topGenre ? data.topGenre[0] : '—' },
-    { label: 'Top Platform', value: data.topPlatform || '—' },
-    { label: 'Longest Session', value: data.longestSession ? formatIdentityDuration(data.longestSession.seconds) : '—' },
-    { label: 'Favorite Game', value: data.topGame ? data.topGame.title : '—' }
-  ];
+  var selectedYear = parseInt((yearSel && yearSel.value) || new Date().getFullYear(), 10);
+  var selectedQuarterIndex = parseInt((quarterSel && quarterSel.value) || 1, 10);
+
+  var prevInfo = getPreviousQuarterInfo(selectedYear, selectedQuarterIndex);
+  var previousPeriodData = buildIdentityDataForPeriod(prevInfo.year, prevInfo.quarterIndex);
+
+  var reportNotes = buildIdentityReportNotes(data, previousPeriodData);
 
   var completionRate = data.added.length > 0
     ? Math.round((data.completed.length / data.added.length) * 100)
     : 0;
 
   var backlogRealityData = {
-    gamesAdded: data.added.length,
-    gamesCompleted: data.completed.length,
-    backlogDelta: data.netBacklogChange,
-    completionRate: completionRate,
-    topGenre: data.topGenre ? data.topGenre[0] : '—',
-    platformCount: data.platformCount || 0
-  };
+  backlogGrowth: data.netBacklogChange,
+  completionRate: completionRate,
+  topGenre: data.topGenre ? data.topGenre[0] : '—',
+  topPlatform: data.topPlatform || '—',
+  longestSession: data.longestSession
+    ? formatIdentityDuration(data.longestSession.seconds)
+    : '—',
+  libraryChange: data.added.length
+};
 
   var archetypeVisual = data.identityMeta || {};
   var archetypeBg = archetypeVisual.template || archetypeVisual.bg || '';
@@ -6258,40 +6448,46 @@ async function renderWrappedPage() {
   el.innerHTML =
     '<div class="identity-page-layout">' +
 
+      '<div class="identity-page-watermark">' +
+        '<img src="./bz_logo_full.svg" class="identity-page-watermark-full" alt="Backlog Zero">' +
+      '</div>' +
+
             '<div class="identity-top-band">' +
         '<div class="identity-report-hero">' +
 
           '<div class="identity-report-eyebrow">Backlog Zero · Identity Report</div>' +
 
           '<div class="identity-report-main">' +
-            '<div class="identity-report-watermark">' +
-              '<img src="./bz_logo_circle.svg" class="identity-report-watermark-logo" alt="Backlog Zero">' +
-              '<div class="identity-report-watermark-equation">B + Z = 0</div>' +
-            '</div>' +
-
+            
             '<div class="identity-report-copy">' +
 
-              '<div class="identity-report-title">' + escHtml(archetypeVisual.label || 'Unknown') + '</div>' +
-              '<div class="identity-report-period">' + escHtml(data.periodLabel || 'Q1 2026 · Jan–Mar') + '</div>' +
-
-              '<div class="identity-report-summary">' +
-                escHtml(archetypeVisual.description || 'Keep playing to reveal your identity pattern.') +
+              '<div class="identity-report-title-row">' +
+                '<div class="identity-report-title">Identity Unknown</div>' +
               '</div>' +
 
-              '<div class="identity-report-stats">' +
-                '<div class="identity-report-stat">' +
-                  '<div class="identity-report-stat-value">' + data.added.length + '</div>' +
-                  '<div class="identity-report-stat-label">Added</div>' +
+              '<div class="identity-report-meta-block">' +
+                '<div class="identity-report-meta-line">' +
+                  '<span class="identity-report-meta-key">Period</span>' +
+                  '<span class="identity-report-meta-val">' + escHtml(data.periodLabel || 'Q1 2026 · Jan–Mar') + '</span>' +
                 '</div>' +
 
-                '<div class="identity-report-stat">' +
-                  '<div class="identity-report-stat-value">' + data.completed.length + '</div>' +
-                  '<div class="identity-report-stat-label">Completed</div>' +
+                '<div class="identity-report-meta-line">' +
+                  '<span class="identity-report-meta-key">Status</span>' +
+                  '<span class="identity-report-meta-val">Identity still forming</span>' +
                 '</div>' +
 
-                '<div class="identity-report-stat">' +
-                  '<div class="identity-report-stat-value">' + ((typeof data.totalHours === "number" ? data.totalHours.toFixed(1) : data.totalHours) || 0) + 'h</div>' +
-                  '<div class="identity-report-stat-label">Played</div>' +
+                '<div class="identity-report-meta-line">' +
+                  '<span class="identity-report-meta-key">Classification</span>' +
+                  '<span class="identity-report-meta-val">Pending</span>' +
+                '</div>' +
+              '</div>' +
+
+              '<div class="identity-report-notes">' +
+                '<div class="identity-report-notes-label">Report Notes</div>' +
+                '<div class="identity-report-notes-list">' +
+                  reportNotes.map(function(note) {
+                    return '<div class="identity-report-note-item">' + escHtml(note) + '</div>';
+                  }).join('') +
                 '</div>' +
               '</div>' +
 
@@ -6303,9 +6499,7 @@ async function renderWrappedPage() {
         '</div>' +
       '</div>' +
 
-      '<div class="identity-middle-band">' +
-        renderIdentityHighlightsRow(highlights) +
-      '</div>' +
+ 
 
       '<div class="identity-bottom-band">' +
 
