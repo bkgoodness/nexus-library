@@ -3013,3 +3013,207 @@ html, body {
     right: -110px;
   }
 }
+
+/* ── Identity Card Modal ───────────────────────── */
+
+.identity-card-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: none;
+}
+
+.identity-card-modal.active {
+  display: block;
+}
+
+/* Backdrop */
+
+.identity-card-modal-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 18, 0.75);
+  backdrop-filter: blur(6px);
+}
+
+/* Dialog container */
+
+.identity-card-modal-dialog {
+  position: relative;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Close button */
+
+.identity-card-modal-close {
+  position: absolute;
+  top: 24px;
+  right: 28px;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+
+.identity-card-modal-close:hover {
+  opacity: 1;
+}
+
+/* Full card */
+
+/* Full card */
+
+.identity-card-full {
+  position: relative;
+  width: 920px;
+  height: 520px;
+  border-radius: 20px;
+  overflow: hidden;
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255,255,255,0.05);
+  display: flex;
+  flex-direction: column;
+}
+
+.identity-card-full::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    rgba(6,20,32,0.85) 0%,
+    rgba(6,20,32,0.65) 40%,
+    rgba(6,20,32,0.2) 70%,
+    rgba(6,20,32,0) 100%
+  );
+  pointer-events: none;
+}
+
+/* Header */
+
+.identity-card-full-header {
+  position: relative;
+  z-index: 1;
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: 0.5;
+  padding: 20px 28px;
+}
+
+/* Body layout */
+
+.identity-card-full-body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 40px;
+  padding: 40px 44px;
+  flex: 1;
+}
+
+/* Left side */
+
+.identity-card-full-left {
+  flex: 1;
+  max-width: 460px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.identity-card-full-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+}
+
+.identity-card-full-title {
+  font-size: 48px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  margin-bottom: 20px;
+}
+
+.identity-card-full-narrative {
+  font-size: 16px;
+  line-height: 1.65;
+  margin-bottom: 16px;
+  max-width: 440px;
+}
+
+.identity-card-full-section-label {
+  margin-top: 0px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  opacity: 0.55;
+}
+
+.identity-card-full-evidence {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.identity-card-full-evidence-line {
+  font-size: 13px;
+  line-height: 1.45;
+  opacity: 0.82;
+}
+
+/* Footer */
+
+.identity-card-full-footer {
+  margin-top: 24px;
+  font-size: 12px;
+  opacity: 0.6;
+  align-self: flex-start;
+}
+
+/* Right side */
+
+.identity-card-full-art {
+  position: relative;
+  flex: 1.1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.identity-card-full-image {
+  max-width: 430px;
+  max-height: 340px;
+  object-fit: contain;
+  background: none;
+  mix-blend-mode: screen;
+  filter:
+    drop-shadow(0 28px 56px rgba(0,0,0,0.45))
+    brightness(1.05)
+    contrast(1.03);
+}
+
+.identity-card-full-art::before {
+  content: '';
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(
+    circle,
+    rgba(74, 158, 237, 0.25),
+    transparent 70%
+  );
+  filter: blur(40px);
+  z-index: 0;
+}
+

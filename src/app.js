@@ -6317,32 +6317,45 @@ function renderIdentityCardModal(data) {
           '<div class="identity-card-full-header">BACKLOG ZERO • IDENTITY CLASSIFICATION</div>' +
 
           '<div class="identity-card-full-body">' +
-            '<div class="identity-card-full-copy">' +
-              '<div id="identityCardTitle" class="identity-card-full-title">' + escHtml((data.identityName || 'Identity Unknown').toUpperCase()) + '</div>' +
 
-              '<div id="identityCardNarrative" class="identity-card-full-narrative">' +
-                (data.identitySummary || '') +
+            // LEFT SIDE — TEXT
+            '<div class="identity-card-full-left">' +
+
+              '<div class="identity-card-full-copy">' +
+
+                '<div id="identityCardTitle" class="identity-card-full-title">' +
+                  escHtml((data.identityName || 'Identity Unknown').toUpperCase()) +
+                '</div>' +
+
+                '<div id="identityCardNarrative" class="identity-card-full-narrative">' +
+                  (data.identitySummary || '') +
+                '</div>' +
+
+                '<div class="identity-card-full-section-label">CLASSIFICATION BASIS</div>' +
+
+                '<div class="identity-card-full-evidence">' +
+                  evidence.map(function(e){
+                    return '<div class="identity-card-full-evidence-line">' + e + '</div>';
+                  }).join('') +
+                '</div>' +
+
+                '<div class="identity-card-full-footer">' +
+                escHtml(data.identityPeriod || '') + '<br>' +
+                'Classification Confirmed' +
+                 
+                '</div>' +
+
               '</div>' +
 
-              '<div class="identity-card-full-basis-label">CLASSIFICATION BASIS</div>' +
-              '<div id="identityCardEvidence" class="identity-card-full-basis">' +
-                evidence.map(function(line) {
-                  return '<div class="identity-card-full-basis-line">• ' + escHtml(line) + '</div>';
-                }).join('') +
-              '</div>' +
             '</div>' +
 
-            '<div class="identity-card-full-visual">' +
-              '<div class="identity-card-full-visual-frame">' +
-                '<img id="identityCardImage" class="identity-card-full-image" src="' + data.identityImage + '" alt="' + escHtml(data.identityName || 'Archetype') + '">' +
-              '</div>' +
-            '</div>' +
-          '</div>' +
+            // RIGHT SIDE — CHARACTER (NO BOX)
+            '<div class="identity-card-full-art">' +
+              (data.identityImage
+                ? '<img class="identity-card-full-image" src="' + data.identityImage + '" alt="' + escHtml(data.identityName || 'Archetype') + '">'
+                : '') +
+            '</div>' +         
 
-          '<div class="identity-card-full-footer">' +
-            '<div id="identityCardQuarter" class="identity-card-full-quarter">' + escHtml(data.periodLabel || 'Q1 2026') + '</div>' +
-            '<div class="identity-card-full-status">Classification Confirmed</div>' +
-          '</div>' +
         '</div>' +
       '</div>' +
     '</div>'
@@ -6352,14 +6365,14 @@ function renderIdentityCardModal(data) {
 function openIdentityCardModal() {
   var modal = document.getElementById('identityCardModal');
   if (!modal) return;
-  modal.classList.add('is-open');
+  modal.classList.add('active');
   modal.setAttribute('aria-hidden', 'false');
 }
 
 function closeIdentityCardModal() {
   var modal = document.getElementById('identityCardModal');
   if (!modal) return;
-  modal.classList.remove('is-open');
+  modal.classList.remove('active');
   modal.setAttribute('aria-hidden', 'true');
 }
 
@@ -6594,6 +6607,12 @@ return notes.slice(0, Math.min(3, notes.length));
 }
 
 // ── 7. EVENT BINDINGS ─────────────────────────────────────────
+// ── 5.3 Identity Page Rendering ──────────────────────────────
+// Builds the Identity page UI by assembling:
+// - hero section
+// - reality check module
+// - embedded archetype card
+// - page-level branding
 
 async function renderWrappedPage() {
   var el = document.getElementById('wrappedContent');
@@ -6648,6 +6667,49 @@ async function renderWrappedPage() {
   var archetypeVisual = data.identityMeta || {};
   var archetypeBg = archetypeVisual.template || archetypeVisual.bg || '';
   var archetypeArt = archetypeVisual.image || '';
+
+  // ── Identity Modal Data Bridge ─────────────────────────────
+// Converts archetype system into modal-ready fields
+
+var identityModalPayload = {
+  added: data.added.length,
+  completed: data.completed.length,
+  hrs: Math.round(data.totalHours * 10) / 10,
+  backlog: data.backlogCurrentCount,
+  sessions: data.sessions.length,
+  genres: data.topGenre ? 1 : 0,
+  gamesPlayed: data.sessions.length,
+  topGame: data.topGame ? data.topGame.title : null,
+  topGameHrs: data.topGameHours || 0,
+  topGamePct: data.totalHours > 0 && data.topGameHours > 0
+    ? Math.round((data.topGameHours / data.totalHours) * 100)
+    : 0,
+  topGenre: data.topGenre ? data.topGenre[0] : null,
+  topGenreCount: data.topGenre ? data.topGenre[1] : 0,
+  avgMins: data.sessions.length > 0
+    ? Math.round((data.totalSecs / data.sessions.length) / 60)
+    : 0,
+  stratPct: 0
+};
+
+data.identityName =
+  archetypeVisual.title || 'Identity Unknown';
+
+data.identitySummary =
+  typeof archetypeVisual.desc === 'function'
+    ? archetypeVisual.desc(identityModalPayload)
+    : 'Your gaming identity is still taking shape.';
+
+data.identityEvidence =
+  typeof archetypeVisual.evidence === 'function'
+    ? archetypeVisual.evidence(identityModalPayload)
+    : [];
+
+data.identityImage =
+  archetypeVisual.img || '';
+
+data.identityBg =
+  archetypeBg || 'linear-gradient(150deg,#061420 0%,#0a2030 50%,#072535 100%)';
 
 // ── 6. UI RENDERING ───────────────────────────────────────────
 
@@ -6729,30 +6791,30 @@ async function renderWrappedPage() {
                 '<div class="identity-archetype-meta">Current Archetype</div>' +
                 '<div class="identity-archetype-name">' + escHtml(archetypeVisual.title || 'Identity Unknown') + '</div>' +
                 '<div class="identity-archetype-text">' +
-                '<button type="button" class="identity-card-open-btn" id="identityCardOpenBtn">View Full Identity Card</button>' +
-                  (archetypeVisual && typeof archetypeVisual.desc === 'function'
-                    ? archetypeVisual.desc({
-                        added: data.added.length,
-                        completed: data.completed.length,
-                        hrs: Math.round(data.totalHours * 10) / 10,
-                        backlog: data.backlogCurrentCount,
-                        sessions: data.sessions.length,
-                        genres: data.topGenre ? 1 : 0,
-                        gamesPlayed: data.sessions.length,
-                        topGame: data.topGame ? data.topGame.title : null,
-                        topGameHrs: data.topGameHours || 0,
-                        topGamePct: data.totalHours > 0 && data.topGameHours > 0
-                          ? Math.round((data.topGameHours / data.totalHours) * 100)
-                          : 0,
-                        topGenre: data.topGenre ? data.topGenre[0] : null,
-                        topGenreCount: data.topGenre ? data.topGenre[1] : 0,
-                        avgMins: data.sessions.length > 0
-                          ? Math.round((data.totalSecs / data.sessions.length) / 60)
-                          : 0,
-                        stratPct: 0
-                      })
-                    : 'Keep playing to reveal your identity pattern.') +
+                (archetypeVisual && typeof archetypeVisual.desc === 'function'
+                  ? archetypeVisual.desc({
+                      added: data.added.length,
+                      completed: data.completed.length,
+                      hrs: Math.round(data.totalHours * 10) / 10,
+                      backlog: data.backlogCurrentCount,
+                      sessions: data.sessions.length,
+                      genres: data.topGenre ? 1 : 0,
+                      gamesPlayed: data.sessions.length,
+                      topGame: data.topGame ? data.topGame.title : null,
+                      topGameHrs: data.topGameHours || 0,
+                      topGamePct: data.totalHours > 0 && data.topGameHours > 0
+                        ? Math.round((data.topGameHours / data.totalHours) * 100)
+                        : 0,
+                      topGenre: data.topGenre ? data.topGenre[0] : null,
+                      topGenreCount: data.topGenre ? data.topGenre[1] : 0,
+                      avgMins: data.sessions.length > 0
+                        ? Math.round((data.totalSecs / data.sessions.length) / 60)
+                        : 0,
+                      stratPct: 0
+                    })
+                  : 'Keep playing to reveal your identity pattern.') +
                 '</div>' +
+                '<button type="button" class="identity-card-open-btn" id="identityCardOpenBtn">View Full Identity Card</button>' +
               '</div>' +
 
             '</div>' +
@@ -6760,16 +6822,19 @@ async function renderWrappedPage() {
         '</div>' +
 
       '</div>' +
+      '</div>';
 
-    '</div>';
-}
+      var existingIdentityModal = document.getElementById('identityCardModal');
+      if (existingIdentityModal) existingIdentityModal.remove();
 
-// ── IDENTITY PAGE: DATA ASSEMBLY ─────────────────────────────────────────────
-// Collects all quarter-specific data used by the Identity page, including:
-// - added / completed games
-// - sessions
-// - genre / platform trends
-// - archetype inputs
+      document.body.insertAdjacentHTML('beforeend', renderIdentityCardModal(data));
+
+      bindIdentityCardModal();
+    }
+
+// ── 5.6 Identity Data Assembly ───────────────────────────────
+// Collects all quarter-specific inputs for the Identity page,
+// including archetype classification, notes, and summary metrics.
 
 async function buildIdentityData() {
   var yearSel = document.getElementById('wrappedYear');
@@ -7041,13 +7106,6 @@ function formatIdentityDuration(seconds) {
   if (seconds >= 3600) return (seconds / 3600).toFixed(1) + 'h';
   return Math.round(seconds / 60) + 'm';
 }
-
-// ── 5.3 Identity Rendering ────────────────────────────────────
-// Builds the Identity Report UI
-// Includes:
-// - hero section
-// - backlog reality check
-// - archetype card (embedded)
 
 function renderIdentityCard(data) {
   return (
