@@ -5,151 +5,234 @@
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-:root {
+/* ═══════════════════════════════════════════════
+   NEXUS DESIGN TOKENS — v3
+   One source of truth. Never write hex in components.
+═══════════════════════════════════════════════ */
 
-  --ui-theme-dur: 220ms;
+:root {
+  /* Transitions */
+  --ui-theme-dur:  220ms;
   --ui-theme-ease: cubic-bezier(.22,.9,.24,1);
 
-  /* Brand surfaces — Dark */
-  --bg: #0b132b;
-  --bg2: #101a36;
-  --surface: #1c2541;
+  /* Surfaces */
+  --bg:       #0b132b;
+  --bg2:      #101a36;
+  --surface:  #1c2541;
   --surface2: #27304f;
   --surface3: #323c5c;
 
   /* Text */
-  --text: #e6edf6;
+  --text:  #e6edf6;
   --text2: #a7b2c5;
   --text3: #7f8aa3;
 
   /* Borders */
-  --border: rgba(167,178,197,0.14);
+  --border:  rgba(167,178,197,0.14);
   --border2: rgba(167,178,197,0.24);
   --border3: rgba(230,237,246,0.20);
 
   /* Accent */
-  --accent: #5bc0be;
-  --accent-fg: #081019;
+  --accent:     #5bc0be;
+  --accent-rgb: 91,192,190;
+  --accent-fg:  #081019;
 
-  /* Platform colors (softened) */
-  --steam: #5bc0be;
-  --steam-bg: rgba(91,192,190,0.12);
-
-  --gog: #7ea1ff;
-  --gog-bg: rgba(126,161,255,0.12);
-
-  --epic: #b7c0d4;
-  --epic-bg: rgba(183,192,212,0.12);
-
-  --amazon: #f2b766;
-  --amazon-bg: rgba(242,183,102,0.14);
-
-  --dupe: #ff7d7d;
-  --dupe-bg: rgba(255,125,125,0.10);
-
-  --radius: 12px;
-  --radius-lg: 18px;
-
-  --sidebar: 68px;
-
+  /* Nav */
   --nav-active-indicator: var(--accent);
 
+  /* ── Status colors ── */
+  --status-playing:   #60a5fa;
+  --status-completed: #5bc0be;
+  --status-abandoned: #94a3b8;
+  --status-backlog:   #f59e0b;
+
+  --status-playing-bg:   rgba(96,165,250,0.10);
+  --status-completed-bg: rgba(91,192,190,0.10);
+  --status-abandoned-bg: rgba(148,163,184,0.10);
+  --status-backlog-bg:   rgba(245,158,11,0.10);
+
+  --status-playing-border:   rgba(96,165,250,0.35);
+  --status-completed-border: rgba(91,192,190,0.35);
+  --status-abandoned-border: rgba(148,163,184,0.25);
+  --status-backlog-border:   rgba(245,158,11,0.35);
+
+  /* ── Platform colors ── */
+  --steam:    #5bc0be;
+  --steam-bg: rgba(91,192,190,0.12);
+
+  --gog:    #7ea1ff;
+  --gog-bg: rgba(126,161,255,0.12);
+
+  --epic:    #b7c0d4;
+  --epic-bg: rgba(183,192,212,0.12);
+
+  --amazon:    #f2b766;
+  --amazon-bg: rgba(242,183,102,0.14);
+
+  --xbox:    #4da3ff;
+  --xbox-bg: rgba(77,163,255,0.12);
+
+  --gamepass:    #4da3ff;
+  --gamepass-bg: rgba(77,163,255,0.10);
+
+  --dupe:    #ff7d7d;
+  --dupe-bg: rgba(255,125,125,0.10);
+
+  /* ── Semantic UI colors ── */
+  --color-success:  #4ade80;
+  --color-warning:  #facc15;
+  --color-error:    #f87171;
+  --color-pink:     #f472b6;
+  --color-star:     #facc15;
+  --color-mc-good:  #4ade80;
+  --color-mc-mid:   #facc15;
+  --color-mc-bad:   #f87171;
+
+  /* ── Layout ── */
+  --radius:    12px;
+  --radius-lg: 18px;
+  --sidebar:   68px;
 }
 
-/* ── LIGHT THEME ── */
+/* ── LIGHT MODE ── */
 body.light-mode {
-  --bg: #eef2f6;
-  --bg2: #e3e9f1;
-  --surface: #ffffff;
-  --surface2: #edf2f7;  
+  --bg:       #eef2f6;
+  --bg2:      #e3e9f1;
+  --surface:  #ffffff;
+  --surface2: #edf2f7;
   --surface3: #e9eef5;
 
-  --border: rgba(19,32,51,0.10);
+  --border:  rgba(19,32,51,0.10);
   --border2: rgba(19,32,51,0.16);
   --border3: rgba(19,32,51,0.24);
 
-  --text: #132033;
+  --text:  #132033;
   --text2: #516076;
   --text3: #7a879a;
 
-  --steam: #2c8f95;
+  /* Accent — declared BEFORE nav-active-indicator */
+  --accent:     #2c8f95;
+  --accent-rgb: 44,143,149;
+  --accent-fg:  #ffffff;
+  --nav-active-indicator: var(--accent);
+
+  /* Status */
+  --status-playing:   #2563eb;
+  --status-completed: #2c8f95;
+  --status-abandoned: #64748b;
+  --status-backlog:   #d97706;
+
+  --status-playing-bg:   rgba(37,99,235,0.10);
+  --status-completed-bg: rgba(44,143,149,0.10);
+  --status-abandoned-bg: rgba(100,116,139,0.10);
+  --status-backlog-bg:   rgba(217,119,6,0.10);
+
+  --status-playing-border:   rgba(37,99,235,0.30);
+  --status-completed-border: rgba(44,143,149,0.30);
+  --status-abandoned-border: rgba(100,116,139,0.22);
+  --status-backlog-border:   rgba(217,119,6,0.30);
+
+  /* Platforms */
+  --steam:    #2c8f95;
   --steam-bg: rgba(44,143,149,0.12);
 
-  --gog: #506ecf;
+  --gog:    #506ecf;
   --gog-bg: rgba(80,110,207,0.10);
 
-  --epic: #6e7687;
+  --epic:    #6e7687;
   --epic-bg: rgba(110,118,135,0.10);
 
-  --amazon: #b9771f;
+  --amazon:    #b9771f;
   --amazon-bg: rgba(185,119,31,0.12);
 
-  --dupe: #c24e4e;
+  --xbox:    #0060a8;
+  --xbox-bg: rgba(0,96,168,0.10);
+
+  --gamepass:    #0060a8;
+  --gamepass-bg: rgba(0,96,168,0.08);
+
+  --dupe:    #c24e4e;
   --dupe-bg: rgba(194,78,78,0.10);
 
+  /* Semantic */
+  --color-success: #16a34a;
+  --color-warning: #ca8a04;
+  --color-error:   #dc2626;
+  --color-star:    #ca8a04;
+  --color-mc-good: #16a34a;
+  --color-mc-mid:  #ca8a04;
+  --color-mc-bad:  #dc2626;
+}
+
+/* ── ACCESSIBLE MODE (Deuteranopia-safe + high contrast) ── */
+body.accessible-mode {
+  --bg:       #0e1116;
+  --bg2:      #151a22;
+  --surface:  #1d2430;
+  --surface2: #262f3d;
+  --surface3: #313c4f;
+
+  --border:  rgba(255,255,255,0.10);
+  --border2: rgba(255,255,255,0.18);
+  --border3: rgba(255,255,255,0.28);
+
+  --text:  #f0f4fc;
+  --text2: #c0cce0;
+  --text3: #8898b4;
+
+  /* Accent — declared BEFORE nav-active-indicator */
+  --accent:     #4da3ff;
+  --accent-rgb: 77,163,255;
+  --accent-fg:  #ffffff;
   --nav-active-indicator: var(--accent);
-  --accent: #2c8f95;
-  --accent-fg: #ffffff;
+
+  /* Status — deuteranopia-safe */
+  --status-playing:   #4da3ff;
+  --status-completed: #5bc0be;
+  --status-abandoned: #94a3b8;
+  --status-backlog:   #ffb84d;
+
+  --status-playing-bg:   rgba(77,163,255,0.14);
+  --status-completed-bg: rgba(91,192,190,0.14);
+  --status-abandoned-bg: rgba(148,163,184,0.12);
+  --status-backlog-bg:   rgba(255,184,77,0.14);
+
+  --status-playing-border:   rgba(77,163,255,0.45);
+  --status-completed-border: rgba(91,192,190,0.45);
+  --status-abandoned-border: rgba(148,163,184,0.35);
+  --status-backlog-border:   rgba(255,184,77,0.45);
+
+  /* Platforms — deuteranopia-safe pairs */
+  --steam:    #4da3ff;   /* blue */
+  --steam-bg: rgba(77,163,255,0.14);
+
+  --gog:    #e8900a;   /* amber — distinguishable from blue */
+  --gog-bg: rgba(232,144,10,0.14);
+
+  --epic:    #cfd6e6;
+  --epic-bg: rgba(207,214,230,0.14);
+
+  --amazon:    #ffb84d;
+  --amazon-bg: rgba(255,184,77,0.16);
+
+  --xbox:    #4da3ff;   /* blue family — label differentiates */
+  --xbox-bg: rgba(77,163,255,0.12);
+
+  --gamepass:    #4da3ff;
+  --gamepass-bg: rgba(77,163,255,0.10);
+
+  --dupe:    #ff6b6b;
+  --dupe-bg: rgba(255,107,107,0.14);
+
+  /* Semantic */
+  --color-success: #4ade80;
+  --color-warning: #facc15;
+  --color-error:   #ff6b6b;
+  --color-star:    #facc15;
+  --color-mc-good: #5bc0be;  /* teal instead of green */
+  --color-mc-mid:  #facc15;
+  --color-mc-bad:  #ff6b6b;
 }
-
-body.light-mode .noise-overlay { opacity: 0; }
-
-/* Light mode — invert some specific elements that need it */
-body.light-mode .stat-card-num { color: var(--text); }
-body.light-mode .dupe-alert { background: rgba(217,50,50,0.06); border-color: rgba(217,50,50,0.2); }
-body.light-mode .modal-overlay { background: rgba(0,0,0,0.45); }
-body.light-mode .game-detail { background-color: var(--surface); }
-body.light-mode .backdrop-blur-bg { filter: blur(18px) brightness(1.05) saturate(1.1); }
-body.light-mode .topbar { background-color: var(--bg); border-color: var(--border); }
-body.light-mode select, body.light-mode input { color: var(--text); background-color: var(--surface2); border-color: var(--border2); }
-body.light-mode .now-playing-bar { background-color: rgba(240,240,250,0.92); border-color: var(--border2); }
-body.light-mode .filter-chip { background-color: var(--surface2); border-color: var(--border); color: var(--text2); }
-body.light-mode .filter-chip.active { background-color: var(--surface3); border-color: var(--border2); color: var(--text); }
-body.light-mode .game-card { background-color: var(--surface); }
-body.light-mode .list-row:hover { background: var(--surface2); }
-body.light-mode .stat-card { background: var(--surface); }
-body.light-mode .settings-input { background-color: var(--surface2); border-color: var(--border2); color: var(--text); }
-body.light-mode .sort-select { background-color: var(--surface2); border-color: var(--border2); color: var(--text); }
-body.light-mode .modal-btn { background-color: var(--surface2); border-color: var(--border2); color: var(--text); }
-body.light-mode .modal-btn-add { background-color: var(--steam); color: #fff; border-color: var(--steam); }
-body.light-mode code { background: var(--surface3); color: var(--text2); }
-body.light-mode .plat-xbox     { background: rgba(16,124,16,0.1);  color: #0d6b0d; }
-body.light-mode .plat-gamepass { background: rgba(55,130,35,0.1);  color: #2d7a1a; }
-body.light-mode .gp-catalog-badge { background: rgba(55,130,35,0.85); }
-body.light-mode .gp-catalog-tag { background: rgba(55,130,35,0.1); color: #2d7a1a; border-color: rgba(55,130,35,0.25); }
-
-/* ── LIGHT MODE — Game Detail Modal ── */
-body.light-mode .game-detail-modal { background-color: var(--bg); }
-body.light-mode #gameDetailBackdrop {
-  filter: blur(55px) brightness(0.65) saturate(0.6);
-}
-body.light-mode #gameDetailBackdrop::after {
-  background: linear-gradient(to right,
-    rgba(240,240,248,0.96) 0%,
-    rgba(240,240,248,0.82) 45%,
-    rgba(240,240,248,0.92) 100%);
-}
-body.light-mode .game-detail-cover-col { background: rgba(230,230,242,0.6); border-color: var(--border); }
-body.light-mode .game-detail-info-col { background: transparent; }
-body.light-mode .detail-header-strip { border-color: var(--border); }
-body.light-mode .detail-scroll::-webkit-scrollbar-thumb { background: var(--border2); }
-body.light-mode .game-detail-section-label { color: var(--text3); }
-body.light-mode .status-btn { background-color: var(--surface2); border-color: var(--border); color: var(--text2); }
-body.light-mode .status-btn:hover { background-color: var(--surface3); }
-body.light-mode .game-detail-genre-select { background-color: var(--surface2); border-color: var(--border2); color: var(--text2); }
-body.light-mode .game-detail-genre-save { background: var(--surface2); border-color: var(--border); color: var(--text3); }
-body.light-mode .genre-pill { background-color: var(--surface2); border-color: var(--border2); color: var(--text2); }
-body.light-mode .detail-action-btn { background-color: var(--surface2); border-color: var(--border2); color: var(--text2); }
-body.light-mode .detail-action-btn:hover { background-color: var(--surface3); }
-body.light-mode .detail-actions-row { background-color: var(--surface); border-color: var(--border); }
-body.light-mode .game-detail-title { color: var(--text); }
-body.light-mode .left-panel-info { background-color: var(--surface2); }
-body.light-mode .left-panel-row { color: var(--text2); border-color: var(--border); }
-body.light-mode .left-panel-label { color: var(--text3); }
-body.light-mode .left-panel-desc { color: var(--text2); }
-body.light-mode .mc-panel { background-color: var(--surface3); border-color: var(--border2); }
-
-
 
 html, body { height: 100%; overflow: hidden; }
 body {
@@ -211,68 +294,6 @@ body.accessible-mode #themeFade {
     linear-gradient(to bottom, rgba(255,255,255,0.05), rgba(255,255,255,0.025));
 }
 
-/* ── ACCESSIBLE THEME (Color-blind friendly) ── */
-body.accessible-mode {
-
-  --bg: #0e1116;
-  --bg2: #151a22;
-
-  --surface: #1d2430;
-  --surface2: #262f3d;
-  --surface3: #313c4f;
-
-  --text: #e8edf5;
-  --text2: #b5c0d4;
-  --text3: #8893a7;
-
-  --border: rgba(255,255,255,0.08);
-  --border2: rgba(255,255,255,0.16);
-  --border3: rgba(255,255,255,0.24);
-
-
-
-  /* High-contrast accent (blue works best for most color blindness) */
-  --accent: #4da3ff;
-  --accent-fg: #ffffff;
-
-  /* Platform colors rebalanced for color blindness */
-  --steam: #4da3ff;
-  --steam-bg: rgba(77,163,255,0.14);
-
-  --gog: #8ea6ff;
-  --gog-bg: rgba(142,166,255,0.14);
-
-  --epic: #cfd6e6;
-  --epic-bg: rgba(207,214,230,0.14);
-
-  --amazon: #ffb84d;
-  --amazon-bg: rgba(255,184,77,0.16);
-
-  --dupe: #ff6b6b;
-  --dupe-bg: rgba(255,107,107,0.14);
-
-/* Platform badges become shape + contrast driven */
-body.accessible-mode .plat-steam {
-  background: rgba(77,163,255,0.18);
-  border: 1px solid rgba(77,163,255,0.35);
-}
-
-body.accessible-mode .plat-gog {
-  background: rgba(142,166,255,0.18);
-  border: 1px solid rgba(142,166,255,0.35);
-}
-
-body.accessible-mode .plat-epic {
-  background: rgba(210,218,235,0.18);
-  border: 1px solid rgba(210,218,235,0.35);
-}
-
-body.accessible-mode .plat-amazon {
-  background: rgba(255,184,77,0.18);
-  border: 1px solid rgba(255,184,77,0.35);
-}
-
-}
 
 /* ── PAGES ── */
 .page { display: none; flex: 1; flex-direction: column; overflow: hidden; min-width: 0; }
@@ -637,7 +658,7 @@ body::before {
   width: 3px; height: 22px;
   background: var(--nav-active-indicator);
   border-radius: 0 3px 3px 0;
-  box-shadow: 0 0 12px rgba(91,192,190,0.32);
+  box-shadow: 0 0 12px rgba(var(--accent-rgb),0.32);
 }
 
 .nav-icon-wrap {
@@ -943,7 +964,7 @@ body::before {
 }
 .search-bar:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(91,192,190,0.20);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.20);
 }
 .search-bar svg { color: var(--text3); flex-shrink: 0; }
 .search-bar input { background-color: transparent ; border: none; outline: none; color: var(--text); font-family: 'Instrument Sans', sans-serif; font-size: 12px; width: 100%; }
@@ -1398,7 +1419,7 @@ body.accessible-mode .filter-chip.active {
 .settings-link:hover { text-decoration:underline; }
 .settings-row { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
 .settings-input { flex:1; min-width:180px; background-color:var(--bg2); border:1px solid var(--border); color:var(--text); padding:9px 13px; border-radius:8px; font-family:'Instrument Sans',sans-serif; font-size:12px; outline:none; transition:border-color 0.15s; }
-.settings-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,192,190,0.20);}
+.settings-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.20);}
 .settings-input::placeholder { color:var(--text3); }
 .settings-btn { padding:9px 16px; background-color:var(--surface2); border:1px solid var(--border2); color:var(--text); border-radius:8px; font-family:'Syne',sans-serif; font-size:11px; font-weight:700; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
 .settings-btn:hover:not(:disabled) { background:var(--surface3); border-color:var(--border3); }
@@ -1456,7 +1477,7 @@ body.accessible-mode .filter-chip.active {
 .field { margin-bottom:18px; }
 .field label { display:block; font-size:10px; font-weight:700; letter-spacing:1.5px; text-transform:uppercase; color:var(--text3); margin-bottom:7px; }
 .field input, .field select { width:100%; background-color:var(--bg2); border:1px solid var(--border); color:var(--text); padding:9px 13px; border-radius:8px; font-family:'Instrument Sans',sans-serif; font-size:13px; outline:none; transition:border-color 0.15s; appearance:none; }
-.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(91,192,190,0.20); }
+.field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.20); }
 .field input::placeholder { color:var(--text3); }
 
 .modal-dupe-alert { background:var(--dupe-bg); border:1px solid rgba(239,83,83,0.22); border-radius:8px; padding:11px 13px; margin-bottom:18px; display:none; }

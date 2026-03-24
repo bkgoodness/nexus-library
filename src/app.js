@@ -20,13 +20,65 @@
 // app.js — Renderer process
 // Communicates with main.js via window.nexus (defined in preload.js)
 
-const PLAT_COLOR  = { steam: '#4a9eed', gog: '#e8573e', epic: '#c8a84b', amazon: '#ff9900', xbox: '#107c10', gamepass: '#52b043' };
-const STATUS_COLOR = { exploring: '#60a5fa', finished: '#4ade80', 'not-for-me': '#f87171' };
+/* ═══════════════════════════════════════════
+   NEXUS COLOR TOKENS — mirrors CSS token system
+   Update here when changing themes. Never use
+   raw hex elsewhere in this file.
+═══════════════════════════════════════════ */
+
+/* Read the active theme's CSS variables at runtime */
+function getCSSToken(token) {
+  return getComputedStyle(document.body)
+    .getPropertyValue(token).trim();
+}
+
+/* Platform colors — references CSS vars so theme-switching works */
+const PLAT_COLOR = {
+  steam:    'var(--steam)',
+  gog:      'var(--gog)',
+  epic:     'var(--epic)',
+  amazon:   'var(--amazon)',
+  xbox:     'var(--xbox)',
+  gamepass: 'var(--gamepass)',
+};
+
+/* Status colors */
+const STATUS_COLOR = {
+  exploring:    'var(--status-playing)',
+  finished:     'var(--status-completed)',
+  'not-for-me': 'var(--status-abandoned)',
+  backlog:      'var(--status-backlog)',
+};
+
+/* Intent colors */
+const INTENT_COLOR = {
+  priority: 'var(--dupe)',
+  queue:    'var(--status-playing)',
+  playnext: 'var(--status-completed)',
+};
+
+/* Semantic one-offs used in inline styles throughout the file.
+   Replace raw hex with COLOR.xxx at each call site. */
+const COLOR = {
+  success:   'var(--color-success)',
+  warning:   'var(--color-warning)',
+  error:     'var(--color-error)',
+  pink:      'var(--color-pink)',
+  star:      'var(--color-star)',
+  mcGood:    'var(--color-mc-good)',
+  mcMid:     'var(--color-mc-mid)',
+  mcBad:     'var(--color-mc-bad)',
+  muted:     'var(--text3)',
+  accent:    'var(--accent)',
+  steam:     'var(--steam)',
+  dupe:      'var(--dupe)',
+  backlog:   'var(--status-backlog)',
+};
 const STATUS_MIGRATE = { playing: 'exploring', completed: 'finished', abandoned: 'not-for-me', backlog: null, unplayed: null };
 
 // Intent system
 const INTENT_LABEL = { priority: '⭐ Focus List', queue: '📋 Queue', playnext: '▶ Play Next' };
-const INTENT_COLOR = { priority: '#f87171', queue: '#60a5fa', playnext: '#4ade80' };
+
 const INTENT_ELIGIBLE = function(g) { return g.status !== 'finished' && g.status !== 'not-for-me'; };
 
 // One-time fix: clear igdbNoArt flags that were incorrectly set because titles had " - Amazon Prime" etc. appended
@@ -704,6 +756,7 @@ document.getElementById('topSub').textContent =
   platforms.length > 1
     ? names.join(', ')
     : (FILTER_TITLES[platforms[0]] || ['',''])[1];
+    renderLibrary();
 }
 
 function setFilter(f) {
@@ -969,11 +1022,11 @@ function renderFriendComparison() {
         '<div class="friend-stat-label">In Common</div>' +
       '</div>' +
       '<div class="friend-stat-card">' +
-        '<div class="friend-stat-num" style="color:#f472b6">' + theyHave.length + '</div>' +
+        '<div class="friend-stat-num" style="color:var(--color-pink)">' + theyHave.length + '</div>' +
         '<div class="friend-stat-label">' + escHtml(friendName) + ' has, you don\'t</div>' +
       '</div>' +
       '<div class="friend-stat-card">' +
-        '<div class="friend-stat-num" style="color:#4ade80">' + iHave.length + '</div>' +
+        '<div class="friend-stat-num" style="color:var(--color-success)">' + iHave.length + '</div>' +
         '<div class="friend-stat-label">You have, they don\'t</div>' +
       '</div>' +
     '</div>';
@@ -1819,7 +1872,7 @@ function renderLibrary() {
             '</div>' +
             '<div class="card-platforms">' +
               g.platforms.map(function(p) {
-                return '<div class="plat-dot" style="background:' + (PLAT_COLOR[p] || '#888') + '" title="' + (PLAT_LABEL[p] || p) + '"></div>';
+                return '<div class="plat-dot" style="background:' + (getComputedStyle(document.body).getPropertyValue('--' + p).trim() || '#888') + '" title="' + (PLAT_LABEL[p] || p) + '"></div>';
               }).join('') +
             '</div>' +
           '</div>' +
@@ -1854,7 +1907,11 @@ function renderLibrary() {
       '</div>';
     list.forEach(function(g, i) {
       var isDupe = g.platforms.length > 1;
-      var color = PLAT_COLOR[g.platforms[0]] || '#888';
+      var platTokens = {
+        steam: 'var(--steam)', gog: 'var(--gog)', epic: 'var(--epic)',
+        amazon: 'var(--amazon)', xbox: 'var(--xbox)', gamepass: 'var(--gamepass)'
+      };
+      var color = platTokens[g.platforms[0]] || '#888';
       var coverUrl = coverCache[g.id] || coverCache[String(g.id)];
       var pal = COVER_PALETTES[(g.pal || 0) % COVER_PALETTES.length];
       var thumbHtml = coverUrl
@@ -2011,10 +2068,10 @@ function renderStats() {
     // ── Row 1: headline numbers ──
     '<div class="stats-grid">' +
       statCard(games.length, 'Total Games', 'var(--text)', 'all') +
-      statCard(games.filter(function(g){ return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length, 'Unplayed Backlog', '#fb923c', 'unplayed') +
+      statCard(games.filter(function(g){ return (g.playtimeHours||0) === 0 && g.status !== 'not-for-me' && !g.gpCatalog; }).length, 'Unplayed Backlog', COLOR.backlog, 'unplayed') +
       statCard(withTime.length, 'Games Played', '#7fc8f8', 'playtime') +
       statCard(totalHours >= 1000 ? (totalHours/1000).toFixed(1) + 'k' : totalHours, 'Hours Played', 'var(--steam)') +
-      statCard(statusCounts.finished, 'Games Finished', '#4ade80', 'status:finished') +
+      statCard(statusCounts.finished, 'Games Finished', COLOR.success, 'status:finished') +
       statCard(dupes.length, 'Duplicates', 'var(--dupe)', 'dupes') +
     '</div>' +
 
@@ -2148,7 +2205,11 @@ function renderDupesPage() {
 
   groups.forEach(function(gr, i) {
     var g = gr.canonical;
-    var color = PLAT_COLOR[g.platforms[0]] || '#888';
+    var platTokens = {
+      steam: 'var(--steam)', gog: 'var(--gog)', epic: 'var(--epic)',
+      amazon: 'var(--amazon)', xbox: 'var(--xbox)', gamepass: 'var(--gamepass)'
+    };
+    var color = platTokens[g.platforms[0]] || '#888';
     var row = document.createElement('div');
     row.className = 'list-row is-dupe';
     row.style.animationDelay = (i * 0.03) + 's';
@@ -5874,9 +5935,9 @@ async function renderHabitsPage() {
     '<div class="habits-stat-row" style="margin-bottom:12px">' +
       habitStatTrend(allSessions.length || '—', 'Sessions Logged', '#4a9eed',
         trend(thisMonthSessions.length, lastMonthSessions.length, '')) +
-      habitStatTrend(totalSessionHrs+'h', 'Total Session Time', '#4ade80',
+      habitStatTrend(totalSessionHrs+'h', 'Total Session Time', COLOR.success,
         trendHrs(thisMonthSecs, lastMonthSecs)) +
-      habitStatTrend(avgSessionMins > 0 ? avgSessionMins+'m' : '—', 'Avg Session', '#fb923c', '') +
+      habitStatTrend(avgSessionMins > 0 ? avgSessionMins+'m' : '—', 'Avg Session', COLOR.backlog, '') +
       habitStatTrend(longestSession.seconds > 0 ? Math.round(longestSession.seconds/60)+'m' : '—', 'Longest Session', '#a78bfa', '') +
     '</div>' +
 
@@ -8101,14 +8162,15 @@ async function renderFreeGamesPage() {
     }
   }
 
-  // Build tab UI
+    // Build page + tabs UI
   el.innerHTML =
-    '<div class="free-tabs">' +
-      '<button class="free-tab active" data-tab="epic">🟡 Epic Free Games</button>' +
-      '<button class="free-tab" data-tab="steam">🔵 PC Giveaways</button>' +
-      '<button class="free-tab" data-tab="loot">🏆 Free Loot</button>' +
-    '</div>' +
-    '<div id="freeTabContent" style="margin-top:16px"></div>';
+  '<div class="free-tabs">' +
+    '<button class="free-tab active" data-tab="epic">🟡 Epic Free Games</button>' +
+    '<button class="free-tab" data-tab="steam">🔵 PC Giveaways</button>' +
+    '<button class="free-tab" data-tab="loot">🏆 Free DLC</button>' +
+  '</div>' +
+
+  '<div id="freeTabContent" style="margin-top:16px"></div>';
 
   el.querySelectorAll('.free-tab').forEach(function(btn) {
     btn.addEventListener('click', function() {
@@ -8249,9 +8311,9 @@ function burnDownSection(allSessions) {
       '<button class="settings-btn" style="font-size:10px;padding:4px 10px" onclick="openRandomPicker()">🎲 Pick One Now</button>' +
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">' +
-      statMini(backlog.length, 'In Backlog', '#fb923c') +
-      statMini('~' + Math.round(totalBacklogHrs).toLocaleString() + 'h', 'Est. Total', '#fb923c') +
-      statMini(weeksToFinish ? (weeksToFinish > 104 ? yearsToFinish + ' yrs' : weeksToFinish + ' wks') : '?', 'At Your Pace', '#f87171') +
+      statMini(backlog.length, 'In Backlog', COLOR.backlog) +
+      statMini('~' + Math.round(totalBacklogHrs).toLocaleString() + 'h', 'Est. Total', COLOR.backlog) +
+      statMini(weeksToFinish ? (weeksToFinish > 104 ? yearsToFinish + ' yrs' : weeksToFinish + ' wks') : '?', 'At Your Pace', COLOR.error) +
     '</div>' +
     (weeksToFinish ? '<div style="font-size:11px;color:var(--text3);line-height:1.6">' +
       'At <strong style="color:var(--text2)">' + hrsPerWeek.toFixed(1) + 'h/week</strong> (' +
