@@ -705,7 +705,7 @@ body::before {
 .nav-badge {
   position: absolute;
   top: 2px; right: 2px;
-  background: #f472b6;
+  background: var(--color-pink);
   color: #fff;
   font-size: 8px;
   font-weight: 900;
@@ -718,7 +718,7 @@ body::before {
   padding: 0 3px;
   border: 1.5px solid var(--bg2);
 }
-.nav-badge-green { background: #4ade80; color: #000; }
+.nav-badge-green { background: var(--color-success); color: #000; }
 
 /* Legacy .nav-icon still used by JS for active switching — alias to .nav-item */
 .nav-icon { display: none; } 
@@ -1120,15 +1120,14 @@ body.accessible-mode .filter-chip.active {
 .filter-chip[data-p="gog"].active    { border-color: rgba(232,87,62,0.4); background: var(--gog-bg); color: var(--gog); }
 .filter-chip[data-p="epic"].active   { border-color: rgba(200,168,75,0.4); background: var(--epic-bg); color: var(--epic); }
 .filter-chip[data-p="amazon"].active { border-color: rgba(255,153,0,0.4); background: var(--amazon-bg); color: var(--amazon); }
-.filter-chip[data-p="dupes"].active  { border-color: rgba(239,83,83,0.4); background: var(--dupe-bg); color: var(--dupe); }
-.filter-chip[data-p="status:playing"].active   { border-color: rgba(96,165,250,0.4); background: rgba(96,165,250,0.08); color: #7fc8f8; }
-.filter-chip[data-p="status:completed"].active { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.08); color: #4ade80; }
-.filter-chip[data-p="status:backlog"].active   { border-color: rgba(251,146,60,0.4); background: rgba(251,146,60,0.08); color: #fb923c; }
-.filter-chip[data-p="status:abandoned"].active { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.08); color: #f87171; }
+.filter-chip[data-p="status:playing"].active   { border-color:var(--status-playing-border);   background:var(--status-playing-bg);   color:var(--status-playing);   }
+.filter-chip[data-p="status:completed"].active { border-color:var(--status-completed-border); background:var(--status-completed-bg); color:var(--status-completed); }
+.filter-chip[data-p="status:backlog"].active   { border-color:var(--status-backlog-border);   background:var(--status-backlog-bg);   color:var(--status-backlog);   }
+.filter-chip[data-p="status:abandoned"].active { border-color:var(--status-abandoned-border); background:var(--status-abandoned-bg); color:var(--status-abandoned); }.filter-chip[data-p="status:abandoned"].active { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.08); color: #f87171; }
 .filter-chip[data-p="scored"].active  { border-color: rgba(250,204,21,0.4); background: rgba(250,204,21,0.08); color: #facc15; }
 .filter-chip[data-p="noart"].active   { border-color: var(--border2); background-color: var(--surface); color: var(--text2); }
 .filter-chip[data-p="recent"].active  { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.08); color: #4ade80; }
-.filter-chip[data-p="xbox"].active    { border-color: rgba(16,124,16,0.45); background: rgba(16,124,16,0.1); color: #107c10; }
+.filter-chip[data-p="xbox"].active    { border-color:var(--xbox-bg); background:var(--xbox-bg); color:var(--xbox); }
 /* Platform chips can be toggled independently — show subtle hover hint */
 .platform-chip { position: relative; }
 .platform-chip:not(.active):hover::after {
@@ -1273,8 +1272,8 @@ body.accessible-mode .filter-chip.active {
 .plat-gog      { background:var(--gog-bg);    color:var(--gog);    }
 .plat-epic     { background:var(--epic-bg);   color:var(--epic);   }
 .plat-amazon   { background:var(--amazon-bg); color:var(--amazon); }
-.plat-xbox     { background:rgba(16,124,16,0.12);  color:#107c10; }
-.plat-gamepass { background:rgba(82,176,67,0.12);  color:#52b043; }
+.plat-xbox     { background:var(--xbox-bg);     color:var(--xbox);     }
+.plat-gamepass { background:var(--gamepass-bg); color:var(--gamepass); }
 
 /* ── GAME PASS CATALOG BADGE (on card cover) ── */
 .gp-catalog-badge {
@@ -1308,10 +1307,10 @@ body.accessible-mode .filter-chip.active {
 .list-action-btn { width:26px; height:26px; display:flex; align-items:center; justify-content:center; border-radius:6px; color:var(--text3); cursor:pointer; transition:all 0.1s; border:none; background:none; }
 .list-action-btn:hover { color:var(--dupe); background:var(--dupe-bg); }
 .list-status-badge { font-size:9px; font-weight:700; padding:2px 7px; border-radius:4px; text-transform:uppercase; letter-spacing:0.5px; white-space:nowrap; }
-.list-status-playing   { background:rgba(37,99,235,0.15); color:#7fc8f8; }
-.list-status-completed { background:rgba(22,163,74,0.15);  color:#4ade80; }
-.list-status-abandoned { background:rgba(220,38,38,0.15); color:#f87171; }
-.list-status-backlog   { background:rgba(217,119,6,0.15);  color:#fb923c; }
+.list-status-playing   { background:var(--status-playing-bg);   color:var(--status-playing);   }
+.list-status-completed { background:var(--status-completed-bg); color:var(--status-completed); }
+.list-status-abandoned { background:var(--status-abandoned-bg); color:var(--status-abandoned); }
+.list-status-backlog   { background:var(--status-backlog-bg);   color:var(--status-backlog);   }
 
 /* ── STATS ── */
 /* FREE GAMES PAGE */
@@ -1709,11 +1708,10 @@ body.accessible-mode .filter-chip.active {
 .game-detail-status-row { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:4px; }
 .status-btn { background-color:var(--surface2); border:1px solid var(--border); border-radius:20px; color:var(--text3); font-size:11px; font-weight:500; padding:5px 14px; cursor:pointer; transition:all 0.15s; white-space:nowrap; }
 .status-btn:hover { border-color:var(--border2); color:var(--text2); }
-.status-btn.active[data-status="playing"]   { background:rgba(37,99,235,0.15); border-color:#3b82f6; color:#7fc8f8; }
-.status-btn.active[data-status="completed"] { background:rgba(22,163,74,0.15); border-color:#22c55e; color:#4ade80; }
-.status-btn.active[data-status="abandoned"] { background:rgba(220,38,38,0.15); border-color:#ef4444; color:#f87171; }
-.status-btn.active[data-status="backlog"]   { background:rgba(217,119,6,0.15); border-color:#f59e0b; color:#fb923c; }
-
+.status-btn.active[data-status="playing"]   { background:var(--status-playing-bg);   border-color:var(--status-playing-border);   color:var(--status-playing);   }
+.status-btn.active[data-status="completed"] { background:var(--status-completed-bg); border-color:var(--status-completed-border); color:var(--status-completed); }
+.status-btn.active[data-status="abandoned"] { background:var(--status-abandoned-bg); border-color:var(--status-abandoned-border); color:var(--status-abandoned); }
+.status-btn.active[data-status="backlog"]   { background:var(--status-backlog-bg);   border-color:var(--status-backlog-border);   color:var(--status-backlog);   }
 /* Tags */
 .game-detail-tags { display:flex; flex-wrap:wrap; gap:5px; margin-bottom:8px; min-height:24px; }
 .tag-pill { display:flex; align-items:center; gap:4px; background:var(--surface2); border:1px solid var(--border); border-radius:20px; font-size:10px; color:var(--text2); padding:3px 8px 3px 10px; }
