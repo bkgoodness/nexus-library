@@ -1123,7 +1123,7 @@ body.accessible-mode .filter-chip.active {
 .filter-chip[data-p="status:exploring"].active   { border-color:var(--status-playing-border);   background:var(--status-playing-bg);   color:var(--status-playing);   }
 .filter-chip[data-p="status:finished"].active { border-color:var(--status-completed-border); background:var(--status-completed-bg); color:var(--status-completed); }
 .filter-chip[data-p="status:backlog"].active   { border-color:var(--status-backlog-border);   background:var(--status-backlog-bg);   color:var(--status-backlog);   }
-.filter-chip[data-p="status:not-for-me"].active { border-color:var(--status-abandoned-border); background:var(--status-abandoned-bg); color:var(--status-abandoned); }.filter-chip[data-p="status:abandoned"].active { border-color: rgba(248,113,113,0.4); background: rgba(248,113,113,0.08); color: #f87171; }
+.filter-chip[data-p="status:not-for-me"].active { border-color:var(--status-abandoned-border); background:var(--status-abandoned-bg); color:var(--status-abandoned); }
 .filter-chip[data-p="scored"].active  { border-color: rgba(250,204,21,0.4); background: rgba(250,204,21,0.08); color: #facc15; }
 .filter-chip[data-p="noart"].active   { border-color: var(--border2); background-color: var(--surface); color: var(--text2); }
 .filter-chip[data-p="recent"].active  { border-color: rgba(74,222,128,0.4); background: rgba(74,222,128,0.08); color: #4ade80; }
