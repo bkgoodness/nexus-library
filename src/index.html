@@ -513,7 +513,7 @@
       <button class="filter-chip platform-chip" data-p="gog"><span class="filter-dot" style="background:var(--gog)"></span>GOG <span class="filter-count" id="chip-gog">0</span></button>
       <button class="filter-chip platform-chip" data-p="epic"><span class="filter-dot" style="background:var(--epic)"></span>Epic <span class="filter-count" id="chip-epic">0</span></button>
       <button class="filter-chip platform-chip" data-p="amazon"><span class="filter-dot" style="background:var(--amazon)"></span>Amazon <span class="filter-count" id="chip-amazon">0</span></button>
-      <button class="filter-chip platform-chip" data-p="xbox"><span class="filter-dot" style="background:#107c10"></span>Xbox <span class="filter-count" id="chip-xbox">0</span></button>
+      <button class="filter-chip platform-chip" data-p="xbox"><span class="filter-dot" style="background:var(--xbox)"></span>Xbox <span class="filter-count" id="chip-xbox">0</span></button>
       <div style="margin-left:auto"></div>
       <select class="sort-select filter-genre-select" id="genreFilter">
         <option value="all">All Genres</option>
@@ -548,14 +548,14 @@
     </div>
     <div class="filter-strip filter-strip-bottom">
       <span class="filter-strip-label">Status</span>
-      <button class="filter-chip" data-p="status:exploring"><span class="filter-dot" style="background:#60a5fa"></span>Exploring <span class="filter-count" id="chip-exploring">0</span></button>
-      <button class="filter-chip" data-p="status:finished"><span class="filter-dot" style="background:#4ade80"></span>Finished <span class="filter-count" id="chip-finished">0</span></button>
-      <button class="filter-chip" data-p="unplayed"><span class="filter-dot" style="background:#fb923c"></span>Unplayed <span class="filter-count" id="chip-unplayed">0</span></button>
-      <button class="filter-chip" data-p="status:not-for-me"><span class="filter-dot" style="background:#f87171"></span>Not for Me <span class="filter-count" id="chip-notforme">0</span></button>
+      <button class="filter-chip" data-p="status:exploring"><span class="filter-dot" style="background:var(--status-playing)"></span>Exploring <span class="filter-count" id="chip-exploring">0</span></button>
+      <button class="filter-chip" data-p="status:finished"><span class="filter-dot" style="background:var(--status-completed)"></span>Finished <span class="filter-count" id="chip-finished">0</span></button>
+      <button class="filter-chip" data-p="unplayed"><span class="filter-dot" style="background:var(--status-backlog)"></span>Unplayed <span class="filter-count" id="chip-unplayed">0</span></button>
+      <button class="filter-chip" data-p="status:not-for-me"><span class="filter-dot" style="background:var(--status-abandoned)"></span>Not for Me <span class="filter-count" id="chip-notforme">0</span></button>
       <div class="filter-divider"></div>
-      <button class="filter-chip" data-p="intent:playnext"><span class="filter-dot" style="background:#4ade80"></span>▶ Play Next <span class="filter-count" id="chip-intent-playnext">0</span></button>
-      <button class="filter-chip" data-p="intent:priority"><span class="filter-dot" style="background:#f87171"></span>⭐ Focus List <span class="filter-count" id="chip-intent-priority">0</span></button>
-      <button class="filter-chip" data-p="intent:queue"><span class="filter-dot" style="background:#60a5fa"></span>📋 Queue <span class="filter-count" id="chip-intent-queue">0</span></button>
+      <button class="filter-chip" data-p="intent:playnext"><span class="filter-dot" style="background:var(--status-playing)"></span>▶ Play Next <span class="filter-count" id="chip-intent-playnext">0</span></button>
+      <button class="filter-chip" data-p="intent:priority"><span class="filter-dot" style="background:var(--status-abandoned)"></span>⭐ Focus List <span class="filter-count" id="chip-intent-priority">0</span></button>
+      <button class="filter-chip" data-p="intent:queue"><span class="filter-dot" style="background:var(--status-playing)"></span>📋 Queue <span class="filter-count" id="chip-intent-queue">0</span></button>
     </div>
 
     <!-- Status bar: shows background operation progress -->

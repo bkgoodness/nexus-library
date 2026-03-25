@@ -1974,7 +1974,7 @@ function renderStats() {
     ['GOG','gog',sc('gog'),'var(--gog)'],
     ['Epic','epic',sc('epic'),'var(--epic)'],
     ['Amazon','amazon',sc('amazon'),'var(--amazon)'],
-    ['Xbox','xbox',sc('xbox'),'#107c10'],
+    ['Xbox','xbox',sc('xbox'),'var(--xbox)'],
   ].filter(r => r[2] > 0);
   const maxPlat = Math.max(...platData.map(r => r[2]), 1);
 
@@ -4526,10 +4526,10 @@ function renderStatusPanel() {
   var topTags = Object.entries(tagCounts).sort(function(a,b){return b[1]-a[1];}).slice(0,20);
 
   var statusRows = [
-    ['▶ Exploring',  'exploring',  '#60a5fa', statusCounts.exploring],
-    ['✓ Finished',   'finished',   '#4ade80', statusCounts.finished],
-    ['✕ Not for Me', 'not-for-me', '#f87171', statusCounts['not-for-me']],
-    ['— Untracked',  '',           '#555',    statusCounts.none],
+    ['▶ Exploring',  'exploring',   'var(--status-playing)',   statusCounts.exploring],
+    ['✓ Finished',   'finished',    'var(--status-completed)', statusCounts.finished],
+    ['x Not for Me', 'not-for-me',  'var(--status-abandoned)', statusCounts['not-for-me']],
+    ['— Untracked',  '',            'var(--text3)',             statusCounts.none],
   ];
 
   // Status panel
