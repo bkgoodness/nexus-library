@@ -659,10 +659,14 @@
   <!-- DISCOVERY PAGE -->
   <div id="page-discovery" class="page">
     <div class="topbar">
-      <div class="topbar-title">🧭 Discover</div>
-      <div class="topbar-subtitle">Explore, rediscover, and decide what to play</div>
+      <div class="topbar-main">
+        <div class="topbar-heading">
+          <div class="topbar-title">Discover</div>
+          <div class="topbar-subtitle">Explore, rediscover, and decide what to play</div>
+        </div>
+      </div>
     </div>
-    <div style="padding:20px;overflow-y:auto;height:calc(100vh - 60px);box-sizing:border-box">
+    <div style="padding:20px;overflow-y:auto;flex:1;min-height:0;box-sizing:border-box">
 
       <!-- Play Next Shelf -->
       <div class="discovery-section" id="disc-playnext">
@@ -848,7 +852,7 @@
 </div>
 
 <div class="topbar-secondary" style="padding:12px 24px">
-  <div style="display:flex;gap:8px;align-items:flex-end;width:100%;max-width:900px">
+  <div style="display:flex;gap:8px;align-items:flex-end;width:100%;max-width:560px;margin:0 auto">
     <div style="flex:1;min-width:220px">
       <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Steam ID</div>
       <input type="text" id="friendSteamId" class="settings-input" placeholder="Friend's 17-digit Steam ID…" style="width:100%">
@@ -880,17 +884,17 @@
 
 <div class="topbar-secondary" style="padding:12px 24px">
   <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;width:100%">
-    <div style="flex:2;min-width:180px">
+    <div style="flex:2;min-width:180px;max-width:360px">
       <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Game</div>
       <select id="goalGameSelect" class="sort-select" style="width:100%;font-size:12px">
         <option value="">Select a game…</option>
       </select>
     </div>
-    <div style="flex:1;min-width:80px">
+    <div style="flex:0 0 100px">
       <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Target hours</div>
       <input type="number" id="goalTargetHours" class="settings-input" placeholder="100" min="1" style="width:100%">
     </div>
-    <div style="flex:2;min-width:160px">
+    <div style="flex:2;min-width:160px;max-width:300px">
       <div style="font-size:10px;color:var(--text3);margin-bottom:4px;text-transform:uppercase;letter-spacing:1px">Label (optional)</div>
       <input type="text" id="goalLabel" class="settings-input" placeholder="e.g. Finish the main story">
     </div>
@@ -909,9 +913,11 @@
   <!-- SETTINGS PAGE -->
   <div id="page-settings" class="page">
     <div class="topbar">
-      <div>
-        <div class="topbar-title">Settings</div>
-        <div class="topbar-subtitle">Connect accounts and manage your library</div>
+      <div class="topbar-main">
+        <div class="topbar-heading">
+          <div class="topbar-title">Settings</div>
+          <div class="topbar-subtitle">Connect accounts and manage your library</div>
+        </div>
       </div>
     </div>
     <div class="game-area">
