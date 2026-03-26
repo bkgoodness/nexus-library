@@ -1831,6 +1831,7 @@ function renderLibrary() {
       var isHidden = !!g.hidden;
       var card = document.createElement('div');
       card.className = 'game-card';
+      if (g.status) card.dataset.status = g.status;
       card.style.animationDelay = (i * 0.025) + 's';
       if (isHidden) card.style.opacity = '0.5';
       var coverUrl = coverCache[g.id] || coverCache[String(g.id)];
@@ -1998,8 +1999,8 @@ function renderStats() {
   const steamGames = games.filter(g => g.platforms.includes('steam'));
   const needsResync = steamGames.length > 0 && withTime.length === 0;
 
-  // Recently added (last 30 days)
-  const cutoff = Date.now() - 30*24*60*60*1000;
+  // Recently added (last 7 days)
+  const cutoff = Date.now() - 7*24*60*60*1000;
   const recentGames = games.filter(g => g.addedAt && new Date(g.addedAt).getTime() > cutoff)
     .sort((a,b) => new Date(b.addedAt) - new Date(a.addedAt)).slice(0, 8);
 
@@ -7977,12 +7978,17 @@ async function renderFreeGamesPage() {
 
   function buildCard(g, allCards) {
     var isClaimed = claimed.has(g.title);
+    var displayTitle = g.title
+      .replace(/\s*\(Epic Games?\)\s*Giveaway/gi, '')
+      .replace(/\s*\([^)]*\)\s*Giveaway/gi, '')
+      .replace(/\s*Giveaway$/gi, '')
+      .trim();
     var card = document.createElement('div');
     card.className = 'free-game-card' + (isClaimed ? ' is-claimed' : '');
     card.dataset.title = g.title;
 
-    var platformBadge = g.platform ? '<span class="free-platform-badge">' + escHtml(g.platform) + '</span>' : '';
-    var typeBadge = g.type ? '<span class="free-type-badge">' + escHtml(g.type) + '</span>' : '';
+    var platformBadge = (g.platform && g.platform !== 'Epic') ? '<span class="free-platform-badge">' + escHtml(g.platform) + '</span>' : '';
+    var typeBadge = '';
     var worth = g.worth && g.worth !== 'N/A' ? '<span class="free-worth">Was ' + escHtml(String(g.worth)) + '</span>' : '';
     var endText = g.endDate ? 'Until ' + new Date(g.endDate).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : (g.status === 'Active' ? 'Active now' : '');
 
@@ -7993,8 +7999,7 @@ async function renderFreeGamesPage() {
         '<div class="free-card-badges">' + platformBadge + typeBadge + '</div>' +
       '</div>' +
       '<div class="free-card-body">' +
-        '<div class="free-card-title' + (isClaimed ? ' is-claimed' : '') + '">' + escHtml(g.title) + '</div>' +
-        (g.description ? '<div class="free-card-desc">' + escHtml(g.description.slice(0,100) + (g.description.length > 100 ? '…' : '')) + '</div>' : '') +
+        '<div class="free-card-title' + (isClaimed ? ' is-claimed' : '') + '">' + escHtml(displayTitle) + '</div>' +
         '<div class="free-card-footer">' +
           '<label class="free-claim-label' + (isClaimed ? ' claimed' : '') + '">' +
             '<input type="checkbox" class="claim-checkbox" ' + (isClaimed ? 'checked' : '') + ' style="accent-color:#4ade80;cursor:pointer"> ' +
@@ -8312,7 +8317,7 @@ function burnDownSection(allSessions) {
     '</div>' +
     '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px">' +
       statMini(backlog.length, 'In Backlog', COLOR.backlog) +
-      statMini('~' + Math.round(totalBacklogHrs).toLocaleString() + 'h', 'Est. Total', COLOR.backlog) +
+      statMini(Math.round(totalBacklogHrs).toLocaleString('en-US') + 'h', 'Est. Total', COLOR.backlog) +
       statMini(weeksToFinish ? (weeksToFinish > 104 ? yearsToFinish + ' yrs' : weeksToFinish + ' wks') : '?', 'At Your Pace', COLOR.error) +
     '</div>' +
     (weeksToFinish ? '<div style="font-size:11px;color:var(--text3);line-height:1.6">' +
@@ -10548,7 +10553,11 @@ function renderPickerQuiz() {
 
   // Update modal title to reflect mode
   var titleEl = document.querySelector('#helpMeDecideOverlay .modal-title');
-  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Help Me Decide';
+  var descEl = document.getElementById('helpMeDecideDesc');
+  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Curate';
+  if (descEl) descEl.textContent = pickerReplayMode
+    ? 'Pick up where you left off. Surfaces games from your play history — ready to revisit.'
+    : 'Answer 3 quick questions and Backlog Zero will pull three picks from your backlog that match how you feel right now.';
 
   // Determine current step
   var step = !pickerQuizAnswers.energy ? 1 : !pickerQuizAnswers.time ? 2 : !pickerQuizAnswers.mode ? 3 : 4;
@@ -10804,7 +10813,11 @@ function renderPickerResult() {
 
   // Update title to reflect mode
   var titleEl = document.querySelector('#helpMeDecideOverlay .modal-title');
-  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Help Me Decide';
+  var descEl = document.getElementById('helpMeDecideDesc');
+  if (titleEl) titleEl.textContent = pickerReplayMode ? '↩ Play Again' : '✦ Curate';
+  if (descEl) descEl.textContent = pickerReplayMode
+    ? 'Pick up where you left off. Surfaces games from your play history — ready to revisit.'
+    : 'Answer 3 quick questions and Backlog Zero will pull three picks from your backlog that match how you feel right now.';
 
   var entry  = pickerResults[pickerResultIndex];
   var g      = entry.game;
