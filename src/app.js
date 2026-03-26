@@ -6298,13 +6298,13 @@ function renderIdentityHighlightsRow(items) {
 function renderBacklogRealityCheck(data) {
   return (
     '<div class="identity-module identity-reality-check">' +
-      '<div class="identity-module-header">' +
-        '<div class="identity-module-title">Backlog Reality Check</div>' +
-      '</div>' +
-
-      '<div class="identity-reality-copy">' +
-        'A compact view of how your library changed this period.' +
-      '</div>' +
+     '<div class="identity-module-header">' +
+       '<div class="identity-module-eyebrow">BACKLOG ASSESSMENT</div>' +
+       '<div class="identity-module-title">Reality Check</div>' +
+     '</div>' +
+     '<div class="identity-reality-copy">' +
+       'Library activity for ' + (data.periodLabel || 'this period') + '.' +
+     '</div>' +
 
       '<div class="identity-reality-grid">' +
 
@@ -6353,7 +6353,7 @@ function renderIdentityArchetypeModule(data) {
       '<div class="identity-archetype-shell" style="background-image:url(\'' + data.template + '\')">' +
         '<div class="identity-archetype-overlay"></div>' +
         '<div class="identity-archetype-inner">' +
-          '<div class="identity-archetype-meta">Current Archetype</div>' +
+          '<div class="identity-archetype-meta">Active Classification</div>' +
           '<div class="identity-archetype-name">' + data.identityName + '</div>' +
           '<div class="identity-archetype-text">' + data.identitySummary + '</div>' +
         '</div>' +
@@ -6716,14 +6716,15 @@ async function renderWrappedPage() {
     : 0;
 
   var backlogRealityData = {
-  backlogGrowth: data.netBacklogChange,
-  completionRate: completionRate,
-  topGenre: data.topGenre ? data.topGenre[0] : '—',
-  topPlatform: data.topPlatform || '—',
-  longestSession: data.longestSession
-    ? formatIdentityDuration(data.longestSession.seconds)
-    : '—',
-  libraryChange: data.added.length
+       backlogGrowth: data.netBacklogChange,
+       completionRate: completionRate,
+       topGenre: data.topGenre ? data.topGenre[0] : '—',
+       topPlatform: data.topPlatform || '—',
+       longestSession: data.longestSession
+         ? formatIdentityDuration(data.longestSession.seconds)
+         : '—',
+       libraryChange: data.added.length,
+       periodLabel: data.periodLabel || ''
 };
 
   var archetypeVisual = data.identityMeta || {};
@@ -6785,7 +6786,7 @@ data.identityBg =
             '<div class="identity-top-band">' +
         '<div class="identity-report-hero">' +
 
-          '<div class="identity-report-eyebrow">Backlog Zero · Identity Report</div>' +
+          '<div class="identity-report-eyebrow">Backlog Zero · Identity Dossier</div>' +
 
           '<div class="identity-report-main">' +
             
@@ -6803,12 +6804,12 @@ data.identityBg =
 
                 '<div class="identity-report-meta-line">' +
                   '<span class="identity-report-meta-key">Status</span>' +
-                  '<span class="identity-report-meta-val">Identity still forming</span>' +
+                  '<span class="identity-report-meta-val">Classification Pending</span>' +
                 '</div>' +
 
                 '<div class="identity-report-meta-line">' +
                   '<span class="identity-report-meta-key">Classification</span>' +
-                  '<span class="identity-report-meta-val">Pending</span>' +
+                  '<span class="identity-report-meta-val identity-report-meta-pending">Pending</span>' +
                 '</div>' +
               '</div>' +
 
@@ -6850,7 +6851,7 @@ data.identityBg =
               '<div class="identity-archetype-overlay"></div>' +
 
               '<div class="identity-archetype-inner">' +
-                '<div class="identity-archetype-meta">Current Archetype</div>' +
+                '<div class="identity-archetype-meta">Active Classification</div>' +
                 '<div class="identity-archetype-name">' + escHtml(archetypeVisual.title || 'Identity Unknown') + '</div>' +
                 '<div class="identity-archetype-text">' +
                 (archetypeVisual && typeof archetypeVisual.desc === 'function'
@@ -6876,7 +6877,7 @@ data.identityBg =
                     })
                   : 'Keep playing to reveal your identity pattern.') +
                 '</div>' +
-                '<button type="button" class="identity-card-open-btn" id="identityCardOpenBtn">View Full Identity Card</button>' +
+                '<button type="button" class="identity-card-open-btn" id="identityCardOpenBtn">Open Full Dossier</button>'
               '</div>' +
 
             '</div>' +
