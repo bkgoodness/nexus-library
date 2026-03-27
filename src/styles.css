@@ -3651,3 +3651,47 @@ html, body {
   z-index: 0;
 }
 
+.onboard-logo {
+  filter: invert(62%) sepia(30%) saturate(450%) hue-rotate(152deg) brightness(95%) contrast(90%);
+}
+
+body.light-mode .onboard-logo,
+body.accessible-mode .onboard-logo {
+  filter: invert(40%) sepia(40%) saturate(500%) hue-rotate(152deg) brightness(85%) contrast(100%);
+}
+
+.friend-compact-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-bottom: 1px solid var(--border);
+}
+.friend-compact-row:last-child { border-bottom: none; }
+
+.friend-compact-cover {
+  position: relative;
+  width: 24px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.friend-compact-cover-bg {
+  position: absolute;
+  inset: 0;
+}
+.friend-compact-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.friend-compact-meta {
+  font-size: 11px;
+  color: var(--text3);
+  flex-shrink: 0;
+}

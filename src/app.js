@@ -139,7 +139,7 @@ const COVER_PALETTES = [
 
 var BRAND_FOOTER_HTML = 
   '<div class="settings-brand-footer" style="margin-top:24px">' +
-    '<img src="bz_logo_circle_clean.svg" class="settings-brand-logo" alt="Backlog Zero">' +
+    '<img src="assets/bz_logo_circle_clean.svg" class="settings-brand-logo" alt="Backlog Zero">' +
     '<div class="settings-brand-text">' +
       '<div class="settings-brand-name">Backlog Zero</div>' +
       '<div class="settings-brand-tagline">B + Z = 0</div>' +
@@ -1041,97 +1041,234 @@ function renderFriendComparison() {
   var myTitles     = new Set(games.map(function(g) { return normalizeTitle(g.title); }));
   var friendTitles = new Set(friendGames.map(function(g) { return normalizeTitle(g.name || ''); }));
 
-  var inCommon = friendGames.filter(function(g) { return myTitles.has(normalizeTitle(g.name || '')); });
-  var theyHave = friendGames.filter(function(g) { return !myTitles.has(normalizeTitle(g.name || '')); })
-    .sort(function(a,b) { return (b.playtime_forever||0) - (a.playtime_forever||0); });
-  var iHave    = games.filter(function(g) { return !friendTitles.has(normalizeTitle(g.title)); });
+  var inCommon = friendGames
+    .filter(function(g) { return myTitles.has(normalizeTitle(g.name || '')); })
+    .sort(function(a, b) { return (a.name || '').localeCompare(b.name || ''); });
+
+  var theyHave = friendGames
+    .filter(function(g) { return !myTitles.has(normalizeTitle(g.name || '')); })
+    .sort(function(a, b) { return (b.playtime_forever || 0) - (a.playtime_forever || 0); });
+
+  var iHave = games
+    .filter(function(g) { return !friendTitles.has(normalizeTitle(g.title)); })
+    .sort(function(a, b) { return a.title.localeCompare(b.title); });
 
   var el = document.getElementById('friendResults');
+  var activeTab = 'theyHave';
+  var shownCount = 150;
 
-  // Summary stats row
-  var summaryHtml =
-    '<div class="friend-summary">' +
-      '<div class="friend-stat-card">' +
-        '<div class="friend-stat-num" style="color:var(--steam)">' + inCommon.length + '</div>' +
-        '<div class="friend-stat-label">In Common</div>' +
-      '</div>' +
-      '<div class="friend-stat-card">' +
+  function renderTabContent() {
+    var contentEl = document.getElementById('friendTabContent');
+    contentEl.innerHTML = '';
+
+    // Update active stat card styles
+    ['theyHave', 'inCommon', 'iHave'].forEach(function(tab) {
+      var card = document.getElementById('friendStatCard-' + tab);
+      if (!card) return;
+      card.style.borderColor = tab === activeTab ? 'var(--accent)' : 'var(--border)';
+      card.style.background  = tab === activeTab ? 'var(--surface2)' : 'var(--surface)';
+    });
+
+    if (activeTab === 'theyHave') {
+      renderTheyHave(contentEl);
+    } else if (activeTab === 'inCommon') {
+      renderInCommon(contentEl);
+    } else {
+      renderIHave(contentEl);
+    }
+
+    // Footer
+    var footerEl = document.createElement('div');
+    footerEl.innerHTML = BRAND_FOOTER_HTML;
+    contentEl.appendChild(footerEl.firstChild);
+  }
+
+  function renderTheyHave(contentEl) {
+    var header = document.createElement('div');
+    header.className = 'friend-section-header';
+    header.innerHTML =
+      '<div class="friend-section-title">🎮 ' + escHtml(friendName) + ' has — you don\'t</div>' +
+      '<div class="friend-section-sub">Sorted by their playtime · ' + theyHave.length + ' games</div>';
+    contentEl.appendChild(header);
+
+    if (!theyHave.length) {
+      contentEl.innerHTML += '<div class="friend-empty">You already own everything ' + escHtml(friendName) + ' has!</div>';
+      return;
+    }
+
+    var grid = document.createElement('div');
+    grid.className = 'friend-game-grid';
+    contentEl.appendChild(grid);
+
+    var loadMoreWrap = document.createElement('div');
+    loadMoreWrap.style.cssText = 'text-align:center;margin:12px 0;display:none';
+    loadMoreWrap.innerHTML =
+      '<button class="settings-btn" style="padding:8px 24px" id="friendLoadMoreBtn">Load More Games</button>' +
+      '<div style="font-size:11px;color:var(--text3);margin-top:6px" id="friendLoadMoreLabel"></div>';
+    contentEl.appendChild(loadMoreWrap);
+
+    function fillGrid(count) {
+      grid.innerHTML = '';
+      theyHave.slice(0, count).forEach(function(fg) {
+        var title    = fg.name || '';
+        var hrs      = fg.playtime_forever ? Math.max(0, Math.round(fg.playtime_forever / 60)) : 0;
+        var inWish   = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(title); });
+        var coverUrl = fg.appid ? 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + fg.appid + '/library_600x900.jpg' : null;
+        var pal      = COVER_PALETTES[Math.abs(title.charCodeAt(0) || 0) % COVER_PALETTES.length];
+
+        var row = document.createElement('div');
+        row.className = 'friend-game-card';
+        row.innerHTML =
+          '<div class="friend-game-cover"' + (fg.appid ? ' onclick="window.open(\'https://store.steampowered.com/app/' + fg.appid + '\',\'_blank\')" style="cursor:pointer" title="Open in Steam"' : '') + '>' +
+            (coverUrl ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
+            '<div class="friend-game-cover-bg" style="background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>' +
+            (fg.appid ? '<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.7);border-radius:4px;padding:2px 5px;font-size:9px;color:#7fc8f8;opacity:0;transition:opacity 0.15s" class="steam-hover-hint">Steam ↗</div>' : '') +
+          '</div>' +
+          '<div class="friend-game-body">' +
+            '<div class="friend-game-title">' + escHtml(title) + '</div>' +
+            (hrs > 0 ? '<div class="friend-game-hrs">' + hrs + 'h played by ' + escHtml(friendName) + '</div>' : '<div class="friend-game-hrs">No playtime data</div>') +
+            '<div class="friend-game-actions">' +
+              '<button class="friend-wish-btn' + (inWish ? ' wishlisted' : '') + '">' + (inWish ? '♥ Wishlisted' : '♡ Add to Wishlist') + '</button>' +
+            '</div>' +
+          '</div>';
+
+        var wishBtn = row.querySelector('.friend-wish-btn');
+        if (wishBtn && !inWish) {
+          (function(t, btn) {
+            btn.addEventListener('click', function(e) {
+              e.stopPropagation();
+              var input = document.getElementById('wishGameTitle');
+              input.value = t;
+              input.dispatchEvent(new Event('input'));
+              document.getElementById('wishOverlay').classList.add('open');
+              btn.textContent = '♥ Wishlisted';
+              btn.classList.add('wishlisted');
+              btn.disabled = true;
+            });
+          })(title, wishBtn);
+        }
+
+        grid.appendChild(row);
+      });
+
+      if (theyHave.length > count) {
+        loadMoreWrap.style.display = 'block';
+        document.getElementById('friendLoadMoreLabel').textContent =
+          'Showing ' + count + ' of ' + theyHave.length + ' · ' + (theyHave.length - count) + ' not yet shown';
+        document.getElementById('friendLoadMoreBtn').onclick = function() {
+          shownCount += 50;
+          fillGrid(shownCount);
+        };
+      } else {
+        loadMoreWrap.style.display = 'none';
+      }
+    }
+
+    fillGrid(shownCount);
+  }
+
+  function renderCompactList(contentEl, items, titleFn, metaFn, coverFn, palFn, emptyMsg) {
+    if (!items.length) {
+      var empty = document.createElement('div');
+      empty.className = 'friend-empty';
+      empty.textContent = emptyMsg;
+      contentEl.appendChild(empty);
+      return;
+    }
+    items.forEach(function(item) {
+      var coverUrl = coverFn(item);
+      var pal      = palFn(item);
+      var row      = document.createElement('div');
+      row.className = 'friend-compact-row';
+      row.innerHTML =
+        '<div class="friend-compact-cover">' +
+          (coverUrl ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover;border-radius:3px" onerror="this.style.display=\'none\'">' : '') +
+          '<div class="friend-compact-cover-bg" style="background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ');border-radius:3px;position:absolute;inset:0"></div>' +
+        '</div>' +
+        '<div class="friend-compact-title">' + escHtml(titleFn(item)) + '</div>' +
+        '<div class="friend-compact-meta">' + escHtml(metaFn(item)) + '</div>';
+      contentEl.appendChild(row);
+    });
+  }
+
+  function renderInCommon(contentEl) {
+    var header = document.createElement('div');
+    header.className = 'friend-section-header';
+    header.innerHTML =
+      '<div class="friend-section-title">🤝 Games you both own</div>' +
+      '<div class="friend-section-sub">Sorted A–Z · ' + inCommon.length + ' games</div>';
+    contentEl.appendChild(header);
+
+    renderCompactList(
+      contentEl, inCommon,
+      function(fg) { return fg.name || ''; },
+      function(fg) {
+        var myGame  = games.find(function(g) { return normalizeTitle(g.title) === normalizeTitle(fg.name || ''); });
+        var myHrs   = myGame ? Math.round(myGame.playtimeHours || 0) : 0;
+        var theirHrs = fg.playtime_forever ? Math.max(0, Math.round(fg.playtime_forever / 60)) : 0;
+        return 'You ' + myHrs + 'h · ' + friendName + ' ' + theirHrs + 'h';
+      },
+      function(fg) {
+        var myGame = games.find(function(g) { return normalizeTitle(g.title) === normalizeTitle(fg.name || ''); });
+        return fg.appid
+          ? 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + fg.appid + '/library_600x900.jpg'
+          : (myGame && (coverCache[myGame.id] || coverCache[String(myGame.id)])) || null;
+      },
+      function(fg) {
+        var t = fg.name || '';
+        return COVER_PALETTES[Math.abs(t.charCodeAt(0) || 0) % COVER_PALETTES.length];
+      },
+      'No games in common.'
+    );
+  }
+
+  function renderIHave(contentEl) {
+    var header = document.createElement('div');
+    header.className = 'friend-section-header';
+    header.innerHTML =
+      '<div class="friend-section-title">📦 You have — they don\'t</div>' +
+      '<div class="friend-section-sub">Sorted A–Z · ' + iHave.length + ' games</div>';
+    contentEl.appendChild(header);
+
+    renderCompactList(
+      contentEl, iHave,
+      function(g) { return g.title; },
+      function(g) { return Math.round(g.playtimeHours || 0) + 'h played'; },
+      function(g) { return coverCache[g.id] || coverCache[String(g.id)] || null; },
+      function(g) { return COVER_PALETTES[(g.pal || 0) % COVER_PALETTES.length]; },
+      escHtml(friendName) + ' already owns everything you have!'
+    );
+  }
+
+  // ── Build shell ──
+  el.innerHTML =
+    '<div class="friend-summary" style="cursor:pointer">' +
+      '<div class="friend-stat-card" id="friendStatCard-theyHave" style="border:2px solid var(--accent);background:var(--surface2);transition:border-color 0.15s,background 0.15s">' +
         '<div class="friend-stat-num" style="color:var(--color-pink)">' + theyHave.length + '</div>' +
         '<div class="friend-stat-label">' + escHtml(friendName) + ' has, you don\'t</div>' +
       '</div>' +
-      '<div class="friend-stat-card">' +
+      '<div class="friend-stat-card" id="friendStatCard-inCommon" style="border:2px solid var(--border);background:var(--surface);transition:border-color 0.15s,background 0.15s">' +
+        '<div class="friend-stat-num" style="color:var(--steam)">' + inCommon.length + '</div>' +
+        '<div class="friend-stat-label">In Common</div>' +
+      '</div>' +
+      '<div class="friend-stat-card" id="friendStatCard-iHave" style="border:2px solid var(--border);background:var(--surface);transition:border-color 0.15s,background 0.15s">' +
         '<div class="friend-stat-num" style="color:var(--color-success)">' + iHave.length + '</div>' +
         '<div class="friend-stat-label">You have, they don\'t</div>' +
       '</div>' +
-    '</div>';
-
-  el.innerHTML = summaryHtml +
-    '<div class="friend-section-header">' +
-      '<div class="friend-section-title">🎮 ' + escHtml(friendName) + ' has — you don\'t</div>' +
-      '<div class="friend-section-sub">Sorted by their playtime · ' + theyHave.length + ' games</div>' +
     '</div>' +
-    '<div class="friend-game-grid" id="friendTheyHaveList"></div>';
+    '<div id="friendTabContent" style="margin-top:4px"></div>';
 
-  var listEl = document.getElementById('friendTheyHaveList');
-
-  theyHave.slice(0, 100).forEach(function(fg) {
-    var title = fg.name || '';
-    var hrs   = fg.playtime_forever ? Math.max(0, Math.round(fg.playtime_forever / 60)) : 0;
-    var inWish = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(title); });
-    var myGame = games.find(function(g) { return normalizeTitle(g.title) === normalizeTitle(title); });
-    // Try to get a Steam cover via appid
-    var coverUrl = fg.appid ? 'https://cdn.cloudflare.steamstatic.com/steam/apps/' + fg.appid + '/library_600x900.jpg' : null;
-    var pal = COVER_PALETTES[Math.abs(title.charCodeAt(0) || 0) % COVER_PALETTES.length];
-
-    var row = document.createElement('div');
-    row.className = 'friend-game-card';
-    row.innerHTML =
-      '<div class="friend-game-cover"' + (fg.appid ? ' onclick="window.open(\'https://store.steampowered.com/app/' + fg.appid + '\',\'_blank\')" style="cursor:pointer" title="Open in Steam"' : '') + '>' +
-        (coverUrl ? '<img src="' + coverUrl + '" style="width:100%;height:100%;object-fit:cover" onerror="this.style.display=\'none\'">' : '') +
-        '<div class="friend-game-cover-bg" style="background:linear-gradient(145deg,' + pal[0] + ',' + pal[1] + ')"></div>' +
-        (fg.appid ? '<div style="position:absolute;bottom:4px;right:4px;background:rgba(0,0,0,0.7);border-radius:4px;padding:2px 5px;font-size:9px;color:#7fc8f8;opacity:0;transition:opacity 0.15s" class="steam-hover-hint">Steam ↗</div>' : '') +
-      '</div>' +
-      '<div class="friend-game-body">' +
-        '<div class="friend-game-title">' + escHtml(title) + '</div>' +
-        (hrs > 0 ? '<div class="friend-game-hrs">' + hrs + 'h played by ' + escHtml(friendName) + '</div>' : '<div class="friend-game-hrs">No playtime data</div>') +
-        '<div class="friend-game-actions">' +
-          (myGame
-            ? '<span class="friend-in-library">✓ In your library</span>'
-            : '<button class="friend-wish-btn' + (inWish ? ' wishlisted' : '') + '">' + (inWish ? '♥ Wishlisted' : '♡ Add to Wishlist') + '</button>') +
-        '</div>' +
-      '</div>';
-
-    var wishBtn = row.querySelector('.friend-wish-btn');
-    if (wishBtn && !inWish) {
-      wishBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        var input = document.getElementById('wishGameTitle');
-        input.value = title;
-        input.dispatchEvent(new Event('input'));
-        document.getElementById('wishOverlay').classList.add('open');
-        wishBtn.textContent = '♥ Wishlisted';
-        wishBtn.classList.add('wishlisted');
-        wishBtn.disabled = true;
-      });
-    }
-
-    listEl.appendChild(row);
+  // Wire stat card clicks
+  ['theyHave', 'inCommon', 'iHave'].forEach(function(tab) {
+    document.getElementById('friendStatCard-' + tab).addEventListener('click', function() {
+      activeTab = tab;
+      shownCount = 150;
+      renderTabContent();
+    });
   });
 
-  if (!theyHave.length) {
-    listEl.innerHTML = '<div class="friend-empty">You already own everything ' + escHtml(friendName) + ' has!</div>';
-  } else if (theyHave.length > 100) {
-    var more = document.createElement('div');
-    more.className = 'friend-more';
-    more.textContent = '+ ' + (theyHave.length - 100) + ' more games not shown';
-    listEl.appendChild(more);
-  
-  }
-    var footerEl = document.createElement('div');
-    footerEl.innerHTML = BRAND_FOOTER_HTML;
-    el.appendChild(footerEl.firstChild);
+  renderTabContent();
 }
-
 
 // ── PLAYTIME GOALS ──
 var goals = [];
@@ -1294,7 +1431,7 @@ function renderGoals() {
         '</div>'
       : '';
     el.innerHTML =
-      '<div class="empty-state" style="padding:40px 0"><div class="empty-icon">🎯</div><<h3>No milestones set</h3><p>Pick a game and set a target — track your progress as you play.</p></div>' +
+      '<div class="empty-state" style="padding:40px 0"><div class="empty-icon">🎯</div><h3>No milestones set</h3><p>Pick a game and set a target — track your progress as you play.</p></div>' +
       suggHtml;
     return;
   }
@@ -1341,7 +1478,9 @@ function renderGoals() {
 
   el.innerHTML = html;
   renderHallOfFame();
-  el.innerHTML += BRAND_FOOTER_HTML;
+  var footerEl = document.createElement('div');
+  footerEl.innerHTML = BRAND_FOOTER_HTML;
+  el.appendChild(footerEl.firstChild);
 }
 
 function populateGoalGameSelect() {
@@ -6046,7 +6185,7 @@ async function renderHabitsPage() {
 
       // Brand stamp
       '<div class="habits-brand-stamp">' +
-        '<img src="bz_logo_circle_clean.svg" class="habits-brand-stamp-logo" alt="Backlog Zero">' +
+        '<img src="assets/bz_logo_circle_clean.svg" class="habits-brand-stamp-logo" alt="Backlog Zero">' +
         '<div class="habits-brand-stamp-name">Backlog Zero</div>' +
         '<div class="habits-brand-stamp-divider"></div>' +
         '<div class="habits-brand-stamp-tagline">B + Z = 0</div>' +
@@ -6808,6 +6947,7 @@ return notes.slice(0, Math.min(3, notes.length));
 async function renderWrappedPage() {
   var el = document.getElementById('wrappedContent');
   if (!el) return;
+  maybeShowPageHint('identity');
 
   var yearSel = document.getElementById('wrappedYear');
   if (yearSel && !yearSel.dataset.bound) {
@@ -6909,7 +7049,7 @@ data.identityBg =
     '<div class="identity-page-layout">' +
 
       '<div class="identity-page-watermark">' +
-        '<img src="./bz_logo_full.svg" class="identity-page-watermark-full" alt="Backlog Zero">' +
+        '<img src="assets/bz_logo_full.svg" class="identity-page-watermark-full" alt="Backlog Zero">' +
       '</div>' +
 
             '<div class="identity-top-band">' +
@@ -8317,6 +8457,11 @@ async function renderFreeGamesPage() {
   });
 
   renderTabContent('epic');
+
+  // Brand footer
+  var footerEl = document.createElement('div');
+  footerEl.innerHTML = BRAND_FOOTER_HTML;
+  el.appendChild(footerEl.firstChild);
 }
 
 
@@ -9825,8 +9970,8 @@ async function executeFullReset() {
 var onboardStep = 0;
 var onboardSteps = [
   {
-    title: 'Welcome to Nexus Library',
-    subtitle: 'Your unified game library across all platforms',
+    title: 'Welcome to Backlog Zero',
+    subtitle: 'Your unified game library, classified.',
     render: function() {
       return '<div style="text-align:center;padding:10px 0 20px">' +
         '<div style="font-size:48px;margin-bottom:16px">🎮</div>' +
@@ -9925,28 +10070,33 @@ var onboardSteps = [
     }
   },
   {
-    title: 'Epic & Amazon Games',
-    subtitle: 'Import via Heroic Games Launcher',
-    render: function() {
-      return '<div class=\"onboard-platform-card\">' +
-        '<h3>🟡 Epic &nbsp;&amp;&nbsp; 🟠 Amazon Games</h3>' +
-        '<div class=\"onboard-field-desc\">Nexus imports your Epic and Amazon libraries through <strong style=\"color:var(--text)\">Heroic Games Launcher</strong> — a free, open-source app that manages both platforms on Mac, Windows, and Linux.</div>' +
-        '<div style=\"background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.8\">' +
-          '<strong style=\"color:var(--text)\">To enable Epic &amp; Amazon import:</strong><br>' +
-          '1. Download &amp; install <a href="#" data-href="https://heroicgameslauncher.com" class="settings-link">Heroic Games Launcher</a><br>' +
-          '2. Log into your Epic Games account in Heroic<br>' +
-          '3. Log into your Amazon Games account in Heroic<br>' +
-          '4. Let both libraries sync at least once<br>' +
-          '5. Then use <strong style=\"color:var(--text)\">Settings → Import Epic via Heroic</strong>' +
-        '</div>' +
-        '<div style=\"background:rgba(99,179,237,0.07);border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.7\">' +
-          '💡 No API keys needed — Nexus reads Heroic\'s local library files directly.<br>' +
-          'GOG is also supported the same way via Heroic, or directly from the GOG Galaxy database.' +
-        '</div>' +
-        '<span class=\"onboard-skip-link\" onclick=\"obNext()\">Skip — I\'ll set this up later in Settings →</span>' +
-      '</div>';
-    }
-  },
+  title: 'Epic, Amazon & GOG',
+  subtitle: 'Import via their respective launchers',
+  render: function() {
+    return '<div class="onboard-platform-card">' +
+      '<h3>🟡 Epic &nbsp;&amp;&nbsp; 🟠 Amazon &nbsp;&amp;&nbsp; 🟣 GOG</h3>' +
+      '<div class="onboard-field-desc">These platforms are imported through their desktop launchers. Nexus reads their local library files directly — no API keys needed.</div>' +
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:10px;font-size:12px;color:var(--text2);line-height:1.9">' +
+        '<strong style="color:var(--text)">🟡 Epic &amp; 🟠 Amazon — via Heroic Games Launcher</strong><br>' +
+        '1. Install <a href="#" data-href="https://heroicgameslauncher.com" class="settings-link">Heroic Games Launcher</a><br>' +
+        '2. Log into your Epic and/or Amazon account in Heroic<br>' +
+        '3. Let the library sync at least once<br>' +
+        '4. Then use <strong style="color:var(--text)">Settings → Import Epic / Amazon via Heroic</strong>' +
+      '</div>' +
+      '<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;color:var(--text2);line-height:1.9">' +
+        '<strong style="color:var(--text)">🟣 GOG — via GOG Galaxy</strong><br>' +
+        '1. Install <a href="#" data-href="https://www.gog.com/galaxy" class="settings-link">GOG Galaxy</a><br>' +
+        '2. Log into your GOG account<br>' +
+        '3. Let the library sync at least once<br>' +
+        '4. Then use <strong style="color:var(--text)">Settings → Import GOG via Galaxy</strong>' +
+      '</div>' +
+      '<div style="background:rgba(99,179,237,0.07);border:1px solid rgba(99,179,237,0.2);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--text3);line-height:1.7;margin-bottom:14px">' +
+        '💡 Nexus reads local library files — no logins or API keys required once the launchers are installed and synced.' +
+      '</div>' +
+      '<span class="onboard-skip-link" onclick="obNext()">Skip — I\'ll set these up later in Settings →</span>' +
+    '</div>';
+  }
+},
   {
     title: 'Xbox & Game Pass',
     subtitle: 'Connect your Xbox account via OpenXBL',
@@ -9973,7 +10123,7 @@ var onboardSteps = [
     }
   },
   {
-    title: 'Optional: More Integrations',
+    title: 'Optional: Prices & Metadata',
     subtitle: 'Two free API keys that make Backlog Zero significantly more useful',
     render: function() {
       return '<div style="display:flex;flex-direction:column;gap:16px">' +
@@ -10031,7 +10181,7 @@ var onboardSteps = [
         '<div style="font-size:13px;color:var(--text3);line-height:1.7;max-width:400px;margin:0 auto">' +
           'You can always add or change your API keys in <strong style="color:var(--text)">Settings</strong>. ' +
           'Epic and Amazon Games require <strong style="color:var(--text)">Heroic Games Launcher</strong> to be installed and synced first — then import them from Settings.<br><br>' +
-          'Enjoy your library!' +
+          'Your backlog won\'t clear itself — let\'s change that.' +
         '</div>' +
       '</div>';
     }
@@ -11100,27 +11250,47 @@ var PAGE_HINTS = {
   library: {
     icon: '📚',
     title: 'Library',
-    body: 'This is your unified game library.\nBrowse everything you own across platforms, filter and search your collection, and manage your backlog.'
+    body: 'Your entire game collection across every connected platform in one place.\nStart by filtering by Status — set games to Playing, Backlog, or Completed to bring order to your collection. Click any game to see full details, update your status, and leave a personal rating.'
   },
   discovery: {
     icon: '🧭',
     title: 'Discover',
-    body: 'Find great games you already own.\nBacklog Zero surfaces hidden gems, suggests similar titles, and helps you decide what to play next.'
+    body: 'Surface games you already own but have never given a real chance.\nRun Hidden Gems to find your most overlooked titles, or use Find Similar to get recommendations based on a game you love. Everything here is already in your library — no purchases needed.'
   },
   habits: {
     icon: '📊',
     title: 'Gaming Habits',
-    body: 'Your play history and gaming patterns.\nTrack sessions to see when you play, how long you play, and which games get the most time.'
+    body: 'A record of how, when, and what you actually play.\nLog a session after you play to build your history. Over time, Habits shows your peak play days, your most consistent games, and whether your playtime patterns are changing.'
   },
   goals: {
     icon: '🎯',
     title: 'Playtime Goals',
-    body: 'Set playtime milestones for games in your library and track your progress.\nCompleted goals appear in your Hall of Fame.'
+    body: 'Set milestones for games you want to put serious time into.\nPick a game, set a target hour count, and track your progress as you play. Games that hit 75% or more appear in the Almost There section. Completed goals go to your Hall of Fame.'
   },
   stats: {
     icon: '📈',
     title: 'Library Stats',
-    body: 'A snapshot of your collection — platforms, genres, backlog size, and library health.\nMost stats are interactive and link directly to the relevant games.'
+    body: 'A full breakdown of your collection by platform, genre, status, and backlog health.\nMost charts and bars are clickable — tap any segment to jump straight to the matching games in your library.'
+  },
+  wishlist: {
+    icon: '♡',
+    title: 'Wishlist',
+    body: 'Track games you want and monitor their prices across 40+ stores.\nAdd a game, set a target price or discount threshold, and Backlog Zero will flag it when it hits your number. The historical low is shown for every game so you know when a deal is actually good.'
+  },
+  friends: {
+    icon: '👥',
+    title: 'Friends',
+    body: 'Compare your Steam library with any friend\'s.\nEnter their Steam ID to see what they own that you don\'t — sorted by their playtime so the most-played recommendations surface first. You can wishlist anything interesting directly from the comparison. Games you both own are shown in the In Common tab.'
+  },
+  freegames: {
+    icon: '🎁',
+    title: 'Free Games',
+    body: 'Never miss a free game claim.\nThe Epic tab shows what\'s free right now and what\'s coming up next. Check the PC Giveaways tab for active giveaways across other platforms. Mark anything you\'ve claimed so you always know what\'s in your collection.'
+  },
+  identity: {
+    icon: '🗂',
+    title: 'Identity Dossier',
+    body: 'A classified record of your gaming behavior, updated each quarter.\nYour archetype is calculated from your actual play patterns — not self-reported. The Reality Check card shows how your backlog and activity compare. Open your full dossier to see the complete breakdown.'
   }
 };
 

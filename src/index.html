@@ -167,7 +167,7 @@
 <!-- ICON NAV -->
 <nav class="icon-nav">
   <div class="nav-logo">
-    <img src="bz_logo_circle_clean.svg" alt="Backlog Zero" class="nav-logo-img">
+    <img src="assets/bz_logo_circle_clean.svg" alt="Backlog Zero" class="nav-logo-img">
   </div>
 
   <div class="nav-item active" title="Library" data-page="library">
@@ -1120,7 +1120,7 @@
       </div>
 
       <div class="settings-brand-footer">
-        <img src="bz_logo_circle_clean.svg" class="settings-brand-logo" alt="Backlog Zero">
+        <img src="assets/bz_logo_circle_clean.svg" class="settings-brand-logo" alt="Backlog Zero">
         <div class="settings-brand-text">
           <div class="settings-brand-name">Backlog Zero</div>
           <div class="settings-brand-tagline">B + Z = 0</div>
@@ -1550,16 +1550,16 @@
   </div>
 </div>
 
-<!-- ══════════════════════════════════════════════════
-     ONBOARDING WIZARD
+
+<!-- ONBOARDING WIZARD
      ══════════════════════════════════════════════════ -->
 <div class="overlay" id="onboardingOverlay" style="z-index:10000">
   <div class="modal" style="max-width:600px;width:92vw;max-height:90vh;overflow:hidden;display:flex;flex-direction:column">
     <div class="modal-header" style="flex-shrink:0">
       <div style="display:flex;align-items:center;gap:12px">
-        <div style="font-size:22px">🎮</div>
+        <img src="assets/bz_logo_circle_clean.svg" class="onboard-logo" style="width:36px;height:36px;flex-shrink:0">
         <div>
-          <div class="modal-title" id="onboardTitle">Welcome to Nexus Library</div>
+          <div class="modal-title" id="onboardTitle">Welcome to Backlog Zero</div>
           <div style="font-size:11px;color:var(--text3);margin-top:2px" id="onboardSubtitle">Let's get your accounts connected</div>
         </div>
       </div>
@@ -1573,10 +1573,13 @@
     <div style="flex:1;overflow-y:auto;padding:20px 24px" id="onboardBody"></div>
 
     <!-- Footer -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-top:1px solid var(--border);flex-shrink:0">
-      <button class="settings-btn" id="onboardPrevBtn" style="opacity:0.5">← Back</button>
-      <div style="font-size:11px;color:var(--text3)" id="onboardStepLabel"></div>
-      <button class="settings-btn" id="onboardNextBtn" style="background:var(--steam-bg);border-color:var(--steam);color:var(--steam)">Next →</button>
+    <div style="padding:16px 24px 10px;border-top:1px solid var(--border);flex-shrink:0">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <button class="settings-btn" id="onboardPrevBtn" style="opacity:0.5">← Back</button>
+        <div style="font-size:11px;color:var(--text3);font-family:'Syne',sans-serif;font-weight:700" id="onboardStepLabel"></div>
+        <button class="settings-btn" id="onboardNextBtn" style="background:var(--steam-bg);border-color:var(--steam);color:var(--steam)">Next →</button>
+      </div>
+      <div style="text-align:center;font-size:10px;color:var(--text3);letter-spacing:0.12em;font-family:'Syne',sans-serif;font-weight:800;opacity:0.45">B+Z=0</div>
     </div>
   </div>
 </div>
