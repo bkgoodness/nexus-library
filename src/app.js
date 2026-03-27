@@ -137,6 +137,16 @@ const COVER_PALETTES = [
   ['#001a1a','#003d3d'], ['#1a1000','#382000'],
 ];
 
+var BRAND_FOOTER_HTML = 
+  '<div class="settings-brand-footer" style="margin-top:24px">' +
+    '<img src="bz_logo_circle_clean.svg" class="settings-brand-logo" alt="Backlog Zero">' +
+    '<div class="settings-brand-text">' +
+      '<div class="settings-brand-name">Backlog Zero</div>' +
+      '<div class="settings-brand-tagline">B + Z = 0</div>' +
+    '</div>' +
+    '<div class="settings-brand-version" id="settingsVersion2"></div>' +
+  '</div>';
+
 // ── 1. CORE STATE / GLOBALS ───────────────────────────────────
 
 let games = [];
@@ -694,7 +704,7 @@ function showPage(page) {
   if (page === 'stats')     renderStats();
   if (page === 'discovery') renderDiscoveryPage();
   if (page === 'dupes') renderDupesPage();
-  if (page === 'wishlist') { renderWishlist(); fetchWishlistCoversInBackground(); renderNotifHistory(); updateDealBadge(); }
+  if (page === 'wishlist') { renderWishlist(); fetchWishlistCoversInBackground(); renderNotifHistory(); updateDealBadge(); autoRefreshWishlistPrices(); }
   if (page === 'settings') {
     renderPlatformSyncHealth();
     initAutoSessionTracking();
@@ -714,6 +724,17 @@ function showPage(page) {
   var existingHint = document.getElementById('pageHintPopup');
   if (existingHint) existingHint.remove();
   maybeShowPageHint(page);
+
+  // Populate version number
+  var verEl = document.getElementById('settingsVersion');
+  if (verEl) {
+    try {
+      var pkg = window.require('../../package.json');
+      verEl.textContent = 'v' + pkg.version;
+    } catch(e) {
+      verEl.textContent = '';
+    }
+  }
 }
 
 // ── FILTER / VIEW ──
@@ -979,6 +1000,13 @@ async function saveFriendToHistory(id, name) {
   await window.nexus.store.set('friendHistory', history);
 }
 
+window.removeFriendHistory = async function(id) {
+  var history = await window.nexus.store.get('friendHistory') || [];
+  history = history.filter(function(f) { return f.id !== id; });
+  await window.nexus.store.set('friendHistory', history);
+  renderFriendHistory();
+};
+
 async function renderFriendHistory() {
   var el = document.getElementById('friendRecentList');
   if (!el) return;
@@ -988,13 +1016,19 @@ async function renderFriendHistory() {
     '<div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Recent</div>' +
     '<div style="display:flex;flex-wrap:wrap;gap:6px">' +
     history.map(function(f) {
-      return '<button onclick="loadFriendById(\'' + escHtml(f.id) + '\')" ' +
-        'style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--text2);cursor:pointer;white-space:nowrap" ' +
-        'onmouseenter="this.style.borderColor=\'var(--accent)\';this.style.color=\'var(--accent)\'" ' +
-        'onmouseleave="this.style.borderColor=\'var(--border)\';this.style.color=\'var(--text2)\'">' +
-        escHtml(f.name) +
-        '</button>';
-    }).join('') +
+  return '<span style="display:inline-flex;align-items:center;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:4px 12px;font-size:11px;">' +
+    '<button onclick="loadFriendById(\'' + escHtml(f.id) + '\')" ' +
+    'style="background:none;border:none;padding:0;font-size:11px;color:var(--text2);cursor:pointer;" ' +
+    'onmouseenter="this.style.color=\'var(--accent)\'" ' +
+    'onmouseleave="this.style.color=\'var(--text2)\'">' +
+    escHtml(f.name) +
+    '</button>' +
+    '<button onclick="removeFriendHistory(\'' + escHtml(f.id) + '\')" ' +
+    'style="background:none;border:none;padding:0;font-size:10px;color:var(--text3);cursor:pointer;line-height:1;" ' +
+    'onmouseenter="this.style.color=\'var(--text)\'" ' +
+    'onmouseleave="this.style.color=\'var(--text3)\'">×</button>' +
+    '</span>';
+}).join('') +
     '</div>';
 }
 
@@ -1091,7 +1125,11 @@ function renderFriendComparison() {
     more.className = 'friend-more';
     more.textContent = '+ ' + (theyHave.length - 100) + ' more games not shown';
     listEl.appendChild(more);
+  
   }
+    var footerEl = document.createElement('div');
+    footerEl.innerHTML = BRAND_FOOTER_HTML;
+    el.appendChild(footerEl.firstChild);
 }
 
 
@@ -1256,7 +1294,7 @@ function renderGoals() {
         '</div>'
       : '';
     el.innerHTML =
-      '<div class="empty-state" style="padding:40px 0"><div class="empty-icon">🎯</div><h3>No goals set</h3><p>Track how close you are to your playtime milestones.</p></div>' +
+      '<div class="empty-state" style="padding:40px 0"><div class="empty-icon">🎯</div><<h3>No milestones set</h3><p>Pick a game and set a target — track your progress as you play.</p></div>' +
       suggHtml;
     return;
   }
@@ -1303,117 +1341,7 @@ function renderGoals() {
 
   el.innerHTML = html;
   renderHallOfFame();
-}
-function renderCollectionValue() {
-  var el = document.getElementById('collectionValueArea');
-  if (!el) return;
-
-  // ── Price estimation tiers ─────────────────────────────────────────────────
-  // Priority: real wishlist price → metacritic-tier estimate → platform-tier estimate
-  function estimatePrice(g) {
-    // Real price from wishlist first
-    var wEntry = wishlist.find(function(w) { return normalizeTitle(w.title) === normalizeTitle(g.title); });
-    if (wEntry && wEntry.bestPrice !== null && wEntry.bestPrice !== undefined) {
-      return { price: wEntry.bestPrice, source: 'tracked' };
-    }
-    // Estimate by metacritic score (AAA vs mid-tier vs indie)
-    var mc = g.metacriticScore || 0;
-    if (mc >= 85)       return { price: 59.99, source: 'estimate' };
-    if (mc >= 70)       return { price: 39.99, source: 'estimate' };
-    if (mc >= 50)       return { price: 19.99, source: 'estimate' };
-    if (mc > 0)         return { price:  9.99, source: 'estimate' };
-    // No metacritic — guess by platform
-    var plats = g.platforms || [];
-    if (plats.includes('steam'))   return { price: 14.99, source: 'estimate' };
-    if (plats.includes('epic'))    return { price: 29.99, source: 'estimate' };
-    if (plats.includes('gog'))     return { price: 14.99, source: 'estimate' };
-    if (plats.includes('amazon'))  return { price: 14.99, source: 'estimate' };
-    if (plats.includes('xbox'))    return { price: 39.99, source: 'estimate' };
-    return { price: 9.99, source: 'estimate' };
-  }
-
-  var ownedGames    = games.filter(function(g) { return !g.gpCatalog; });
-  var valued        = ownedGames.map(function(g) {
-    var est = estimatePrice(g);
-    return { title: g.title, price: est.price, source: est.source, mc: g.metacriticScore, platforms: g.platforms };
-  });
-
-  var trackedGames  = valued.filter(function(v) { return v.source === 'tracked'; });
-  var estimatedGames = valued.filter(function(v) { return v.source === 'estimate'; });
-
-  var trackedValue   = trackedGames.reduce(function(s, v)   { return s + v.price; }, 0);
-  var estimatedValue = estimatedGames.reduce(function(s, v) { return s + v.price; }, 0);
-  var totalValue     = trackedValue + estimatedValue;
-  var avgPrice       = valued.length ? (totalValue / valued.length).toFixed(2) : null;
-  var coveragePct    = ownedGames.length ? Math.round(trackedGames.length / ownedGames.length * 100) : 0;
-
-  // Top 10 highest-value games (prefer tracked, then by price)
-  var topRows = valued.slice().sort(function(a,b) { return b.price - a.price; }).slice(0, 10)
-    .map(function(v) {
-      var badge = v.source === 'tracked'
-        ? '<span style="font-size:9px;background:rgba(74,222,128,0.15);color:#4ade80;border-radius:4px;padding:1px 5px;margin-left:6px">live</span>'
-        : '<span style="font-size:9px;background:rgba(255,255,255,0.06);color:var(--text3);border-radius:4px;padding:1px 5px;margin-left:6px">est.</span>';
-      return '<div class="stat-bar-row">' +
-        '<div class="stat-bar-label" style="flex:1;display:flex;align-items:center">' + escHtml(v.title) + badge + '</div>' +
-        '<div style="font-size:12px;color:#4ade80;font-weight:700">$' + v.price.toFixed(2) + '</div>' +
-      '</div>';
-    }).join('');
-
-  // Price tier breakdown
-  var tiers = [
-    { label: '$60+',    min: 60,    max: Infinity, color: '#a78bfa' },
-    { label: '$40–59',  min: 40,    max: 60,       color: '#7fc8f8' },
-    { label: '$20–39',  min: 20,    max: 40,       color: '#4ade80' },
-    { label: '$10–19',  min: 10,    max: 20,       color: '#facc15' },
-    { label: 'Under $10', min: 0,   max: 10,       color: '#fb923c' },
-  ];
-  var tierRows = tiers.map(function(t) {
-    var count = valued.filter(function(v) { return v.price >= t.min && v.price < t.max; }).length;
-    var pct   = valued.length ? Math.round(count / valued.length * 100) : 0;
-    if (!count) return '';
-    return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">' +
-      '<div style="font-size:11px;color:var(--text3);width:72px;flex-shrink:0">' + t.label + '</div>' +
-      '<div style="flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden">' +
-        '<div style="width:' + pct + '%;height:100%;background:' + t.color + ';border-radius:3px"></div>' +
-      '</div>' +
-      '<div style="font-size:11px;color:var(--text2);min-width:32px;text-align:right">' + count.toLocaleString() + '</div>' +
-    '</div>';
-  }).join('');
-
-  el.innerHTML =
-    '<div class="stat-bar-title" style="margin-bottom:4px">Collection Value</div>' +
-    '<div style="font-size:11px;color:var(--text3);margin-bottom:16px">' +
-      'Estimated retail value of your owned library. Live prices come from your wishlist tracker — everything else uses a Metacritic-based price tier estimate.' +
-    '</div>' +
-    '<div class="stats-cols" style="margin-bottom:16px">' +
-      '<div class="stats-panel">' +
-        '<div class="stat-bar-title">Est. Total Value</div>' +
-        '<div style="font-size:28px;font-weight:800;color:#4ade80;margin:8px 0">$' + Math.round(totalValue).toLocaleString() + '</div>' +
-        '<div style="font-size:11px;color:var(--text3);">' + ownedGames.length.toLocaleString() + ' owned games</div>' +
-        '<div style="font-size:11px;color:var(--text3);margin-top:4px">' +
-          '<span style="color:#4ade80">$' + Math.round(trackedValue).toLocaleString() + '</span> live · ' +
-          '<span style="color:var(--text2)">$' + Math.round(estimatedValue).toLocaleString() + '</span> estimated' +
-        '</div>' +
-      '</div>' +
-      '<div class="stats-panel">' +
-        '<div class="stat-bar-title">Live Price Coverage</div>' +
-        '<div style="font-size:28px;font-weight:800;color:var(--steam);margin:8px 0">' + coveragePct + '%</div>' +
-        '<div style="font-size:11px;color:var(--text3);margin-bottom:6px">' + trackedGames.length + ' games with real prices</div>' +
-        '<div style="font-size:11px;color:var(--text3);line-height:1.5">Add games to your Wishlist to get live prices and improve accuracy.</div>' +
-      '</div>' +
-      '<div class="stats-panel">' +
-        '<div class="stat-bar-title">Avg Price</div>' +
-        '<div style="font-size:28px;font-weight:800;color:var(--text2);margin:8px 0">' + (avgPrice ? '$' + avgPrice : '—') + '</div>' +
-        '<div style="font-size:11px;color:var(--text3)">per owned title</div>' +
-      '</div>' +
-    '</div>' +
-    // Price tier breakdown
-    '<div class="stats-panel" style="margin-bottom:12px">' +
-      '<div class="stat-bar-title" style="margin-bottom:12px">Price Distribution</div>' +
-      tierRows +
-    '</div>' +
-    // Top valued games
-    (topRows ? '<div class="stats-panel"><div class="stat-bar-title" style="margin-bottom:10px">Top Valued Games</div>' + topRows + '</div>' : '');
+  el.innerHTML += BRAND_FOOTER_HTML;
 }
 
 function populateGoalGameSelect() {
@@ -1434,7 +1362,9 @@ async function renderNotifHistory() {
   if (!el) return;
   var history = await window.nexus.notif.getHistory();
   if (!history.length) {
-    el.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:12px 0">No price alerts yet. Set a target price on a wishlist game.</div>';
+    el.innerHTML = wishlist.length
+      ? '<div style="font-size:12px;color:var(--text3);padding:12px 0">No price alerts set. Set a target price on any wishlist game to get notified when it drops.</div>'
+      : '';
     return;
   }
   var rows = history.map(function(n) {
@@ -1815,7 +1745,7 @@ function renderLibrary() {
   const area = document.getElementById('gameArea');
 
   if (list.length === 0) {
-    area.innerHTML = '<div class="empty-state"><div class="empty-icon">\uD83C\uDFAE</div><h3>No games found</h3><p>Try a different search or add games using the button above.</p></div>';
+    area.innerHTML = '<div class="empty-state"><div class="empty-icon">\uD83C\uDFAE</div><h3>Nothing matches</h3><p>Try adjusting your search or filters.</p></div>';
     return;
   }
 
@@ -1964,10 +1894,26 @@ function renderLibrary() {
 }
 
 // ── STATS PAGE ──
-function renderStats() {
+async function renderStats() {
   const area = document.getElementById('statsArea');
   const dupes = getDupes();
   const sc = function(p) { return games.filter(g => g.platforms.includes(p)).length; };
+
+  // ── Load sessions for burn down ──
+  var allSessionData = {};
+  try { allSessionData = await window.nexus.store.getByPrefix('sessions:') || {}; } catch(e) {}
+  var allSessions = [];
+  Object.entries(allSessionData).forEach(function(entry) {
+    var gameId = entry[0].replace('sessions:', '');
+    var game = games.find(function(g) { return String(g.id) === String(gameId); });
+    if (!game) return;
+    (entry[1] || []).forEach(function(s) {
+      var secs = Math.max(0, Number(s.seconds) || 0);
+      if (secs === 0) return;
+      allSessions.push({ gameId: gameId, title: game.title, game: game, date: new Date(s.date), seconds: secs });
+    });
+  });
+  allSessions.sort(function(a,b) { return b.date - a.date; });
 
   // Platform data
   const platData = [
@@ -2165,13 +2111,15 @@ function renderStats() {
       }).join('') +
       '</div></div>' : '') +
 
+
     '<div id="statsExtraPanels"></div>' +
-    '<div class="stats-panel" id="collectionValueArea"><div style="font-size:11px;color:var(--text3)">Loading…</div></div>';
+    burnDownSection(allSessions) +
+    BRAND_FOOTER_HTML;
+    
 
   // Render deferred panels (need DOM to exist first)
   requestAnimationFrame(function() {
     renderStatusPanel();
-    renderCollectionValue();
   });
 
     function statCard(num, label, color, filterTarget) {
@@ -2183,13 +2131,15 @@ function renderStats() {
       '<div class="stat-card-label">' + label + (filterTarget ? ' ↗' : '') + '</div>' +
       '</div>';
   }
+
+  
 }
 // ── DUPES PAGE ──
 function renderDupesPage() {
   var groups = getDupeGroups().filter(function(gr) { return gr.duplicates.length > 0 || gr.type === 'merged'; });
   var area = document.getElementById('dupesArea');
   if (groups.length === 0) {
-    area.innerHTML = '<div class="empty-state"><div class="empty-icon">\u2705</div><h3>No duplicates found!</h3><p>Every game in your library is unique.</p></div>';
+    area.innerHTML = '<div class="empty-state"><div class="empty-icon">\u2705</div><h3>Clean library.</h3><p>No duplicates detected — every title is unique across your platforms.</p></div>';
     return;
   }
 
@@ -3927,6 +3877,31 @@ async function addToWishlist() {
     if (steamGame) appId = steamGame.steamAppId;
   }
 
+  async function silentPriceCheck() {
+  if (!wishlist.length) return;
+  try {
+    var results = await window.nexus.prices.check(wishlist);
+    var updates = [];
+    wishlist.forEach(function(w) {
+      var info = results[w.id];
+      if (!info) return;
+      var update = { id: w.id, retailPrice: info.retailPrice, keyshopPrice: info.keyshopPrice,
+        bestPrice: info.bestPrice, ggdealsUrl: info.ggdealsUrl, lastChecked: info.lastChecked,
+        noApiData: info.noApiData || false };
+      if (info.histRetail !== undefined) update.histRetail = info.histRetail;
+      if (info.histKeyshop !== undefined) update.histKeyshop = info.histKeyshop;
+      if (info.bestPrice !== null && info.bestPrice !== undefined) {
+        if (!w.lowestPrice || info.bestPrice < w.lowestPrice) update.lowestPrice = info.bestPrice;
+      }
+      updates.push(update);
+    });
+    if (updates.length) {
+      wishlist = await window.nexus.wishlist.updatePrices(updates);
+      renderWishlist();
+    }
+  } catch(e) { /* silent fail */ }
+}
+
   var result = await window.nexus.wishlist.add({
     title: title,
     steamAppId: appId || null,
@@ -3941,15 +3916,28 @@ async function addToWishlist() {
   closeWishModal();
   renderWishlist();
   updateNavWishPip();
+  setTimeout(silentPriceCheck, 800);
 }
 
 async function removeFromWishlist(id) {
+  console.log('removeFromWishlist called with id:', id, typeof id);
   if (confirm('Remove this game from your wishlist?')) {
     await window.nexus.wishlist.delete(id);
     wishlist = await window.nexus.wishlist.getAll();
     renderWishlist();
     updateNavWishPip();
   }
+}
+
+
+
+async function autoRefreshWishlistPrices() {
+  if (!wishlist.length) return;
+  var staleThreshold = 6 * 60 * 60 * 1000;
+  var needsRefresh = wishlist.some(function(w) {
+    return !w.lastChecked || (Date.now() - new Date(w.lastChecked).getTime()) > staleThreshold;
+  });
+  if (needsRefresh) setTimeout(silentPriceCheck, 1500);
 }
 
 function updateNavWishPip() {
@@ -3992,8 +3980,8 @@ function renderWishlist() {
     area.innerHTML =
       '<div class="wish-empty">' +
         '<div class="wish-empty-icon">\u2764\uFE0F</div>' +
-        '<h3>' + (q ? 'No results' : 'Your wishlist is empty') + '</h3>' +
-        '<p>' + (q ? 'Try a different search.' : 'Click \u201cAdd to Wishlist\u201d to track games and get sale alerts.') + '</p>' +
+        '<h3>' + (q ? 'No results' : 'Nothing on the radar yet') + '</h3>' +
+        '<p>' + (q ? 'Try a different search.' : 'Add games to your wishlist to track prices and get notified when they drop.') + '</p>'
       '</div>';
     return;
   }
@@ -4085,17 +4073,24 @@ function renderWishlist() {
         '<button class="wish-action-btn" data-action="remove">Remove</button>' +
       '</div>';
 
-    card.querySelector('.wish-delete').addEventListener('click', function() { removeFromWishlist(w.id); });
-    card.querySelector('[data-action="remove"]').addEventListener('click', function() { removeFromWishlist(w.id); });
-    card.querySelector('.gg-btn').addEventListener('click', function() { window.open(ggUrl, '_blank'); });
+    (function(id, url) {
+      card.querySelector('.wish-delete').addEventListener('click', function() { removeFromWishlist(id); });
+      card.querySelector('[data-action="remove"]').addEventListener('click', function() { removeFromWishlist(id); });
+      card.querySelector('.gg-btn').addEventListener('click', function() { window.open(url, '_blank'); });
+      var histBtn = card.querySelector('.hist-btn');
+      if (histBtn) histBtn.addEventListener('click', function() { showPriceHistory(w); });
+    })(w.id, ggUrl);
     var histBtn = card.querySelector('.hist-btn');
     if (histBtn) histBtn.addEventListener('click', function() { showPriceHistory(w); });
 
     grid.appendChild(card);
   });
 
-  area.innerHTML = '';
-  area.appendChild(grid);
+    area.innerHTML = '';
+    area.appendChild(grid);
+    var footer = document.createElement('div');
+    footer.innerHTML = BRAND_FOOTER_HTML;
+    area.appendChild(footer.firstChild);
 
   // Attach onerror handlers to wish cover images
   grid.querySelectorAll('img.wish-cover[data-wishid]').forEach(function(img) {
@@ -5615,6 +5610,124 @@ async function stopSessionTimer() {
 // ════════════════════════════════════════════════════════
 // GAMING HABITS PAGE
 // ════════════════════════════════════════════════════════
+function renderFavoritePlaytime(sessions) {
+  var windows = { Morning: 0, Afternoon: 0, Evening: 0, 'Late Night': 0 };
+  sessions.forEach(function(s) {
+    if (!s.startTime) return;
+    var h = new Date(s.startTime).getHours();
+    if (h >= 5 && h < 12)  windows['Morning']   += s.seconds || 0;
+    else if (h >= 12 && h < 17) windows['Afternoon'] += s.seconds || 0;
+    else if (h >= 17 && h < 22) windows['Evening']   += s.seconds || 0;
+    else                         windows['Late Night'] += s.seconds || 0;
+  });
+  var total = Object.values(windows).reduce(function(a,b){return a+b;}, 0) || 1;
+  var peak = Object.keys(windows).reduce(function(a,b){ return windows[a] > windows[b] ? a : b; });
+  var peakLabel = { Morning: '6am – 11am', Afternoon: '12pm – 4pm', Evening: '5pm – 9pm', 'Late Night': '10pm – 2am' }[peak];
+  var max = Math.max.apply(null, Object.values(windows)) || 1;
+
+  var bars = Object.keys(windows).map(function(k) {
+    var pct = Math.round((windows[k] / total) * 100);
+    var w   = Math.round((windows[k] / max) * 100);
+    return '<div class="habits-time-row">' +
+      '<div class="habits-time-label">' + k + '</div>' +
+      '<div class="habits-time-track"><div class="habits-time-fill" style="width:' + w + '%;opacity:' + (0.4 + (w/100)*0.6).toFixed(2) + '"></div></div>' +
+      '<div class="habits-time-val">' + pct + '%</div>' +
+    '</div>';
+  }).join('');
+
+  return '<div class="habits-panel">' +
+    '<div class="habits-panel-title">⏰ Favorite Playtime</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5">When you actually sit down to play — based on your session history.</div>' +
+    '<div class="habits-time-bars">' + (total > 1 ? bars : '<div style="font-size:11px;color:var(--text3)">No session data yet.</div>') + '</div>' +
+    (total > 1 ? '<div class="habits-time-peak"><div class="habits-time-peak-label">Peak Window</div><div class="habits-time-peak-val">' + peakLabel + '</div></div>' : '') +
+  '</div>';
+}
+
+function renderSessionConsistency(sessions) {
+  if (!sessions.length) {
+    return '<div class="habits-panel"><div class="habits-panel-title">📈 Session Consistency</div>' +
+      '<div style="font-size:11px;color:var(--text3)">No sessions logged yet.</div></div>';
+  }
+
+  // Build day map
+  var dayMap = {};
+  sessions.forEach(function(s) {
+    if (!s.startTime) return;
+    var d = new Date(s.startTime).toDateString();
+    dayMap[d] = (dayMap[d] || 0) + (s.seconds || 0);
+  });
+
+  // Streak calculation
+  var today = new Date(); today.setHours(0,0,0,0);
+  var currentStreak = 0, longestStreak = 0, tempStreak = 0;
+  var allDays = [];
+  for (var i = 0; i < 365; i++) {
+    var d = new Date(today); d.setDate(d.getDate() - i);
+    allDays.push(d.toDateString());
+  }
+  var counting = true;
+  allDays.forEach(function(d) {
+    if (dayMap[d]) {
+      tempStreak++;
+      if (counting) currentStreak++;
+      longestStreak = Math.max(longestStreak, tempStreak);
+    } else {
+      counting = false;
+      tempStreak = 0;
+    }
+  });
+
+  // Sessions per week
+  var weeks = Math.max(1, Math.ceil(sessions.length / 7));
+  var avgPerWeek = (sessions.length / weeks).toFixed(1);
+
+  // Longest gap
+  var dates = Object.keys(dayMap).map(function(d){ return new Date(d); }).sort(function(a,b){return a-b;});
+  var longestGap = 0;
+  for (var i = 1; i < dates.length; i++) {
+    var gap = Math.round((dates[i] - dates[i-1]) / (1000*60*60*24));
+    longestGap = Math.max(longestGap, gap);
+  }
+
+  // 30-day dots
+  var dots = '';
+  for (var i = 29; i >= 0; i--) {
+    var d = new Date(today); d.setDate(d.getDate() - i);
+    var secs = dayMap[d.toDateString()] || 0;
+    var cls = secs > 3600 ? 'habits-dot-active' : secs > 0 ? 'habits-dot-mid' : 'habits-dot-inactive';
+    dots += '<div class="habits-dot ' + cls + '"></div>';
+  }
+
+  // Weekend vs weekday insight
+  var weSecs = 0, wdSecs = 0, weCnt = 0, wdCnt = 0;
+  sessions.forEach(function(s) {
+    if (!s.startTime) return;
+    var dow = new Date(s.startTime).getDay();
+    if (dow === 0 || dow === 6) { weSecs += s.seconds||0; weCnt++; }
+    else { wdSecs += s.seconds||0; wdCnt++; }
+  });
+  var weAvg = weCnt ? Math.round(weSecs/weCnt/60) : 0;
+  var wdAvg = wdCnt ? Math.round(wdSecs/wdCnt/60) : 0;
+  var insight = weAvg > wdAvg
+    ? 'You play most on <strong>weekends</strong> — averaging <strong>' + weAvg + 'm</strong> per session vs <strong>' + wdAvg + 'm</strong> on weekdays.'
+    : 'You play most on <strong>weekdays</strong> — averaging <strong>' + wdAvg + 'm</strong> per session vs <strong>' + weAvg + 'm</strong> on weekends.';
+  if (longestGap > 0) insight += ' Longest gap: <strong>' + longestGap + ' days</strong>.';
+
+  return '<div class="habits-panel">' +
+    '<div class="habits-panel-title">📈 Session Consistency</div>' +
+    '<div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.5">Your play rhythm — streaks, gaps, and weekly patterns.</div>' +
+    '<div class="habits-consistency-grid">' +
+      '<div class="habits-consistency-stat"><div class="habits-consistency-val" style="color:var(--accent)">' + currentStreak + '</div><div class="habits-consistency-label">Current streak (days)</div></div>' +
+      '<div class="habits-consistency-stat"><div class="habits-consistency-val" style="color:#4ade80">' + longestStreak + '</div><div class="habits-consistency-label">Longest streak ever</div></div>' +
+      '<div class="habits-consistency-stat"><div class="habits-consistency-val">' + avgPerWeek + '</div><div class="habits-consistency-label">Avg sessions / week</div></div>' +
+      '<div class="habits-consistency-stat"><div class="habits-consistency-val" style="color:#f59e0b">' + longestGap + '</div><div class="habits-consistency-label">Longest gap (days)</div></div>' +
+    '</div>' +
+    '<div class="habits-dots-label">Last 30 days</div>' +
+    '<div class="habits-streak-dots">' + dots + '</div>' +
+    '<div class="habits-consistency-insight">' + insight + '</div>' +
+  '</div>';
+}
+
 async function renderHabitsPage() {
   var el = document.getElementById('habitsContent');
   if (!el) return;
@@ -5929,8 +6042,19 @@ async function renderHabitsPage() {
   // ── BUILD PAGE ──
   el.innerHTML =
 
-    // ════ TIER 1: HERO ════
-    sectionLabel('Overview') +
+    el.innerHTML =
+
+      // Brand stamp
+      '<div class="habits-brand-stamp">' +
+        '<img src="bz_logo_circle_clean.svg" class="habits-brand-stamp-logo" alt="Backlog Zero">' +
+        '<div class="habits-brand-stamp-name">Backlog Zero</div>' +
+        '<div class="habits-brand-stamp-divider"></div>' +
+        '<div class="habits-brand-stamp-tagline">B + Z = 0</div>' +
+      '</div>' +
+      
+
+  // ══ TIER 1: HERO ══
+  sectionLabel('Overview') +
 
     // Stat cards with trend indicators
     '<div class="habits-stat-row" style="margin-bottom:12px">' +
@@ -5955,8 +6079,13 @@ async function renderHabitsPage() {
       ? '<div class="habits-panel" style="margin-bottom:12px"><div class="habits-panel-title">📅 Play Activity by Day of Week</div>' + dowHtml + '</div>'
       : '') +
 
-    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">' +
-      '<div class="habits-panel"><div class="habits-panel-title">🕹 Recently Played</div>' + recentHtml + '</div>' +
+    '<div class="habits-pair-grid">' +
+      renderFavoritePlaytime(allSessions) +
+      renderSessionConsistency(allSessions) +
+    '</div>' +
+
+    '<div class="habits-pair-grid">' +
+      '<div class="habits-panel"><div class="habits-panel-title">🎮 Recently Played</div>' + recentHtml + '</div>' +
       '<div class="habits-panel"><div class="habits-panel-title">📝 Session Log</div>' + sessionLogHtml + '</div>' +
     '</div>' +
 
@@ -5971,8 +6100,8 @@ async function renderHabitsPage() {
     '</div>' +
 
     ratingsHtml +
-    burnDownSection(allSessions) +
-    cphHtml;
+    cphHtml +
+    BRAND_FOOTER_HTML;
 }
 
 
@@ -9183,6 +9312,8 @@ window.discClearSeed = function() {
   if (clearBtn) clearBtn.style.display = 'none';
   if (seedEl) seedEl.innerHTML = '';
   if (cardsEl) cardsEl.innerHTML = '';
+  var dropdown = document.getElementById('discSimilarDropdown');
+  if (dropdown) dropdown.innerHTML = '';
 };
 
 window.discOpenTopRatedPicker = function() {
@@ -9195,7 +9326,7 @@ window.discOpenTopRatedPicker = function() {
     .sort(function(a,b) { return b.userRating - a.userRating || a.title.localeCompare(b.title); });
 
   if (!rated.length) {
-    list.innerHTML = '<div style="padding:20px;font-size:12px;color:var(--text3);text-align:center">No rated games yet.<br>Rate games from their detail panel.</div>';
+    list.innerHTML = '<div style="padding:20px;font-size:12px;color:var(--text3);text-align:center">No ratings yet.<br>Rate games from their detail panel.</div>';
   } else {
     list.innerHTML = rated.map(function(g) {
       var cover  = coverCache[g.id] || coverCache[String(g.id)];

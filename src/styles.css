@@ -1560,6 +1560,68 @@ body.accessible-mode .filter-chip.active {
 .settings-link { color:var(--steam); text-decoration:none; }
 .settings-link:hover { text-decoration:underline; }
 .settings-row { display:flex; gap:9px; align-items:center; flex-wrap:wrap; }
+
+/* Settings brand footer */
+.settings-brand-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 28px 4px 12px;
+  border-top: 1px solid var(--border);
+  margin-top: 24px;
+}
+.settings-brand-logo {
+  width: 28px;
+  height: 28px;
+  opacity: 0.5;
+  flex-shrink: 0;
+}
+.settings-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+}
+.settings-brand-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  letter-spacing: -0.01em;
+}
+.settings-brand-tagline {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: var(--text3);
+  text-transform: uppercase;
+}
+.settings-brand-version {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 10px;
+  color: var(--text3);
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+
+/* Boost footer visibility in dark and accessible modes */
+body:not(.light-mode) .settings-brand-logo {
+  filter: invert(62%) sepia(30%) saturate(450%) hue-rotate(152deg) brightness(95%) contrast(90%);
+  opacity: 0.9;
+}
+body.light-mode .settings-brand-logo {
+  filter: invert(40%) sepia(40%) saturate(500%) hue-rotate(152deg) brightness(85%) contrast(100%);
+  opacity: 1;
+}
+body:not(.light-mode) .settings-brand-name {
+  color: var(--text);
+  opacity: 0.7;
+}
+body:not(.light-mode) .settings-brand-tagline,
+body:not(.light-mode) .settings-brand-version {
+  opacity: 0.5;
+}
 .settings-input { flex:1; min-width:180px; background-color:var(--bg2); border:1px solid var(--border); color:var(--text); padding:9px 13px; border-radius:8px; font-family:'Instrument Sans',sans-serif; font-size:12px; outline:none; transition:border-color 0.15s; }
 .settings-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(var(--accent-rgb),0.20);}
 .settings-input::placeholder { color:var(--text3); }
@@ -1579,6 +1641,12 @@ body.accessible-mode .filter-chip.active {
 .empty-icon { font-size:36px; opacity:0.35; }
 .empty-state h3 { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; color:var(--text2); }
 .empty-state p { font-size:12px; max-width:250px; line-height:1.6; }
+
+/* Wishlist empty state */
+.wish-empty { display:flex; flex-direction:column; align-items:flex-start; justify-content:center; padding:32px 0; gap:6px; }
+.wish-empty-icon { font-size:24px; opacity:0.5; margin-bottom:4px; }
+.wish-empty h3 { font-family:'Syne',sans-serif; font-size:15px; font-weight:700; color:var(--text2); margin:0; }
+.wish-empty p { font-size:12px; color:var(--text3); max-width:320px; line-height:1.6; margin:0; }
 
 /* ── BASE MODAL ── */
 .overlay { position:fixed; inset:0; background:rgba(0,0,0,0.72); backdrop-filter:blur(12px); z-index:500; display:flex; align-items:center; justify-content:center; padding:20px; opacity:0; pointer-events:none; transition:opacity 0.2s; }
@@ -2184,6 +2252,152 @@ body.light-mode .left-info-value.plain {
 .habits-stat-card { background:var(--surface2); border:1px solid var(--border); border-radius:10px; padding:14px 12px; text-align:center; }
 .habits-stat-val { font-family:'Syne',sans-serif; font-size:22px; font-weight:900; color:var(--text); line-height:1; }
 .habits-stat-label { font-size:10px; color:var(--text3); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px; }
+
+/* ── Habits brand stamp ── */
+.habits-brand-stamp {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.habits-brand-stamp-logo {
+  width: 32px;
+  height: 32px;
+  opacity: 0.7;
+  filter: invert(62%) sepia(30%) saturate(450%) hue-rotate(152deg) brightness(95%) contrast(90%);
+  flex-shrink: 0;
+}
+.habits-brand-stamp-name {
+  font-family: 'Syne', sans-serif;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.habits-brand-stamp-divider {
+  width: 1px;
+  height: 14px;
+  background: var(--border2);
+  flex-shrink: 0;
+}
+.habits-brand-stamp-tagline {
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--text3);
+}
+body.light-mode .habits-brand-stamp-logo {
+  filter: invert(40%) sepia(40%) saturate(500%) hue-rotate(152deg) brightness(85%) contrast(100%);
+  opacity: 0.85;
+}
+body.light-mode .habits-brand-stamp-name {
+  color: var(--text);
+}
+body.light-mode .habits-brand-stamp-tagline {
+  color: var(--text2);
+}
+
+/* ── Habits two-column pair grid ── */
+.habits-pair-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.habits-pair-grid .habits-panel {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Favorite Playtime module ── */
+.habits-time-bars { display: flex; flex-direction: column; gap: 9px; flex: 1; }
+.habits-time-row { display: flex; align-items: center; gap: 10px; }
+.habits-time-label { font-size: 11px; color: var(--text2); width: 80px; flex-shrink: 0; }
+.habits-time-track { flex: 1; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+.habits-time-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.habits-time-val { font-size: 11px; font-weight: 700; color: var(--text); width: 32px; text-align: right; flex-shrink: 0; }
+.habits-time-peak {
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+.habits-time-peak-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+.habits-time-peak-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-left: auto;
+}
+
+/* ── Session Consistency module ── */
+.habits-consistency-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.habits-consistency-stat {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.habits-consistency-val {
+  font-family: 'Syne', sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.habits-consistency-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 0.3px;
+  line-height: 1.3;
+}
+.habits-dots-label {
+  font-size: 9px;
+  color: var(--text3);
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 7px;
+}
+.habits-streak-dots {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.habits-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+.habits-dot-active { background: var(--accent); }
+.habits-dot-mid { background: var(--accent); opacity: 0.4; }
+.habits-dot-inactive { background: var(--surface2); border: 1px solid var(--border); }
+.habits-consistency-insight {
+  font-size: 11px;
+  color: var(--text3);
+  line-height: 1.55;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
 
 /* Day of week chart */
 .habits-dow-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:6px; align-items:end; height:100px; }
