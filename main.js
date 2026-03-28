@@ -232,6 +232,54 @@ function createWindow() {
   });
 }
 
+  // Archetype Exporter
+  ipcMain.handle('app:captureDossier', async (_event, rect) => {
+  console.log('[Main] captureDossier called with rect:', rect);
+  try {
+    const win = BrowserWindow.getAllWindows()[0];
+    console.log('[Main] win:', win ? 'found' : 'null');
+    if (!win) return { error: 'No window found' };
+
+    // capturePage with no rect captures the full visible page
+    const image = await win.webContents.capturePage();
+    console.log('[Main] captured full page, cropping...');
+
+    // Get the device pixel ratio for retina displays
+    const dpr = rect.dpr || 1;
+
+
+    // Crop to the card rect
+    const cropped = image.crop({
+      x: Math.round(rect.x * dpr),
+      y: Math.round(rect.y * dpr),
+      width: Math.round(rect.width * dpr),
+      height: Math.round(rect.height * dpr)
+    });
+
+    const buffer = cropped.toPNG();
+    console.log('[Main] buffer size:', buffer.length);
+
+    const { dialog } = require('electron');
+    const now = new Date();
+    const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+    const defaultName = 'backlog-zero-dossier-' + monthNames[now.getMonth()] + '-' + now.getFullYear() + '.png';
+
+    const { filePath } = await dialog.showSaveDialog(win, {
+      defaultPath: defaultName,
+      filters: [{ name: 'PNG Image', extensions: ['png'] }]
+    });
+
+    if (!filePath) return { cancelled: true };
+    require('fs').writeFileSync(filePath, buffer);
+    console.log('[Main] saved to:', filePath);
+    return { saved: true, filePath };
+
+  } catch(e) {
+    console.error('[Main] captureDossier error:', e);
+    return { error: e.message };
+  }
+});
+
 app.whenReady().then(() => {
   seedIfEmpty();
   createWindow();

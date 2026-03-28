@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('nexus', {
   },
   app: {
     fullReset: () => ipcRenderer.invoke('app:fullReset'),
+    captureDossier: (rect) => ipcRenderer.invoke('app:captureDossier', rect),
   },
   library: {
     exportJSON: () => ipcRenderer.invoke('library:exportJSON'),
